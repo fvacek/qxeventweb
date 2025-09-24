@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js'
 import solidLogo from './assets/solid.svg'
 import viteLogo from '/vite.svg'
-import './app.css'
+import './App.css'
 import { Button } from '~/components/ui/button'
 
 function App() {
@@ -19,7 +19,7 @@ function App() {
       </div>
       <h1>Vite + Solid</h1>
       <div class="card">
-        <Button onClick={() => setCount((count) => count + 1)}>
+        <Button variant="destructive" onClick={() => setCount((count) => count + 1)}>
           count is {count()}
         </Button>
         <p>
