@@ -1,36 +1,17 @@
-import { createSignal } from 'solid-js'
-import solidLogo from './assets/solid.svg'
-import viteLogo from '/vite.svg'
-import './appui.css'
-import { Button } from '~/components/ui/button'
+import { ParentProps } from "solid-js"
+import { Footer } from "./components/Footer"
+import NavHeader from "./components/NavHeader"
 
-function App() {
-  const [count, setCount] = createSignal(0)
+export const App = (props: ParentProps) => {
+    return (
+        <div class="text-secondary mx-auto flex h-full w-full max-w-[1200px] flex-col justify-center bg-[var(--primary)] text-[var(--secondary)] transition">
+            <NavHeader />
 
-  return (
-    <main class="container">
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} class="logo" alt="Vite logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={solidLogo} class="logo solid" alt="Solid logo" />
-        </a>
-      </div>
-      <h1>Vite + Solid</h1>
-      <div class="card">
-        <Button variant="destructive" onClick={() => setCount((count) => count + 1)}>
-          count is {count()}
-        </Button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p class="read-the-docs">
-        Click on the Vite and Solid logos to learn more
-      </p>
-    </main>
-  )
+            <main class="flex w-full grow flex-col items-center">
+                {props.children}
+            </main>
+
+            <Footer />
+        </div>
+    )
 }
-
-export default App
