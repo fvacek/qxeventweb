@@ -1,8 +1,8 @@
 {
-    "name": "template-axum-solidjs-spa",
+    "name": "qxevent",
     "version": "0.1.0",
-    "repository": "https://github.com/robertwayne/template-axum-solidjs-spa",
-    "author": "Rob Wagner <rob@sombia.com>",
+    "repository": "https://github.com/fvacek/qxevent",
+    "author": "Fanda Vacek, fandavacek@gmail.com",
     "license": "MIT-0",
     "type": "module",
     "private": true,
