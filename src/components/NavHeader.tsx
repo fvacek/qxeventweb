@@ -26,6 +26,10 @@ const NavHeader = (): JSX.Element => {
             name: "About",
             to: "/about",
         },
+        {
+            name: "Broker",
+            to: "/broker",
+        },
     ]
 
     /**
@@ -70,7 +74,7 @@ const NavHeader = (): JSX.Element => {
                                 width="44px"
                                 height="44px"
                                 class={
-                                    theme() === "light" ? "invert" : "invert-0"
+                                    theme() === "light" ? "invert-0" : "invert"
                                 }
                             />
                         </button>
@@ -133,7 +137,7 @@ const NavHeader = (): JSX.Element => {
     return (
         <header class="flex w-full items-center justify-between p-4">
             <h1 class="text-3xl font-bold">
-                <A href="/">Template</A>
+                <A href="/">QxEvent</A>
             </h1>
 
             <nav>
@@ -147,7 +151,7 @@ const NavHeader = (): JSX.Element => {
                         width="44px"
                         height="44px"
                         alt="open menu"
-                        class={theme() === "light" ? "invert" : "invert-0"}
+                        class={theme() === "light" ? "invert-0" : "invert"}
                     />
                 </button>
 

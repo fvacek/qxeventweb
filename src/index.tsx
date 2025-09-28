@@ -1,6 +1,7 @@
 import "./index.css"
 
 import { App } from "./App"
+import { Broker } from "./routes/Broker"
 import { Route, Router } from "@solidjs/router"
 import { render } from "solid-js/web"
 import { lazy } from "solid-js"
@@ -26,6 +27,7 @@ if (app) {
             <Router root={App}>
                 <Route path="/" component={Home} />
                 <Route path="/about" component={About} />
+                <Route path="/broker" component={Broker} />
                 <Route path="*" component={NotFound} />
             </Router>
         ),

@@ -15,12 +15,17 @@
         "tsc:watch": "tsc --noEmit --watch"
     },
     "dependencies": {
+        "@kobalte/core": "^0.13.11",
         "@solidjs/router": "0.15.3",
-        "solid-js": "1.9.6"
+        "class-variance-authority": "^0.7.1",
+        "libshv-js": "^3.23.1",
+        "solid-js": "^1.9.9",
+        "tailwind-merge": "^3.3.1"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.5",
         "@types/bun": "~1.2.12",
+        "@types/node": "^24.5.2",
         "prettier": "~3.5.3",
         "prettier-plugin-tailwindcss": "^0.6.11",
         "tailwindcss": "^4.1.5",
