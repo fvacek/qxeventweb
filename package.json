@@ -18,9 +18,11 @@
         "@kobalte/core": "^0.13.11",
         "@solidjs/router": "0.15.3",
         "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
         "libshv-js": "^3.23.1",
         "solid-js": "^1.9.9",
-        "tailwind-merge": "^3.3.1"
+        "tailwind-merge": "^3.3.1",
+        "tailwindcss-animate": "^1.0.7"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.5",
