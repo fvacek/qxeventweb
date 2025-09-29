@@ -1,11 +1,33 @@
+import { createSignal } from "solid-js";
 import { useWsClient } from "~/context/WsClientContext";
+import { Badge } from "./ui/badge";
+import BrokerDialog from "./BrokerDialog";
 
 export default function WsClientStatusIndicator() {
   const { status } = useWsClient();
+  const [isDialogOpen, setIsDialogOpen] = createSignal(false);
+
+  const getVariant = () => {
+    return status() === "Connected" ? undefined : "error";
+  };
+
+  const handleClick = () => {
+    setIsDialogOpen(true);
+  };
 
   return (
-    <div>
-      <p>Broker: <strong>{status()}</strong></p>
-    </div>
+    <>
+      <Badge 
+        variant={getVariant()} 
+        class="cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={handleClick}
+      >
+        {status()}
+      </Badge>
+      <BrokerDialog 
+        open={isDialogOpen()} 
+        onOpenChange={setIsDialogOpen} 
+      />
+    </>
   );
 }

@@ -16,38 +16,8 @@ export const Broker: Component = () => {
   const handleLogin = (e: Event) => {
     e.preventDefault();
     setConnectionStatus('Connecting...');
-
-    try {
-      new WsClient({
-        logDebug: console.debug,
-        wsUri: brokerUrl(),
-        login: {
-          type: 'PLAIN',
-          user: username(),
-          password: password(),
-        },
-        onConnected: () => {
-          setConnectionStatus('Connected');
-        },
-        onDisconnected: () => {
-          setConnectionStatus('Disconnected');
-        },
-        onConnectionFailure: (error: Error) => {
-          setConnectionStatus(`Connection failed: ${error.message}`);
-        },
-        onRequest: (shvPath: string) => {
-          console.log(`Requesting SHV path: ${shvPath}`);
-          return undefined;
-        },
-      });
-
-      // Use client to prevent unused variable warning
-      // client.connect?.();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setConnectionStatus(`Error: ${errorMessage}`);
-    }
   };
+
 
   return (
     <Card class="w-[380px]">

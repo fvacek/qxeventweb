@@ -116,8 +116,8 @@ const NavHeader = (): JSX.Element => {
                         </li>
                     )
                 })}
-                <li class="flex items-center justify-center">
-                  <WsClientStatusIndicator></WsClientStatusIndicator>
+                <li class="ml-4 flex">
+                    <WsClientStatusIndicator/>
                 </li>
                 <li class="flex items-center justify-center">
                     <button onClick={toggleTheme} class="ml-4 flex border-none">
