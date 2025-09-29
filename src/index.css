@@ -27,6 +27,9 @@
     --color-popover-foreground: var(--popover-foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
+
+    --radius: 0.5rem;
+
 }
 
 [data-theme="light"] {
@@ -59,8 +62,6 @@
     --destructive-foreground: #fafafa;
 
     --ring: #18181b;
-
-  --radius: 0.5rem;
 }
 
 [data-theme="dark"] {
@@ -93,8 +94,6 @@
     --destructive-foreground: #fafafa;
 
     --ring: #d4d4d8;
-
-  --radius: 0.5rem;
 }
 
 html,
