@@ -43,7 +43,7 @@
     --ok: limegreen;
     --warn: orange;
     --error: red;
-    --ok-foreground: black;
+    --ok-foreground: var(--muted-foreground);
     --warn-foreground: black;
     --error-foreground: black;
 
@@ -79,10 +79,10 @@
     --secondary: #e0d5c7;
     --highlight: #ffcc33;
 
-    --ok: limegreen;
+    --ok: green;
     --warn: orange;
     --error: #ef4444;
-    --ok-foreground: black;
+    --ok-foreground: var(--muted-foreground);
     --warn-foreground: black;
     --error-foreground: white;
 
@@ -104,7 +104,7 @@
     --card: #0a0a0b;
     --card-foreground: #fafafa;
 
-    --primary-foreground: var(--secondary);
+    --primary-foreground: white;
     --secondary-foreground: var(--primary);
 
     --destructive: #7c2d12;
