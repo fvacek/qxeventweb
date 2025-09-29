@@ -7,6 +7,7 @@ import darkModeIcon from "../../assets/moon.svg"
 import lightModeIcon from "../../assets/sun.svg"
 import menuIcon from "../../assets/menu.svg"
 import { theme, toggleTheme } from "../stores/theme"
+import WsClientStatusIndicator from "./WsClientStatusIndicator"
 
 const NavHeader = (): JSX.Element => {
     const [menuIsOpen, setMenuIsOpen] = createSignal(false)
@@ -115,7 +116,9 @@ const NavHeader = (): JSX.Element => {
                         </li>
                     )
                 })}
-
+                <li class="flex items-center justify-center">
+                  <WsClientStatusIndicator></WsClientStatusIndicator>
+                </li>
                 <li class="flex items-center justify-center">
                     <button onClick={toggleTheme} class="ml-4 flex border-none">
                         <img

@@ -35,7 +35,7 @@ export const Broker: Component = () => {
         onConnectionFailure: (error: Error) => {
           setConnectionStatus(`Connection failed: ${error.message}`);
         },
-        onRequest: (shvPath) => {
+        onRequest: (shvPath: string) => {
           console.log(`Requesting SHV path: ${shvPath}`);
           return undefined;
         },
