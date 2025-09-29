@@ -4,7 +4,7 @@ import type { Component } from 'solid-js';
 import { WsClient } from 'libshv-js';
 import { TextField, TextFieldInput, TextFieldLabel } from '~/components/ui/text-field';
 import { Button } from '~/components/ui/button';
-import { Alert } from '~/components/ui/alert';
+import { Alert, AlertTitle } from '~/components/ui/alert';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '~/components/ui/card';
 
 export const Broker: Component = () => {
@@ -76,12 +76,12 @@ export const Broker: Component = () => {
             onInput={(e) => setPassword(e.currentTarget.value)}
           />
         </TextField>
-        <Button variant="destructive" onClick={handleLogin}> Login </Button>
+        <Button onClick={handleLogin}> Login </Button>
       </CardContent>
       <CardFooter>
         {connectionStatus() && (
           <Alert variant={connectionStatus() === 'Connected' ? 'default' : 'destructive'}>
-            {connectionStatus()}
+            <AlertTitle>{connectionStatus()}</AlertTitle>
           </Alert>
         )}
       </CardFooter>

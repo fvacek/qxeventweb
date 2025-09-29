@@ -1,13 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-    --color-light-primary: #f7f8f9;
-    --color-light-secondary: #262626;
-    --color-light-highlight: #4a6ba7;
-    --color-dark-primary: #242831;
-    --color-dark-secondary: #e0d5c7;
-    --color-dark-highlight: #ffcc33;
-
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -28,16 +21,33 @@
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
 
+    --color-ok: var(--ok);
+    --color-warn: var(--warn);
+    --color-error: var(--error);
+    --color-ok-foreground: var(--ok-foreground);
+    --color-warn-foreground: var(--warn-foreground);
+    --color-error-foreground: var(--error-foreground);
+
+    --color-white: white;
+    --color-black: black;
+
     --radius: 0.5rem;
 
 }
 
 [data-theme="light"] {
-    --primary: var(--color-light-primary);
-    --secondary: var(--color-light-secondary);
-    --highlight: var(--color-light-highlight);
+    --primary: green;
+    --secondary: #262626;
+    --highlight: #4a6ba7;
 
-    --background: #ffffff;
+    --ok: limegreen;
+    --warn: orange;
+    --error: red;
+    --ok-foreground: black;
+    --warn-foreground: black;
+    --error-foreground: black;
+
+    --background: #f8f9fa;
     --foreground: #000000;
 
     --muted: #f4f4f5;
@@ -52,8 +62,8 @@
     --card: #ffffff;
     --card-foreground: #09090b;
 
-    --primary-foreground: #fafafa;
-    --secondary-foreground: #18181b;
+    --primary-foreground: white;
+    --secondary-foreground: var(--primary);
 
     --accent: #f4f4f5;
     --accent-foreground: #18181b;
@@ -65,11 +75,18 @@
 }
 
 [data-theme="dark"] {
-    --primary: var(--color-dark-primary);
-    --secondary: var(--color-dark-secondary);
-    --highlight: var(--color-dark-highlight);
+    --primary: green;
+    --secondary: #e0d5c7;
+    --highlight: #ffcc33;
 
-    --background: #0a0a0b;
+    --ok: limegreen;
+    --warn: orange;
+    --error: #ef4444;
+    --ok-foreground: black;
+    --warn-foreground: black;
+    --error-foreground: white;
+
+    --background: #222831;
     --foreground: #fafafa;
 
     --muted: #27272a;
@@ -87,8 +104,8 @@
     --card: #0a0a0b;
     --card-foreground: #fafafa;
 
-    --primary-foreground: #18181b;
-    --secondary-foreground: #fafafa;
+    --primary-foreground: var(--secondary);
+    --secondary-foreground: var(--primary);
 
     --destructive: #7c2d12;
     --destructive-foreground: #fafafa;
