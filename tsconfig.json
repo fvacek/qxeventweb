@@ -1,42 +1,25 @@
 {
     "compilerOptions": {
-        "target": "ESNext",
-        "module": "ESNext",
-        "moduleResolution": "Bundler",
-        "lib": ["ESNext", "DOM", "Dom.Iterable"],
-        "rootDir": "src",
-        "outDir": "dist",
-        "strict": true,
-        "alwaysStrict": true,
-        "strictFunctionTypes": true,
-        "strictNullChecks": true,
-        "noUncheckedIndexedAccess": true,
-        "strictPropertyInitialization": true,
+        // General
         "jsx": "preserve",
         "jsxImportSource": "solid-js",
+        "target": "ESNext",
+
+        // Modules
+        "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
-        "forceConsistentCasingInFileNames": true,
-        "noImplicitAny": true,
-        "noImplicitReturns": true,
-        "noImplicitThis": true,
-        "noFallthroughCasesInSwitch": true,
+        "isolatedModules": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "noEmit": true,
 
-        "noUnusedLocals": false,
-        "noUnusedParameters": false,
-
-        "emitDecoratorMetadata": false,
-        "experimentalDecorators": true,
-        "downlevelIteration": false,
-        "declaration": true,
-        "resolveJsonModule": true,
-        "skipLibCheck": true,
-        "pretty": true,
+        // Type Checking & Safety
+        "strict": true,
+        "types": ["vite/client"],
 
         "baseUrl": ".",
         "paths": {
-          "~/*": [
-            "./src/*"
-          ]
+            "~/*": ["./src/*"]
         }
     },
     "include": ["src/**/*", "*.d.ts"],

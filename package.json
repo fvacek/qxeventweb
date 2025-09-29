@@ -3,12 +3,14 @@
     "version": "0.1.0",
     "repository": "https://github.com/fvacek/qxevent",
     "author": "Fanda Vacek, fandavacek@gmail.com",
-    "license": "MIT-0",
+    "license": "MIT",
     "type": "module",
     "private": true,
     "scripts": {
+        "start": "vite",
         "dev": "vite",
         "build": "vite build",
+        "serve": "vite preview",
         "fmt": "prettier --write  \"**/*.{ts,js,tsx,jsx}\"",
         "fmt:check": "prettier --check  \"**/*.{ts,js,tsx,jsx}\"",
         "tsc": "tsc --noEmit",
@@ -25,15 +27,11 @@
         "tailwindcss-animate": "^1.0.7"
     },
     "devDependencies": {
-        "@tailwindcss/vite": "^4.1.5",
-        "@types/bun": "~1.2.12",
-        "@types/node": "^24.5.2",
-        "prettier": "~3.5.3",
-        "prettier-plugin-tailwindcss": "^0.6.11",
-        "tailwindcss": "^4.1.5",
-        "typescript": "~5.8.3",
-        "vite": "^6.3.5",
-        "vite-plugin-solid": "2.11.6"
+      "@tailwindcss/vite": "^4.1.13",
+        "solid-devtools": "^0.34.3",
+        "typescript": "^5.9.2",
+        "vite": "^7.1.4",
+        "vite-plugin-solid": "^2.11.8"
     },
     "prettier": {
         "tabWidth": 4,

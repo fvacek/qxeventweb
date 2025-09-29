@@ -1,26 +1,23 @@
 import path from "path"
-import { defineConfig } from "vite"
-import solidPlugin from "vite-plugin-solid"
-import tailwindcss from "@tailwindcss/vite"
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
+import solidPlugin from 'vite-plugin-solid';
+// import devtools from 'solid-devtools/vite';
 
 export default defineConfig({
-    plugins: [solidPlugin(), tailwindcss()],
+  plugins: [
+    // devtools(),
+    solidPlugin(),
+    tailwindcss()],
+  server: {
+    port: 3000,
+  },
+  build: {
+    target: 'esnext',
+  },
     resolve: {
       alias: {
         "~": path.resolve(__dirname, "./src")
       }
-    },
-    build: {
-        target: "esnext",
-        outDir: "dist",
-        assetsDir: "assets",
-        emptyOutDir: true,
-    },
-    css: {
-        transformer: "lightningcss",
-    },
-    server: {
-        host: "127.0.0.1",
-        port: 8000,
     },
 })
