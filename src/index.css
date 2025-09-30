@@ -56,7 +56,7 @@
     --popover: #ffffff;
     --popover-foreground: #09090b;
 
-    --border: #e4e4e7;
+    --border: gray;
     --input: #e4e4e7;
 
     --card: #ffffff;
@@ -98,8 +98,8 @@
     --popover: #0a0a0b;
     --popover-foreground: #fafafa;
 
-    --border: #27272a;
-    --input: #27272a;
+    --border: #57534e;
+    --input: black;
 
     --card: #0a0a0b;
     --card-foreground: #fafafa;
@@ -110,7 +110,7 @@
     --destructive: #7c2d12;
     --destructive-foreground: #fafafa;
 
-    --ring: #d4d4d8;
+    --ring: #a8a29e;
 }
 
 html,
