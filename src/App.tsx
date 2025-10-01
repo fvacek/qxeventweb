@@ -2,16 +2,9 @@ import { ParentProps } from "solid-js"
 import { Footer } from "./components/Footer"
 import NavHeader from "./components/NavHeader"
 import { WsClientProvider } from "./context/WsClient"
-import AppConfigContext, { AppConfig } from "./context/AppConfig";
-import { createStore } from "solid-js/store";
+import AppConfigContext, { config, setConfig } from "./context/AppConfig";
 
 export const App = (props: ParentProps) => {
-    const [config, setConfig] = createStore<AppConfig>({
-        brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
-        theme: "dark",
-        debug: true,
-    });
-
     return (
     <AppConfigContext.Provider value={[config, setConfig]}>
         <WsClientProvider>
