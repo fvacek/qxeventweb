@@ -4,11 +4,13 @@ import { TextField, TextFieldInput, TextFieldLabel } from '~/components/ui/text-
 import { Button } from '~/components/ui/button';
 import { Alert, AlertTitle } from '~/components/ui/alert';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle
 } from '~/components/ui/dialog';
+import { useAppConfig } from "~/context/AppConfig";
+import { useWsClient } from '~/context/WsClient';
 
 export interface BrokerDialogProps {
   open: boolean;
@@ -16,17 +18,26 @@ export interface BrokerDialogProps {
 }
 
 export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
-  const [username, setUsername] = createSignal('test');
-  const [password, setPassword] = createSignal('test');
-  const [brokerUrl, setBrokerUrl] = createSignal('ws://localhost:3777');
-  const [connectionStatus, setConnectionStatus] = createSignal('');
+    const [appConfig, setAppConfig] = useAppConfig();
 
-  const handleLogin = (e: Event) => {
-    e.preventDefault();
-    setConnectionStatus('Connecting...');
+    const broker_url = URL.parse(appConfig.brokerUrl) ?? (() => { throw new Error("Invalid broker URL"); })();
+    // console.log("aaa", broker_url);
 
+    const [host, setHost] = createSignal(broker_url.hostname);
+    const [username, setUsername] = createSignal(broker_url.searchParams.get('user') || '');
+    const [password, setPassword] = createSignal(broker_url.searchParams.get('password') || '');
+    const handleLogin = (e: Event) => {
+        let new_url = broker_url;
+        new_url.searchParams.set('user', username());
+        new_url.searchParams.set('password', password());
+        setAppConfig({
+            ...appConfig,
+            brokerUrl: new_url.toString(),
+        });
+        e.preventDefault();
+    };
 
-  };
+    const { status } = useWsClient();
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -42,8 +53,8 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
               id="brokerUrl"
               type="text"
               placeholder="ws://localhost:3777"
-              value={brokerUrl()}
-              onInput={(e) => setBrokerUrl(e.currentTarget.value)}
+              value={host()}
+              onInput={(e) => setHost(e.currentTarget.value)}
             />
           </TextField>
 
@@ -73,9 +84,9 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
             Connect
           </Button>
 
-          {connectionStatus() && (
-            <Alert variant={connectionStatus() === 'Connected' ? 'default' : 'destructive'}>
-              <AlertTitle>{connectionStatus()}</AlertTitle>
+          {status() && (
+            <Alert variant={status() === 'Connected' ? 'default' : 'destructive'}>
+              <AlertTitle>{status()}</AlertTitle>
             </Alert>
           )}
         </div>

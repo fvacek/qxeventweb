@@ -1,7 +1,7 @@
 import "./index.css"
 
 import { App } from "./App"
-import { Broker } from "./routes/Broker"
+
 import { Route, Router } from "@solidjs/router"
 import { render } from "solid-js/web"
 import { lazy } from "solid-js"
@@ -18,6 +18,7 @@ declare global {
 
 const Home = lazy(() => import("./routes/Home"))
 const About = lazy(() => import("./routes/About"))
+const Broker = lazy(() => import("./routes/Broker"))
 const NotFound = lazy(() => import("./routes/NotFound"))
 
 const app = document.getElementById("app")
