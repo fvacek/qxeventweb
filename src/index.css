@@ -113,6 +113,12 @@
     --ring: #a8a29e;
 }
 
+@layer base {
+  body {
+      @apply bg-background text-foreground;
+  }
+}
+
 html,
 body,
 #app {
