@@ -143,8 +143,8 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         (prevUrl) => {
             const currentBrokerUrl = appConfig.brokerUrl;
             
-            // Skip if this is the initial run or URL hasn't changed
-            if (prevUrl === undefined || currentBrokerUrl === prevUrl) {
+            // Skip only if URL hasn't changed (but allow initial connection)
+            if (prevUrl !== undefined && currentBrokerUrl === prevUrl) {
                 return currentBrokerUrl;
             }
             
@@ -152,7 +152,11 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             // The error might be due to old credentials, and new URL might have correct ones
             untrack(() => {
                 if (appConfig.debug) {
-                    console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
+                    if (prevUrl === undefined) {
+                        console.log('Initial connection to:', currentBrokerUrl);
+                    } else {
+                        console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
+                    }
                 }
             });
             
