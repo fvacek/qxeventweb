@@ -7,6 +7,7 @@ import {
   Accessor,
   createEffect,
   createMemo,
+  untrack,
 } from "solid-js";
 import { WsClient } from 'libshv-js';
 import { useAppConfig } from "./AppConfig";
@@ -146,17 +147,22 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         const currentBrokerUrl = brokerUrl();
         
         // Don't reconnect if we're in an error state - manual reconnects use different path
-        const currentStatus = status();
+        // Use untrack to avoid making this effect reactive to status changes
+        const currentStatus = untrack(() => status());
         if (currentStatus === 'AuthError' || currentStatus === 'Error') {
-            if (appConfig.debug) {
-                console.log('Skipping auto-reconnect due to error state:', currentStatus);
-            }
+            untrack(() => {
+                if (appConfig.debug) {
+                    console.log('Skipping auto-reconnect due to error state:', currentStatus);
+                }
+            });
             return;
         }
         
-        if (appConfig.debug) {
-            console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
-        }
+        untrack(() => {
+            if (appConfig.debug) {
+                console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
+            }
+        });
         
         createConnection();
     });
