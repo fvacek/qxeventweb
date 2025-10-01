@@ -37,7 +37,7 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
         e.preventDefault();
     };
 
-    const { status } = useWsClient();
+    const { status, reconnect } = useWsClient();
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -80,15 +80,29 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
             />
           </TextField>
 
-          <Button onClick={handleLogin} class="w-full">
-            Connect
-          </Button>
+          <div class="flex gap-2">
+            <Button onClick={handleLogin} class="flex-1">
+              Connect
+            </Button>
+            <Button onClick={() => reconnect()} variant="outline" class="flex-1">
+              Reconnect
+            </Button>
+          </div>
 
-          {status() && (
-            <Alert variant={status() === 'Connected' ? 'default' : 'destructive'}>
-              <AlertTitle>{status()}</AlertTitle>
-            </Alert>
-          )}
+          <Alert variant={status() === 'Connected' ? 'default' : status() === 'Connecting' ? 'default' : 'destructive'}>
+            <AlertTitle>
+              {status() === 'Connected' && '✅ Connected'}
+              {status() === 'Connecting' && '🔄 Connecting...'}
+              {status() === 'Disconnected' && '❌ Disconnected'}
+              {status() === 'Error' && '⚠️ Connection Error'}
+              {status() === 'AuthError' && '🔐 Authentication Failed'}
+            </AlertTitle>
+            {status() === 'AuthError' && (
+              <div class="text-sm mt-2 text-orange-700">
+                Please check your username and password and try again.
+              </div>
+            )}
+          </Alert>
         </div>
       </DialogContent>
     </Dialog>

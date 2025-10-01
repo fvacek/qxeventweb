@@ -8,7 +8,7 @@ export type AppConfig = {
 };
 
 export const [config, setConfig] = createStore<AppConfig>({
-    brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
+    brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test1",
     theme: "dark",
     debug: import.meta.env.DEV || false,
 });
