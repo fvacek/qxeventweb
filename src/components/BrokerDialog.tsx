@@ -1,4 +1,4 @@
-import { createSignal, Component } from 'solid-js';
+import { createSignal, Component, createMemo } from 'solid-js';
 import { WsClient } from 'libshv-js';
 import { TextField, TextFieldInput, TextFieldLabel } from '~/components/ui/text-field';
 import { Button } from '~/components/ui/button';
@@ -24,20 +24,49 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
     // console.log("aaa", broker_url);
 
     const [host, setHost] = createSignal(broker_url.hostname);
+    const [port, setPort] = createSignal(broker_url.port || '3777');
     const [username, setUsername] = createSignal(broker_url.searchParams.get('user') || '');
     const [password, setPassword] = createSignal(broker_url.searchParams.get('password') || '');
-    const handleLogin = (e: Event) => {
-        let new_url = broker_url;
-        new_url.searchParams.set('user', username());
-        new_url.searchParams.set('password', password());
+    
+    // Validation and URL preview
+    const isValidInput = createMemo(() => {
+        const hostValue = host()?.trim();
+        const portValue = port()?.trim();
+        const userValue = username()?.trim();
+        const passwordValue = password()?.trim();
+        
+        return hostValue && portValue && userValue && passwordValue;
+    });
+    
+    const previewUrl = createMemo(() => {
+        const hostValue = host()?.trim() || 'localhost';
+        const portValue = port()?.trim() || '3777';
+        const userValue = username()?.trim() || '';
+        const passwordValue = password()?.trim() || '';
+        
+        return `ws://${hostValue}:${portValue}?user=${userValue}&password=${'*'.repeat(passwordValue.length)}`;
+    });
+    
+    const handleConnect = (e: Event) => {
+        e.preventDefault();
+        
+        // Build complete broker URL
+        const protocol = 'ws';
+        const hostValue = host() || 'localhost';
+        const portValue = port() || '3777';
+        const userValue = username() || '';
+        const passwordValue = password() || '';
+        
+        const newBrokerUrl = `${protocol}://${hostValue}:${portValue}?user=${encodeURIComponent(userValue)}&password=${encodeURIComponent(passwordValue)}`;
+        
+        // Update config - this will automatically trigger reconnection
         setAppConfig({
             ...appConfig,
-            brokerUrl: new_url.toString(),
+            brokerUrl: newBrokerUrl,
         });
-        e.preventDefault();
     };
 
-    const { status, reconnect } = useWsClient();
+    const { status } = useWsClient();
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -47,16 +76,28 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
         </DialogHeader>
 
         <div class="space-y-4">
-          <TextField class="space-y-1.5">
-            <TextFieldLabel for="brokerUrl">Broker URL</TextFieldLabel>
-            <TextFieldInput
-              id="brokerUrl"
-              type="text"
-              placeholder="ws://localhost:3777"
-              value={host()}
-              onInput={(e) => setHost(e.currentTarget.value)}
-            />
-          </TextField>
+          <div class="grid grid-cols-2 gap-2">
+            <TextField class="space-y-1.5">
+              <TextFieldLabel for="host">Host</TextFieldLabel>
+              <TextFieldInput
+                id="host"
+                type="text"
+                placeholder="localhost"
+                value={host()}
+                onInput={(e) => setHost(e.currentTarget.value)}
+              />
+            </TextField>
+            <TextField class="space-y-1.5">
+              <TextFieldLabel for="port">Port</TextFieldLabel>
+              <TextFieldInput
+                id="port"
+                type="text"
+                placeholder="3777"
+                value={port()}
+                onInput={(e) => setPort(e.currentTarget.value)}
+              />
+            </TextField>
+          </div>
 
           <TextField class="space-y-1.5">
             <TextFieldLabel for="username">Username</TextFieldLabel>
@@ -80,14 +121,26 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
             />
           </TextField>
 
-          <div class="flex gap-2">
-            <Button onClick={handleLogin} class="flex-1">
-              Connect
-            </Button>
-            <Button onClick={() => reconnect()} variant="outline" class="flex-1">
-              Reconnect
-            </Button>
+          {/* URL Preview */}
+          <div class="space-y-1">
+            <div class="text-sm font-medium text-gray-700">Connection URL:</div>
+            <div class="bg-gray-50 p-2 rounded text-xs font-mono text-gray-600 break-all">
+              {previewUrl()}
+            </div>
           </div>
+
+          <Button 
+            onClick={handleConnect} 
+            class="w-full"
+            disabled={status() === 'Connecting' || !isValidInput()}
+          >
+            {status() === 'Connecting' 
+              ? '⏳ Connecting...' 
+              : !isValidInput() 
+                ? '⚠️ Fill all fields' 
+                : '🔌 Connect'
+            }
+          </Button>
 
           <Alert variant={status() === 'Connected' ? 'default' : status() === 'Connecting' ? 'default' : 'destructive'}>
             <AlertTitle>
@@ -100,6 +153,11 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
             {status() === 'AuthError' && (
               <div class="text-sm mt-2 text-orange-700">
                 Please check your username and password and try again.
+              </div>
+            )}
+            {status() === 'Error' && (
+              <div class="text-sm mt-2 text-red-700">
+                Connection failed. Please check your host and port settings.
               </div>
             )}
           </Alert>

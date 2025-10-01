@@ -140,8 +140,8 @@ export const ConnectionStatus: Component = () => {
 
                 {/* Instructions */}
                 <div class="text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                    <strong>Auto-reconnection:</strong> Connection automatically updates when broker URL changes. 
-                    Theme and debug changes don't affect connection. All errors require manual reconnect.
+                    <strong>Auto-reconnection:</strong> Connection automatically updates when broker URL changes, even after errors. 
+                    Theme and debug changes don't affect connection. Manual reconnect available for same URL retry.
                 </div>
             </CardContent>
         </Card>

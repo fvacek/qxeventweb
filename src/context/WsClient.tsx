@@ -30,9 +30,6 @@ export function WsClientProvider(props: { children: JSX.Element }) {
 
     const [appConfig] = useAppConfig();
 
-    // Track only brokerUrl changes to prevent unnecessary reconnections
-    const brokerUrl = createMemo(() => appConfig.brokerUrl);
-
     const createConnection = () => {
         // Prevent multiple simultaneous connection attempts
         if (status() === "Connecting") {
@@ -142,30 +139,29 @@ export function WsClientProvider(props: { children: JSX.Element }) {
     };
 
     // Only reconnect when brokerUrl changes (not on status or other config changes)
-    createEffect(() => {
-        // This tracks only the brokerUrl, so it only runs when brokerUrl changes
-        const currentBrokerUrl = brokerUrl();
-        
-        // Don't reconnect if we're in an error state - manual reconnects use different path
-        // Use untrack to avoid making this effect reactive to status changes
-        const currentStatus = untrack(() => status());
-        if (currentStatus === 'AuthError' || currentStatus === 'Error') {
+    createEffect(
+        (prevUrl) => {
+            const currentBrokerUrl = appConfig.brokerUrl;
+            
+            // Skip if this is the initial run or URL hasn't changed
+            if (prevUrl === undefined || currentBrokerUrl === prevUrl) {
+                return currentBrokerUrl;
+            }
+            
+            // Always reconnect on brokerUrl changes, even in error states
+            // The error might be due to old credentials, and new URL might have correct ones
             untrack(() => {
                 if (appConfig.debug) {
-                    console.log('Skipping auto-reconnect due to error state:', currentStatus);
+                    console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
                 }
             });
-            return;
-        }
-        
-        untrack(() => {
-            if (appConfig.debug) {
-                console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
-            }
-        });
-        
-        createConnection();
-    });
+            
+            createConnection();
+            
+            return currentBrokerUrl;
+        }, 
+        undefined
+    );
 
     const reconnect = () => {
         // Manual reconnect - directly call createConnection without changing status
