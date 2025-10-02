@@ -9,7 +9,7 @@ import {
     DialogHeader,
     DialogTitle
 } from '~/components/ui/dialog';
-import { useAppConfig } from "~/context/AppConfig";
+import { useAppConfig, config } from "~/context/AppConfig";
 import { useWsClient } from '~/context/WsClient';
 
 export interface BrokerDialogProps {
@@ -18,7 +18,7 @@ export interface BrokerDialogProps {
 }
 
 export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
-    const [appConfig, setAppConfig] = useAppConfig();
+    const appConfig = useAppConfig();
 
     const broker_url = URL.parse(appConfig.brokerUrl) ?? (() => { throw new Error("Invalid broker URL"); })();
     // console.log("aaa", broker_url);
@@ -59,14 +59,14 @@ export const BrokerDialog: Component<BrokerDialogProps> = (props) => {
         
         const newBrokerUrl = `${protocol}://${hostValue}:${portValue}?user=${encodeURIComponent(userValue)}&password=${encodeURIComponent(passwordValue)}`;
         
-        // Update config - this will automatically trigger reconnection
-        setAppConfig({
-            ...appConfig,
-            brokerUrl: newBrokerUrl,
-        });
+        // Update config and manually trigger reconnection
+        config.brokerUrl = newBrokerUrl;
+        
+        // Manually trigger reconnection with new URL
+        reconnectWithNewUrl(newBrokerUrl);
     };
 
-    const { status } = useWsClient();
+    const { status, reconnectWithNewUrl } = useWsClient();
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>

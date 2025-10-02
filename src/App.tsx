@@ -2,11 +2,11 @@ import { ParentProps } from "solid-js"
 import { Footer } from "./components/Footer"
 import NavHeader from "./components/NavHeader"
 import { WsClientProvider } from "./context/WsClient"
-import AppConfigContext, { config, setConfig } from "./context/AppConfig";
+import AppConfigContext, { config } from "./context/AppConfig";
 
 export const App = (props: ParentProps) => {
     return (
-    <AppConfigContext.Provider value={[config, setConfig]}>
+    <AppConfigContext.Provider value={config}>
         <WsClientProvider>
             <div class="mx-auto flex h-full w-full max-w-[1200px] flex-col justify-center bg-[var(--background)] text-[var(--secondary)] transition">
                 <NavHeader />

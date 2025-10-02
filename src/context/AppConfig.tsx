@@ -1,5 +1,4 @@
 import { createContext, useContext } from "solid-js";
-import { createStore } from "solid-js/store";
 
 export type AppConfig = {
   brokerUrl: string;
@@ -7,13 +6,14 @@ export type AppConfig = {
   debug: boolean;
 };
 
-export const [config, setConfig] = createStore<AppConfig>({
-    brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test1",
+// Non-reactive config object
+export const config: AppConfig = {
+    brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
     theme: "dark",
     debug: import.meta.env.DEV || false,
-});
+};
 
-const AppConfigContext = createContext([config, setConfig] as const);
+const AppConfigContext = createContext(config);
 
 export const useAppConfig = () => {
   const context = useContext(AppConfigContext);

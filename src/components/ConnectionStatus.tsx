@@ -1,6 +1,6 @@
 import { Component } from 'solid-js';
 import { useWsClient } from '~/context/WsClient';
-import { useAppConfig } from '~/context/AppConfig';
+import { useAppConfig, config } from '~/context/AppConfig';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Alert, AlertTitle } from '~/components/ui/alert';
@@ -10,26 +10,24 @@ import { Alert, AlertTitle } from '~/components/ui/alert';
  * and provides controls for testing the automatic reconnection functionality
  */
 export const ConnectionStatus: Component = () => {
-    const { status, reconnect } = useWsClient();
-    const [appConfig, setAppConfig] = useAppConfig();
+    const { status, reconnect, reconnectWithNewUrl } = useWsClient();
+    const appConfig = useAppConfig();
 
     const handleUrlChange = () => {
-        // Change the broker URL to test automatic reconnection
+        // Change the broker URL to test manual reconnection
         const currentUrl = new URL(appConfig.brokerUrl);
         const newPort = currentUrl.port === '3777' ? '3778' : '3777';
         currentUrl.port = newPort;
         
-        setAppConfig({
-            ...appConfig,
-            brokerUrl: currentUrl.toString()
-        });
+        const newBrokerUrl = currentUrl.toString();
+        config.brokerUrl = newBrokerUrl;
+        
+        // Manually trigger reconnection with new URL
+        reconnectWithNewUrl(newBrokerUrl);
     };
 
     const handleDebugToggle = () => {
-        setAppConfig({
-            ...appConfig,
-            debug: !appConfig.debug
-        });
+        config.debug = !appConfig.debug;
     };
 
     const getStatusColor = () => {
@@ -126,10 +124,11 @@ export const ConnectionStatus: Component = () => {
                             Toggle Debug
                         </Button>
                         <Button 
-                            onClick={() => setAppConfig({
-                                ...appConfig,
-                                brokerUrl: 'ws://localhost:3777?user=test&password=test'
-                            })} 
+                            onClick={() => {
+                                const newBrokerUrl = 'ws://localhost:3777?user=test&password=test';
+                                config.brokerUrl = newBrokerUrl;
+                                reconnectWithNewUrl(newBrokerUrl);
+                            }}
                             variant="outline"
                             size="sm"
                         >
@@ -140,7 +139,7 @@ export const ConnectionStatus: Component = () => {
 
                 {/* Instructions */}
                 <div class="text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                    <strong>Auto-reconnection:</strong> Connection automatically updates when broker URL changes, even after errors. 
+                    <strong>Manual reconnection:</strong> Connection updates when broker URL is changed via buttons. 
                     Theme and debug changes don't affect connection. Manual reconnect available for same URL retry.
                 </div>
             </CardContent>

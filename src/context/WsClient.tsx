@@ -18,6 +18,7 @@ interface WsClientContextValue {
   socket: Accessor<WsClient | null>;
   status: Accessor<WsClientStatus>;
   reconnect: () => void;
+  reconnectWithNewUrl: (newUrl: string) => void;
 }
 
 const WsClientContext = createContext<WsClientContextValue>();
@@ -28,7 +29,8 @@ export function WsClientProvider(props: { children: JSX.Element }) {
     const [lastReconnectTime, setLastReconnectTime] = createSignal(0);
     let connectionTimeout: number | null = null;
 
-    const [appConfig] = useAppConfig();
+    const appConfig = useAppConfig();
+    let currentBrokerUrl = appConfig.brokerUrl;
 
     const createConnection = () => {
         // Prevent multiple simultaneous connection attempts
@@ -51,7 +53,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         setLastReconnectTime(now);
         
         if (appConfig.debug) {
-            console.log('Starting connection attempt to:', appConfig.brokerUrl);
+            console.log('Starting connection attempt to:', currentBrokerUrl);
         }
 
         // Clear any existing timeout
@@ -77,14 +79,14 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         }, 10000);
         
         try {
-            const broker_url = URL.parse(appConfig.brokerUrl);
+            const broker_url = URL.parse(currentBrokerUrl);
             if (!broker_url) {
                 throw new Error("Invalid broker URL");
             }
 
             const ws = new WsClient({
                 logDebug: appConfig.debug ? console.debug : () => {},
-                wsUri: appConfig.brokerUrl.toString(),
+                wsUri: currentBrokerUrl.toString(),
                 login: {
                     type: 'PLAIN',
                     user: broker_url.searchParams.get('user') || '',
@@ -138,41 +140,22 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         }
     };
 
-    // Only reconnect when brokerUrl changes (not on status or other config changes)
-    createEffect(
-        (prevUrl) => {
-            const currentBrokerUrl = appConfig.brokerUrl;
-            
-            // Skip only if URL hasn't changed (but allow initial connection)
-            if (prevUrl !== undefined && currentBrokerUrl === prevUrl) {
-                return currentBrokerUrl;
-            }
-            
-            // Always reconnect on brokerUrl changes, even in error states
-            // The error might be due to old credentials, and new URL might have correct ones
-            untrack(() => {
-                if (appConfig.debug) {
-                    if (prevUrl === undefined) {
-                        console.log('Initial connection to:', currentBrokerUrl);
-                    } else {
-                        console.log('Auto-reconnecting due to brokerUrl change:', currentBrokerUrl);
-                    }
-                }
-            });
-            
-            createConnection();
-            
-            return currentBrokerUrl;
-        }, 
-        undefined
-    );
+    // Initial connection
+    createConnection();
 
     const reconnect = () => {
-        // Manual reconnect - directly call createConnection without changing status
-        // This prevents triggering the createEffect
+        // Manual reconnect - directly call createConnection
         if (appConfig.debug) {
             console.log('Manual reconnect requested');
         }
+        createConnection();
+    };
+
+    const reconnectWithNewUrl = (newUrl: string) => {
+        if (appConfig.debug) {
+            console.log('Reconnecting with new URL:', newUrl);
+        }
+        currentBrokerUrl = newUrl;
         createConnection();
     };
 
@@ -187,7 +170,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
     });
 
     return (
-        <WsClientContext.Provider value={{ socket, status, reconnect }}>
+        <WsClientContext.Provider value={{ socket, status, reconnect, reconnectWithNewUrl }}>
         {props.children}
         </WsClientContext.Provider>
     );
