@@ -31,6 +31,10 @@ const NavHeader = (): JSX.Element => {
             name: "Broker",
             to: "/broker",
         },
+        {
+            name: "Table Demo",
+            to: "/table-demo",
+        },
     ]
 
     /**

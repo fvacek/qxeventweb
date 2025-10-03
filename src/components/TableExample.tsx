@@ -169,8 +169,21 @@ export function TableExample() {
 
   const refreshData = async () => {
     setLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // Simulate fetching fresh data (in real app, this would be an API call)
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // Update data with fresh timestamps and randomized data
+    const refreshedUsers = users().map(user => ({
+      ...user,
+      lastLogin: new Date(),
+      // Randomly update some statuses to show data changes
+      status: Math.random() > 0.7 ? 
+        (user.status === "active" ? "pending" : "active") as "active" | "inactive" | "pending" :
+        user.status
+    }))
+    
+    setUsers(refreshedUsers)
     setLoading(false)
   }
 

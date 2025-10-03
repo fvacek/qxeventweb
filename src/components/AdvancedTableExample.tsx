@@ -345,7 +345,23 @@ export function AdvancedTableExample() {
 
   const refreshData = async () => {
     setLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // Simulate fetching fresh data (in real app, this would be an API call)
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // Update data with fresh timestamps and randomized changes
+    const refreshedProducts = products().map(product => ({
+      ...product,
+      releaseDate: new Date(),
+      // Randomly update stock levels to show data changes
+      stock: Math.max(0, product.stock + Math.floor(Math.random() * 21) - 10),
+      // Occasionally toggle in-stock status
+      inStock: Math.random() > 0.8 ? !product.inStock : product.inStock,
+      // Small random price adjustments
+      price: Math.max(50, product.price + Math.floor(Math.random() * 201) - 100)
+    }))
+    
+    setProducts(refreshedProducts)
     setLoading(false)
   }
 

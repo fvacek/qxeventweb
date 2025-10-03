@@ -4,13 +4,14 @@ import { AdvancedTableExample, SimpleAdvancedTable } from "~/components/Advanced
 
 const TableDemo: Component = () => {
   return (
-    <div class="container mx-auto p-6 space-y-8">
-      <div class="space-y-2">
-        <h1 class="text-3xl font-bold tracking-tight">Table Component Demo</h1>
-        <p class="text-muted-foreground">
-          Showcase of the reactive table component with various features and use cases.
-        </p>
-      </div>
+    <div class="w-full">
+      <div class="container mx-auto p-6 space-y-8">
+        <div class="space-y-2">
+          <h1 class="text-3xl font-bold tracking-tight">Table Component Demo</h1>
+          <p class="text-muted-foreground">
+            Showcase of the reactive table component with various features and use cases.
+          </p>
+        </div>
 
       <div class="space-y-8">
         {/* Main table example */}
@@ -143,6 +144,7 @@ const TableDemo: Component = () => {
             </div>
           </div>
         </section>
+        </div>
       </div>
     </div>
   )

@@ -8,10 +8,10 @@ export const App = (props: ParentProps) => {
     return (
     <AppConfigContext.Provider value={config}>
         <WsClientProvider>
-            <div class="mx-auto flex h-full w-full max-w-[1200px] flex-col justify-center bg-[var(--background)] text-[var(--secondary)] transition">
+            <div class="mx-auto flex min-h-full w-full max-w-[1200px] flex-col bg-[var(--background)] text-[var(--secondary)] transition">
                 <NavHeader />
 
-                <main class="flex w-full grow flex-col items-center">
+                <main class="flex w-full flex-1 flex-col">
                     {props.children}
                 </main>
 
