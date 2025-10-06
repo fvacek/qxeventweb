@@ -19,6 +19,7 @@ declare global {
 const Home = lazy(() => import("./routes/Home"))
 const About = lazy(() => import("./routes/About"))
 const TableDemo = lazy(() => import("./routes/TableDemo"))
+const LateEntries = lazy(() => import("./routes/LateEntries"))
 const NotFound = lazy(() => import("./routes/NotFound"))
 
 const app = document.getElementById("app")
@@ -29,6 +30,7 @@ if (app) {
                 <Route path="/" component={Home} />
                 <Route path="/about" component={About} />
                 <Route path="/table-demo" component={TableDemo} />
+                <Route path="/late-entries" component={LateEntries} />
                 <Route path="*" component={NotFound} />
             </Router>
         ),
