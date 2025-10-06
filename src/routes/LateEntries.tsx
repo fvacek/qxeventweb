@@ -57,20 +57,32 @@ function LateEntriesTable() {
     {
         key: "startTime",
         header: "Start Time",
+        cell: (entry: Entry) => {
+          if (entry.startTime === null) {
+            return <span>—</span>
+          }
+          const date = new Date(entry.startTime * 1000)
+          return <span>{date.toISOString()}</span>
+        },
         sortable: true,
-        width: "200px"
+        width: "250px"
     },
     {
-        key: "firstName",
-        header: "First Name",
+        key: "name",
+        header: "Name",
+        cell: (entry: Entry) => {
+          const fullName = [entry.firstName, entry.lastName]
+            .filter(name => name !== null && name.trim() !== "")
+            .join(" ")
+          return <span>{fullName || "—"}</span>
+        },
         sortable: true,
-        width: "200px"
-    },
-    {
-      key: "lastName",
-      header: "Last Name",
-      sortable: true,
-      width: "200px"
+        sortFn: (a: Entry, b: Entry) => {
+          const aName = [a.firstName, a.lastName].filter(n => n).join(" ")
+          const bName = [b.firstName, b.lastName].filter(n => n).join(" ")
+          return aName.localeCompare(bName)
+        },
+        width: "250px"
     },
     {
       key: "siid",
