@@ -7,7 +7,7 @@ import darkModeIcon from "../../assets/moon.svg"
 import lightModeIcon from "../../assets/sun.svg"
 import menuIcon from "../../assets/menu.svg"
 import { theme, toggleTheme } from "../stores/theme"
-import WsClientStatusIndicator from "./WsClientStatusIndicator"
+import WsClientStatusIndicator from "./WsClientStatus"
 
 const NavHeader = (): JSX.Element => {
     const [menuIsOpen, setMenuIsOpen] = createSignal(false)
@@ -26,10 +26,6 @@ const NavHeader = (): JSX.Element => {
         {
             name: "About",
             to: "/about",
-        },
-        {
-            name: "Broker",
-            to: "/broker",
         },
         {
             name: "Table Demo",
