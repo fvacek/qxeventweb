@@ -9,17 +9,21 @@ interface Entry {
   id: number
   firstName: string | null
   lastName: string | null
+  className: string | null
   siid: number | null
   startTime: number | null
 }
 
 function LateEntriesTable() {
+  const { wsClient } = useWsClient();
+
   // Sample data
   const [entries, setEntries] = createSignal<Entry[]>([
     {
       id: 1,
       firstName: "John",
       lastName: "Doe",
+      className: "H21",
       siid: null,
       startTime: null,
     },
@@ -27,6 +31,7 @@ function LateEntriesTable() {
       id: 1,
       firstName: "Fanda",
       lastName: "Vacek",
+      className: "H55",
       siid: 4567,
       startTime: 1970,
     },
@@ -87,6 +92,12 @@ function LateEntriesTable() {
         width: "250px"
     },
     {
+      key: "className",
+      header: "Class",
+      sortable: true,
+      width: "100px"
+    },
+    {
       key: "siid",
       header: "SI",
       sortable: true,
@@ -99,6 +110,7 @@ function LateEntriesTable() {
       id: Math.max(...entries().map(u => u.id)) + 1,
       firstName: `Fanda${entries().length + 1}`,
       lastName: `Vacek${entries().length + 1}`,
+      className: "H55",
       siid: null,
       startTime: null,
     }
@@ -117,30 +129,44 @@ function LateEntriesTable() {
   const refreshData = async () => {
     setLoading(true)
 
-    const { wsClient } = useWsClient();
-
     try {
         const client = wsClient();
         if (!client) {
             throw new Error("WebSocket client is not available");
         }
         const result = await client.callRpcMethod("test/sql/hsh2025/sql", "select", ["SELECT * FROM lateentries"]);
-        console.log("RPC result:", result);
 
         if (result instanceof Error) {
             console.error("RPC error:", result);
+            setLoading(false);
             return;
         }
 
-        if (result) {
-            // Process successful result
+        if (result && typeof result === 'object' && result !== null && 'rows' in result && 'fields' in result) {
             console.log("Data received:", result);
-            // Transform the data if needed and update entries
-            // setEntries(transformedData);
+
+            // Find field indices
+            const fieldMap = new Map();
+            (result as any).fields.forEach((field: { name: string }, index: number) => {
+                fieldMap.set(field.name, index);
+            });
+
+            // Transform rows to Entry objects
+            const transformedEntries: Entry[] = (result as any).rows.map((row: any[], rowIndex: number) => ({
+                id: row[fieldMap.get('id')] || rowIndex + 1,
+                firstName: row[fieldMap.get('firstname')] || null,
+                lastName: row[fieldMap.get('lastname')] || null,
+                className: row[fieldMap.get('classname')] || null,
+                startTime: row[fieldMap.get('starttime')] || null,
+                siid: row[fieldMap.get('siid')] || null,
+            }));
+
+            setEntries(transformedEntries);
         }
     } catch (error) {
         console.error("RPC call failed:", error);
     }
+    setLoading(false);
 
     // // Simulate fetching fresh data (in real app, this would be an API call)
     // await new Promise(resolve => setTimeout(resolve, 300))
