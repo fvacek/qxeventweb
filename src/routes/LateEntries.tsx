@@ -1,7 +1,9 @@
+import { WsClient } from "libshv-js"
 import { createMemo, createSignal } from "solid-js"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Table, TableBody, TableCell, TableColumn, TableFooter, TableHead, TableHeader, TableRow } from "~/components/ui/table"
+import { useWsClient } from "~/context/WsClient"
 
 interface Entry {
   id: number
@@ -114,6 +116,31 @@ function LateEntriesTable() {
 
   const refreshData = async () => {
     setLoading(true)
+
+    const { wsClient } = useWsClient();
+
+    try {
+        const client = wsClient();
+        if (!client) {
+            throw new Error("WebSocket client is not available");
+        }
+        const result = await client.callRpcMethod("test/sql/hsh2025/sql", "select", ["SELECT * FROM lateentries"]);
+        console.log("RPC result:", result);
+
+        if (result instanceof Error) {
+            console.error("RPC error:", result);
+            return;
+        }
+
+        if (result) {
+            // Process successful result
+            console.log("Data received:", result);
+            // Transform the data if needed and update entries
+            // setEntries(transformedData);
+        }
+    } catch (error) {
+        console.error("RPC call failed:", error);
+    }
 
     // // Simulate fetching fresh data (in real app, this would be an API call)
     // await new Promise(resolve => setTimeout(resolve, 300))

@@ -15,7 +15,7 @@ import { useAppConfig } from "./AppConfig";
 type WsClientStatus = "Connecting" | "Connected" | "Disconnected" | "Error" | "AuthError";
 
 interface WsClientContextValue {
-  socket: Accessor<WsClient | null>;
+  wsClient: Accessor<WsClient | null>;
   status: Accessor<WsClientStatus>;
   reconnect: () => void;
   reconnectWithNewUrl: (newUrl: string) => void;
@@ -25,7 +25,7 @@ const WsClientContext = createContext<WsClientContextValue>();
 
 export function WsClientProvider(props: { children: JSX.Element }) {
     const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
-    const [socket, setSocket] = createSignal<WsClient | null>(null);
+    const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
     const [lastReconnectTime, setLastReconnectTime] = createSignal(0);
     let connectionTimeout: number | null = null;
 
@@ -51,7 +51,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         }
 
         setLastReconnectTime(now);
-        
+
         if (appConfig.debug) {
             console.log('Starting connection attempt to:', currentBrokerUrl);
         }
@@ -62,10 +62,10 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         }
 
         // Close existing connection if it exists
-        const existingSocket = socket();
+        const existingSocket = wsClient();
         if (existingSocket) {
             existingSocket.close();
-            setSocket(null);
+            setWsClient(null);
         }
 
         setStatus("Connecting");
@@ -77,7 +77,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
                 console.error("Connection timeout: Failed to connect within 10 seconds");
             }
         }, 10000);
-        
+
         try {
             const broker_url = URL.parse(currentBrokerUrl);
             if (!broker_url) {
@@ -113,7 +113,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
                     }
                     console.log(`Connection failed: ${error.message}`);
                     // Check if it's likely an authentication error
-                    if (error.message.toLowerCase().includes('auth') || 
+                    if (error.message.toLowerCase().includes('auth') ||
                         error.message.toLowerCase().includes('login') ||
                         error.message.toLowerCase().includes('credential')) {
                         setStatus('AuthError');
@@ -129,7 +129,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
                 },
             });
 
-            setSocket(ws);
+            setWsClient(ws);
         } catch (error) {
             if (connectionTimeout) {
                 clearTimeout(connectionTimeout);
@@ -163,14 +163,14 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         if (connectionTimeout) {
             clearTimeout(connectionTimeout);
         }
-        const ws = socket();
+        const ws = wsClient();
         if (ws) {
             ws.close();
         }
     });
 
     return (
-        <WsClientContext.Provider value={{ socket, status, reconnect, reconnectWithNewUrl }}>
+        <WsClientContext.Provider value={{ wsClient: wsClient, status, reconnect, reconnectWithNewUrl }}>
         {props.children}
         </WsClientContext.Provider>
     );
