@@ -1,13 +1,13 @@
 import { createSignal, createMemo, For } from "solid-js"
-import { 
-  Table, 
-  TableColumn, 
-  TableHeader, 
-  TableBody, 
-  TableFooter, 
-  TableHead, 
-  TableRow, 
-  TableCell 
+import {
+  Table,
+  TableColumn,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell
 } from "./ui/table"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
@@ -68,7 +68,7 @@ export function TableExample() {
     return data.sort((a, b) => {
       const aVal = a[sortBy()]
       const bVal = b[sortBy()]
-      
+
       if (aVal < bVal) return sortOrder() === "asc" ? -1 : 1
       if (aVal > bVal) return sortOrder() === "asc" ? 1 : -1
       return 0
@@ -101,10 +101,10 @@ export function TableExample() {
       sortable: true,
       width: "120px",
       cell: (user) => (
-        <Badge 
+        <Badge
           variant={
             user.status === "active" ? "default" :
-            user.status === "pending" ? "secondary" : 
+            user.status === "pending" ? "secondary" :
             "outline"
           }
         >
@@ -127,15 +127,15 @@ export function TableExample() {
       width: "150px",
       cell: (user) => (
         <div class="flex gap-2">
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="outline"
             onClick={() => editUser(user.id)}
           >
             Edit
           </Button>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="destructive"
             onClick={() => deleteUser(user.id)}
           >
@@ -169,20 +169,20 @@ export function TableExample() {
 
   const refreshData = async () => {
     setLoading(true)
-    
+
     // Simulate fetching fresh data (in real app, this would be an API call)
     await new Promise(resolve => setTimeout(resolve, 300))
-    
+
     // Update data with fresh timestamps and randomized data
     const refreshedUsers = users().map(user => ({
       ...user,
       lastLogin: new Date(),
       // Randomly update some statuses to show data changes
-      status: Math.random() > 0.7 ? 
+      status: Math.random() > 0.7 ?
         (user.status === "active" ? "pending" : "active") as "active" | "inactive" | "pending" :
         user.status
     }))
-    
+
     setUsers(refreshedUsers)
     setLoading(false)
   }
@@ -321,8 +321,8 @@ export function SelectableTable() {
   ])
 
   const toggleRow = (id: number) => {
-    setSelectedRows(prev => 
-      prev.includes(id) 
+    setSelectedRows(prev =>
+      prev.includes(id)
         ? prev.filter(rowId => rowId !== id)
         : [...prev, id]
     )
@@ -330,8 +330,8 @@ export function SelectableTable() {
 
   const toggleAll = () => {
     setSelectedRows(
-      selectedRows().length === data().length 
-        ? [] 
+      selectedRows().length === data().length
+        ? []
         : data().map(item => item.id)
     )
   }
@@ -339,7 +339,7 @@ export function SelectableTable() {
   return (
     <div class="space-y-4">
       <h3 class="text-lg font-semibold">Selectable Table</h3>
-      
+
       <Table variant="striped">
         <TableHeader>
           <TableRow>
@@ -362,7 +362,7 @@ export function SelectableTable() {
         <TableBody>
           <For each={data()}>
             {(item) => (
-              <TableRow 
+              <TableRow
                 selected={selectedRows().includes(item.id)}
                 onClick={() => toggleRow(item.id)}
               >

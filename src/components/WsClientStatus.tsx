@@ -3,7 +3,7 @@ import { useWsClient } from "~/context/WsClient";
 import { Badge } from "./ui/badge";
 import BrokerDialog from "./BrokerDialog";
 
-export default function WsClientStatusIndicator() {
+export default function WsClientStatus() {
   const { status } = useWsClient();
   const [isDialogOpen, setIsDialogOpen] = createSignal(false);
 
