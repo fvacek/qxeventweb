@@ -7,12 +7,13 @@ import { useWsClient } from "~/context/WsClient"
 import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 
-interface Entry {
-  id: number
+interface Run {
+  runId: number
+  className: string | null
   firstName: string | null
   lastName: string | null
-  className: string | null
-  siid: number | null
+  registration: string | null
+  siId: number | null
   startTime: number | null
 }
 
@@ -21,10 +22,10 @@ function LateEntriesTable() {
   const { currentStage } = useStage();
 
   // Sample data
-  const [entries, setEntries] = createSignal<Entry[]>([])
+  const [entries, setEntries] = createSignal<Run[]>([])
 
   const [loading, setLoading] = createSignal(false)
-  const [sortBy, setSortBy] = createSignal<keyof Entry>("lastName")
+  const [sortBy, setSortBy] = createSignal<keyof Run>("lastName")
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc")
 
   // Reactive sorted data
@@ -46,11 +47,11 @@ function LateEntriesTable() {
   })
 
   // Table columns configuration with sorting
-  const columns: TableColumn<Entry>[] = [
+  const columns: TableColumn<Run>[] = [
     {
         key: "startTime",
         header: "Start Time",
-        cell: (entry: Entry) => {
+        cell: (entry: Run) => {
           if (entry.startTime === null) {
             return <span>—</span>
           }
@@ -63,14 +64,14 @@ function LateEntriesTable() {
     {
         key: "name",
         header: "Name",
-        cell: (entry: Entry) => {
+        cell: (entry: Run) => {
           const fullName = [entry.firstName, entry.lastName]
             .filter(name => name !== null && name.trim() !== "")
             .join(" ")
           return <span>{fullName || "—"}</span>
         },
         sortable: true,
-        sortFn: (a: Entry, b: Entry) => {
+        sortFn: (a: Run, b: Run) => {
           const aName = [a.firstName, a.lastName].filter(n => n).join(" ")
           const bName = [b.firstName, b.lastName].filter(n => n).join(" ")
           return aName.localeCompare(bName)
@@ -78,8 +79,8 @@ function LateEntriesTable() {
         width: "250px"
     },
     {
-      key: "className",
-      header: "Class",
+      key: "registration",
+      header: "Registration",
       sortable: true,
       width: "100px"
     },
@@ -92,13 +93,14 @@ function LateEntriesTable() {
   ]
 
   const addEntry = () => {
-    const newEntry: Entry = {
-      id: Math.max(...entries().map(u => u.id)) + 1,
-      firstName: `Fanda${entries().length + 1}`,
-      lastName: `Vacek${entries().length + 1}`,
-      className: "H55",
-      siid: null,
-      startTime: null,
+    const newEntry: Run = {
+        runId: Math.max(...entries().map(u => u.runId)) + 1,
+        firstName: `Fanda${entries().length + 1}`,
+        lastName: `Vacek${entries().length + 1}`,
+        className: "H55",
+        siId: null,
+        startTime: null,
+        registration: "CHT7001"
     }
     setEntries([...entries(), newEntry])
   }
@@ -109,10 +111,10 @@ function LateEntriesTable() {
   }
 
   const deleteEntry = (id: number) => {
-    setEntries(entries().filter(user => user.id !== id))
+    setEntries(entries().filter(user => user.runId !== id))
   }
 
-  const refreshData = async () => {
+  const reloadTable = async () => {
     setLoading(true)
 
     try {
@@ -121,8 +123,12 @@ function LateEntriesTable() {
             throw new Error("WebSocket client is not available");
         }
         const result = await client.callRpcMethod(
-            "test/sql/hsh2025/sql", "select", 
-            [`SELECT * FROM runs LEFT JOIN competitors ON runs.competitorid = competitors.id WHERE runs.stageid = ${currentStage()}`]);
+            "test/sql/hsh2025/sql", "select",
+            [`SELECT *, classes.name AS class_name
+                FROM runs
+                LEFT JOIN competitors ON runs.competitorid = competitors.id
+                LEFT JOIN classes ON competitors.classid = classes.id
+                WHERE runs.stageid = ${currentStage()}`]);
 
         if (result instanceof Error) {
             console.error("RPC error:", result);
@@ -139,12 +145,13 @@ function LateEntriesTable() {
             });
 
             // Transform rows to Entry objects
-            const transformedEntries: Entry[] = (result as any).rows.map((row: any[], rowIndex: number) => ({
+            const transformedEntries: Run[] = (result as any).rows.map((row: any[], rowIndex: number) => ({
                 id: row[fieldMap.get('id')] || rowIndex + 1,
+                className: row[fieldMap.get('class_name')] || null,
                 firstName: row[fieldMap.get('firstname')] || null,
                 lastName: row[fieldMap.get('lastname')] || null,
-                className: row[fieldMap.get('classname')] || null,
                 startTime: row[fieldMap.get('starttime')] || null,
+                registration: row[fieldMap.get('registration')] || null,
                 siid: row[fieldMap.get('siid')] || null,
             }));
 
@@ -176,12 +183,12 @@ function LateEntriesTable() {
   createEffect(() => {
     if (status() === "Connected") {
       console.log("WebSocket connected - reloading late entries data");
-      refreshData();
+      reloadTable();
     }
   });
 
   createEffect(() => {
-    refreshData();
+    reloadTable();
   });
 
   return (
@@ -190,7 +197,7 @@ function LateEntriesTable() {
         <h2 class="text-2xl font-bold">Late Entries</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
-            <Button variant="outline" onClick={refreshData} disabled={loading()}>
+            <Button variant="outline" onClick={reloadTable} disabled={loading()}>
                 {loading() ? "Loading..." : "Refresh"}
             </Button>
         </div>

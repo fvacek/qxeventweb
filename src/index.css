@@ -50,7 +50,7 @@
     --background: #f8f9fa;
     --foreground: #000000;
 
-    --muted: #f4f4f5;
+    --muted: #cccccc;
     --muted-foreground: #71717a;
 
     --popover: #ffffff;
@@ -89,7 +89,7 @@
     --background: #222831;
     --foreground: #fafafa;
 
-    --muted: #27272a;
+    --muted: #004444;
     --muted-foreground: #a1a1aa;
 
     --accent: #27272a;

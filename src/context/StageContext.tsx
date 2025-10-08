@@ -8,7 +8,7 @@ interface StageContextType {
 const StageContext = createContext<StageContextType>();
 
 export function StageProvider(props: { children: any }) {
-  const [currentStage, setCurrentStage] = createSignal(0);
+  const [currentStage, setCurrentStage] = createSignal(1);
 
   const value = {
     currentStage,
