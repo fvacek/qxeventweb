@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button"
 import { Table, TableBody, TableCell, TableColumn, TableFooter, TableHead, TableHeader, TableRow } from "~/components/ui/table"
 import { useWsClient } from "~/context/WsClient"
 import { showToast, Toast } from "~/components/ui/toast";
+import { useStage } from "~/context/StageContext";
 
 interface Entry {
   id: number
@@ -17,6 +18,7 @@ interface Entry {
 
 function LateEntriesTable() {
   const { wsClient, status } = useWsClient();
+  const { currentStage } = useStage();
 
   // Sample data
   const [entries, setEntries] = createSignal<Entry[]>([])
@@ -118,7 +120,9 @@ function LateEntriesTable() {
         if (!client) {
             throw new Error("WebSocket client is not available");
         }
-        const result = await client.callRpcMethod("test/sql/hsh2025/sql", "select", ["SELECT * FROM lateentries"]);
+        const result = await client.callRpcMethod(
+            "test/sql/hsh2025/sql", "select", 
+            [`SELECT * FROM runs LEFT JOIN competitors ON runs.competitorid = competitors.id WHERE runs.stageid = ${currentStage()}`]);
 
         if (result instanceof Error) {
             console.error("RPC error:", result);
@@ -174,6 +178,10 @@ function LateEntriesTable() {
       console.log("WebSocket connected - reloading late entries data");
       refreshData();
     }
+  });
+
+  createEffect(() => {
+    refreshData();
   });
 
   return (

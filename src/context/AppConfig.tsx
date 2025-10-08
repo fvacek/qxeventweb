@@ -1,9 +1,9 @@
 import { createContext, useContext } from "solid-js";
 
 export type AppConfig = {
-  brokerUrl: string;
-  theme: "light" | "dark";
-  debug: boolean;
+  brokerUrl: string,
+  theme: "light" | "dark",
+  debug: boolean,
 };
 
 // Non-reactive config object

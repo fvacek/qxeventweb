@@ -4,10 +4,12 @@ import NavHeader from "./components/NavHeader"
 import { WsClientProvider } from "./context/WsClient"
 import AppConfigContext, { config } from "./context/AppConfig";
 import { Toaster } from "~/components/ui/toast";
+import { StageProvider } from "./context/StageContext";
 
 export const App = (props: ParentProps) => {
     return (
     <AppConfigContext.Provider value={config}>
+      <StageProvider>
         <WsClientProvider>
             <div class="mx-auto flex min-h-full w-full max-w-[1200px] flex-col bg-[var(--background)] text-[var(--secondary)] transition">
                 <NavHeader />
@@ -20,6 +22,7 @@ export const App = (props: ParentProps) => {
                 <Toaster />
             </div>
         </WsClientProvider>
+      </StageProvider>
     </AppConfigContext.Provider>
 )
 }

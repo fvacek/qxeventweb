@@ -8,6 +8,7 @@ import lightModeIcon from "../../assets/sun.svg"
 import menuIcon from "../../assets/menu.svg"
 import { theme, toggleTheme } from "../stores/theme"
 import WsClientStatusIndicator from "./WsClientStatus"
+import { StageControl } from "./StageControl"
 
 const NavHeader = (): JSX.Element => {
     const [menuIsOpen, setMenuIsOpen] = createSignal(false)
@@ -120,6 +121,9 @@ const NavHeader = (): JSX.Element => {
                         </li>
                     )
                 })}
+                <li class="ml-4 flex">
+                    <StageControl />
+                </li>
                 <li class="ml-4 flex">
                     <WsClientStatusIndicator/>
                 </li>
