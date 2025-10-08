@@ -3,6 +3,7 @@ import { Footer } from "./components/Footer"
 import NavHeader from "./components/NavHeader"
 import { WsClientProvider } from "./context/WsClient"
 import AppConfigContext, { config } from "./context/AppConfig";
+import { Toaster } from "~/components/ui/toast";
 
 export const App = (props: ParentProps) => {
     return (
@@ -16,6 +17,7 @@ export const App = (props: ParentProps) => {
                 </main>
 
                 <Footer />
+                <Toaster />
             </div>
         </WsClientProvider>
     </AppConfigContext.Provider>

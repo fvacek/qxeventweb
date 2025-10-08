@@ -1,9 +1,10 @@
 import { WsClient } from "libshv-js"
-import { createMemo, createSignal } from "solid-js"
+import { createMemo, createSignal, createEffect } from "solid-js"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Table, TableBody, TableCell, TableColumn, TableFooter, TableHead, TableHeader, TableRow } from "~/components/ui/table"
 import { useWsClient } from "~/context/WsClient"
+import { showToast, Toast } from "~/components/ui/toast";
 
 interface Entry {
   id: number
@@ -15,7 +16,7 @@ interface Entry {
 }
 
 function LateEntriesTable() {
-  const { wsClient } = useWsClient();
+  const { wsClient, status } = useWsClient();
 
   // Sample data
   const [entries, setEntries] = createSignal<Entry[]>([])
@@ -121,8 +122,7 @@ function LateEntriesTable() {
 
         if (result instanceof Error) {
             console.error("RPC error:", result);
-            setLoading(false);
-            return;
+            throw Error(result.message);
         }
 
         if (result && typeof result === 'object' && result !== null && 'rows' in result && 'fields' in result) {
@@ -148,6 +148,11 @@ function LateEntriesTable() {
         }
     } catch (error) {
         console.error("RPC call failed:", error);
+        showToast({
+            title: "Reload table error",
+            description: (error as Error).message,
+            variant: "destructive"
+        })
     }
     setLoading(false);
 
@@ -163,15 +168,23 @@ function LateEntriesTable() {
     setLoading(false)
   }
 
+  // Watch for WebSocket status changes and reload data when connected
+  createEffect(() => {
+    if (status() === "Connected") {
+      console.log("WebSocket connected - reloading late entries data");
+      refreshData();
+    }
+  });
+
   return (
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-2xl font-bold">Late Entries</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
-          <Button variant="outline" onClick={refreshData}>
-            Refresh
-          </Button>
+            <Button variant="outline" onClick={refreshData} disabled={loading()}>
+                {loading() ? "Loading..." : "Refresh"}
+            </Button>
         </div>
       </div>
 
