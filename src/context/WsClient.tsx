@@ -26,7 +26,6 @@ const WsClientContext = createContext<WsClientContextValue>();
 export function WsClientProvider(props: { children: JSX.Element }) {
     const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
     const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
-    const [lastReconnectTime, setLastReconnectTime] = createSignal(0);
     let connectionTimeout: number | null = null;
 
     const appConfig = useAppConfig();
@@ -40,17 +39,6 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             }
             return;
         }
-
-        // Prevent rapid reconnection attempts
-        const now = Date.now();
-        if (now - lastReconnectTime() < 1000) {
-            if (appConfig.debug) {
-                console.log('Throttling reconnection attempt - too soon since last attempt');
-            }
-            return;
-        }
-
-        setLastReconnectTime(now);
 
         if (appConfig.debug) {
             console.log('Starting connection attempt to:', currentBrokerUrl);

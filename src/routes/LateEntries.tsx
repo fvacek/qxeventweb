@@ -18,24 +18,7 @@ function LateEntriesTable() {
   const { wsClient } = useWsClient();
 
   // Sample data
-  const [entries, setEntries] = createSignal<Entry[]>([
-    {
-      id: 1,
-      firstName: "John",
-      lastName: "Doe",
-      className: "H21",
-      siid: null,
-      startTime: null,
-    },
-    {
-      id: 1,
-      firstName: "Fanda",
-      lastName: "Vacek",
-      className: "H55",
-      siid: 4567,
-      startTime: 1970,
-    },
-  ])
+  const [entries, setEntries] = createSignal<Entry[]>([])
 
   const [loading, setLoading] = createSignal(false)
   const [sortBy, setSortBy] = createSignal<keyof Entry>("lastName")
