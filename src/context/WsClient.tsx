@@ -11,9 +11,6 @@ import {
 } from "solid-js";
 import { WsClient } from 'libshv-js';
 import { useAppConfig } from "./AppConfig";
-import { EventConfig, useEventConfig } from "./EventConfig";
-
-const { setEventConfig } = useEventConfig();
 
 type WsClientStatus = "Connecting" | "Connected" | "Disconnected" | "Error" | "AuthError";
 
@@ -88,7 +85,6 @@ export function WsClientProvider(props: { children: JSX.Element }) {
                         clearTimeout(connectionTimeout);
                         connectionTimeout = null;
                     }
-                    // loadEventConfig();
                     setStatus('Connected');
                 },
                 onDisconnected: () => {
@@ -160,24 +156,6 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             ws.close();
         }
     });
-
-    const loadEventConfig = async (ws: WsClient) => {
-        if (appConfig.debug) {
-            console.log('Loading event config');
-        }
-        try {
-            const result = await ws.callRpcMethod(appConfig.eventPath, "select", ["SELECT * FROM config"])
-            if (result instanceof Error) {
-                console.error("RPC error:", result)
-                throw new Error(result.message)
-            }
-            const event_config = new EventConfig();
-            event_config.eventName = "foo-bar";
-            setEventConfig(event_config);
-        } catch (error) {
-            console.error('Failed to load event config:', error);
-        }
-    };
 
     return (
         <WsClientContext.Provider value={{ wsClient: wsClient, status, reconnect, reconnectWithNewUrl }}>
