@@ -194,8 +194,8 @@ function LateEntriesTable(props: { className: () => string }) {
     });
 
   return (
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
+    <div>
+      <div class="flex items-center justify-between mb-4">
         <h2 class="text-2xl font-bold">{props.className()}</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
@@ -272,7 +272,7 @@ function ClassSelector(props: { className: () => string, setClassName: (name: st
     });
 
   return (
-    <div class="flex flex-wrap gap-2 mb-4">
+    <div class="flex flex-wrap gap-2">
       <For each={classes()}>
         {(cls) => (
           <Button
@@ -293,8 +293,10 @@ const LateEntries = () => {
     return (
         <div class="flex w-full flex-col items-center justify-center">
             <h1 class="text-3xl font-bold">Late Entries</h1>
-            <ClassSelector className={className} setClassName={setClassName} />
-            <LateEntriesTable className={className} />
+            <div class="w-full max-w-7xl space-y-4">
+                <ClassSelector className={className} setClassName={setClassName} />
+                <LateEntriesTable className={className} />
+            </div>
         </div>
     )
 }
