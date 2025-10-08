@@ -1,11 +1,12 @@
-import { WsClient } from "libshv-js"
-import { createMemo, createSignal, createEffect } from "solid-js"
+import { RpcValue, WsClient } from "libshv-js"
+import { createMemo, createSignal, createEffect, For } from "solid-js"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Table, TableBody, TableCell, TableColumn, TableFooter, TableHead, TableHeader, TableRow } from "~/components/ui/table"
 import { useWsClient } from "~/context/WsClient"
 import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
+import { useAppConfig } from "~/context/AppConfig"
 
 interface Run {
   runId: number
@@ -17,12 +18,13 @@ interface Run {
   startTime: number | null
 }
 
-function LateEntriesTable() {
+function LateEntriesTable(props: { className: () => string }) {
   const { wsClient, status } = useWsClient();
   const { currentStage } = useStage();
+  const appConfig = useAppConfig();
 
   // Sample data
-  const [entries, setEntries] = createSignal<Run[]>([])
+  const [runs, setRuns] = createSignal<Run[]>([])
 
   const [loading, setLoading] = createSignal(false)
   const [sortBy, setSortBy] = createSignal<keyof Run>("lastName")
@@ -30,7 +32,7 @@ function LateEntriesTable() {
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
-    const data = [...entries()]
+    const data = [...runs()]
     return data.sort((a, b) => {
       const aVal = a[sortBy()]
       const bVal = b[sortBy()]
@@ -94,15 +96,15 @@ function LateEntriesTable() {
 
   const addEntry = () => {
     const newEntry: Run = {
-        runId: Math.max(...entries().map(u => u.runId)) + 1,
-        firstName: `Fanda${entries().length + 1}`,
-        lastName: `Vacek${entries().length + 1}`,
+        runId: Math.max(...runs().map(u => u.runId)) + 1,
+        firstName: `Fanda${runs().length + 1}`,
+        lastName: `Vacek${runs().length + 1}`,
         className: "H55",
         siId: null,
         startTime: null,
         registration: "CHT7001"
     }
-    setEntries([...entries(), newEntry])
+    setRuns([...runs(), newEntry])
   }
 
   const editEntry = (id: number) => {
@@ -111,41 +113,46 @@ function LateEntriesTable() {
   }
 
   const deleteEntry = (id: number) => {
-    setEntries(entries().filter(user => user.runId !== id))
+    setRuns(runs().filter(user => user.runId !== id))
+  }
+
+  const callRpcMethod = async (shvPath: string, method: string, params?: RpcValue): Promise<RpcValue> => {
+    const client = wsClient();
+    if (!client) {
+        throw new Error("WebSocket client is not available");
+    }
+    const result = await client.callRpcMethod(shvPath, method, params);
+    if (result instanceof Error) {
+        console.error("RPC error:", result);
+        throw new Error(result.message);
+    }
+    return result;
   }
 
   const reloadTable = async () => {
     setLoading(true)
 
     try {
-        const client = wsClient();
-        if (!client) {
-            throw new Error("WebSocket client is not available");
-        }
-        const result = await client.callRpcMethod(
-            "test/sql/hsh2025/sql", "select",
+        const runs_result = await callRpcMethod(
+            appConfig.eventPath, "select",
             [`SELECT *, classes.name AS class_name
                 FROM runs
-                LEFT JOIN competitors ON runs.competitorid = competitors.id
-                LEFT JOIN classes ON competitors.classid = classes.id
+                INNER JOIN competitors ON runs.competitorid = competitors.id
+                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
                 WHERE runs.stageid = ${currentStage()}`]);
 
-        if (result instanceof Error) {
-            console.error("RPC error:", result);
-            throw Error(result.message);
-        }
 
-        if (result && typeof result === 'object' && result !== null && 'rows' in result && 'fields' in result) {
-            console.log("Data received:", result);
+        if (runs_result && typeof runs_result === 'object' && runs_result !== null && 'rows' in runs_result && 'fields' in runs_result) {
+            console.log("Data received:", runs_result);
 
             // Find field indices
             const fieldMap = new Map();
-            (result as any).fields.forEach((field: { name: string }, index: number) => {
+            (runs_result as any).fields.forEach((field: { name: string }, index: number) => {
                 fieldMap.set(field.name, index);
             });
 
             // Transform rows to Entry objects
-            const transformedEntries: Run[] = (result as any).rows.map((row: any[], rowIndex: number) => ({
+            const transformedEntries: Run[] = (runs_result as any).rows.map((row: any[], rowIndex: number) => ({
                 id: row[fieldMap.get('id')] || rowIndex + 1,
                 className: row[fieldMap.get('class_name')] || null,
                 firstName: row[fieldMap.get('firstname')] || null,
@@ -155,7 +162,7 @@ function LateEntriesTable() {
                 siid: row[fieldMap.get('siid')] || null,
             }));
 
-            setEntries(transformedEntries);
+            setRuns(transformedEntries);
         }
     } catch (error) {
         console.error("RPC call failed:", error);
@@ -167,34 +174,29 @@ function LateEntriesTable() {
     }
     setLoading(false);
 
-    // // Simulate fetching fresh data (in real app, this would be an API call)
-    // await new Promise(resolve => setTimeout(resolve, 300))
-
     // Update data with fresh timestamps and randomized data
-    const refreshedEntries = entries().map(entry => ({
+    const refreshedEntries = runs().map(entry => ({
       ...entry,
     }))
 
-    setEntries(refreshedEntries)
+    setRuns(refreshedEntries)
     setLoading(false)
   }
 
-  // Watch for WebSocket status changes and reload data when connected
-  createEffect(() => {
-    if (status() === "Connected") {
-      console.log("WebSocket connected - reloading late entries data");
-      reloadTable();
-    }
-  });
 
-  createEffect(() => {
-    reloadTable();
-  });
+
+    // Watch for WebSocket status changes and reload data when connected
+    createEffect(() => {
+        if (!!props.className()) {
+            console.log("Class name changed - reloading late entries data");
+            reloadTable();
+        }
+    });
 
   return (
     <div class="space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Late Entries</h2>
+        <h2 class="text-2xl font-bold">{props.className()}</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
             <Button variant="outline" onClick={reloadTable} disabled={loading()}>
@@ -206,7 +208,7 @@ function LateEntriesTable() {
       {/* Example 1: Auto-rendered table with sorting and global search */}
       <div class="rounded-md border">
         <Table
-          data={entries()}
+          data={runs()}
           columns={columns}
           loading={loading()}
           emptyMessage="No users found"
@@ -220,11 +222,79 @@ function LateEntriesTable() {
   )
 }
 
+function ClassSelector(props: { className: () => string, setClassName: (name: string) => void }) {
+  const { wsClient, status } = useWsClient();
+  const { currentStage } = useStage();
+  const appConfig = useAppConfig();
+
+  const [classes, setClasses] = createSignal<string[]>([])
+
+  const callRpcMethod = async (shvPath: string, method: string, params?: RpcValue): Promise<RpcValue> => {
+    const client = wsClient();
+    if (!client) {
+        throw new Error("WebSocket client is not available");
+    }
+    const result = await client.callRpcMethod(shvPath, method, params);
+    if (result instanceof Error) {
+        console.error("RPC error:", result);
+        throw new Error(result.message);
+    }
+    return result;
+  }
+
+  async function loadClasses() {
+        try {
+            const classes_result = await callRpcMethod(
+                appConfig.eventPath, "select",
+                [`SELECT classes.name AS class_name FROM classes, classdefs
+                  WHERE classdefs.classid = classes.id AND classdefs.stageid = ${currentStage()}
+                  ORDER BY classes.name`]);
+            const classNames: string[] = (classes_result as any).rows.map((row: any[], rowIndex: number) => (
+                row[0]
+            ));
+            setClasses(classNames);
+
+        } catch (error) {
+            console.error("RPC call failed:", error);
+            showToast({
+                title: "Load classes error",
+                description: (error as Error).message,
+                variant: "destructive"
+            })
+        }
+    }
+
+    // Watch for WebSocket status changes and load classes when connected
+    createEffect(() => {
+        if (status() === "Connected") {
+            loadClasses();
+        }
+    });
+
+  return (
+    <div class="flex flex-wrap gap-2 mb-4">
+      <For each={classes()}>
+        {(cls) => (
+          <Button
+            variant={props.className() === cls ? "default" : "outline"}
+            onClick={() => props.setClassName(cls)}
+          >
+            {cls}
+          </Button>
+        )}
+      </For>
+    </div>
+  )
+}
+
 const LateEntries = () => {
+    const [className, setClassName] = createSignal("")
+
     return (
         <div class="flex w-full flex-col items-center justify-center">
             <h1 class="text-3xl font-bold">Late Entries</h1>
-            <LateEntriesTable />
+            <ClassSelector className={className} setClassName={setClassName} />
+            <LateEntriesTable className={className} />
         </div>
     )
 }
