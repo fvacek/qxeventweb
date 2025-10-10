@@ -9,18 +9,18 @@ export const googleOidcConfig: UserManagerSettings = {
   loadUserInfo: false,
   // Force PKCE and disable client authentication
   disablePKCE: false,
-  client_authentication: "none",
+  // client_authentication: "none",
   // Explicitly use Google's well-known endpoints with proper client authentication
-  metadata: {
-    issuer: "https://accounts.google.com",
-    authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-    token_endpoint: "https://oauth2.googleapis.com/token",
-    userinfo_endpoint: "https://openidconnect.googleapis.com/v1/userinfo",
-    jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
-    revocation_endpoint: "https://oauth2.googleapis.com/revoke",
-    end_session_endpoint: "https://accounts.google.com/logout",
-    token_endpoint_auth_methods_supported: ["none"],
-  },
+  // metadata: {
+  //   issuer: "https://accounts.google.com",
+  //   authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  //   token_endpoint: "https://oauth2.googleapis.com/token",
+  //   userinfo_endpoint: "https://openidconnect.googleapis.com/v1/userinfo",
+  //   jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
+  //   revocation_endpoint: "https://oauth2.googleapis.com/revoke",
+  //   end_session_endpoint: "https://accounts.google.com/logout",
+  //   token_endpoint_auth_methods_supported: ["none"],
+  // },
   // Remove client_id from token params since we're using PKCE
   // Disable automatic silent renewal for simplicity
   automaticSilentRenew: false,

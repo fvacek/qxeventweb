@@ -35,21 +35,13 @@ const LoginDialog: Component<LoginDialogProps> = (props) => {
           </DialogDescription>
         </DialogHeader>
         <div class="flex flex-col gap-4">
-          <GoogleSignIn 
+          <GoogleSignIn
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
             buttonText="signin_with"
             theme="outline"
             size="large"
           />
-          <div class="relative">
-            <div class="absolute inset-0 flex items-center">
-              <span class="w-full border-t" />
-            </div>
-            <div class="relative flex justify-center text-xs uppercase">
-              <span class="bg-background px-2 text-muted-foreground">Or</span>
-            </div>
-          </div>
           <Button class="w-full" onClick={() => authService.login("microsoft")}>
             Login with Microsoft
           </Button>
