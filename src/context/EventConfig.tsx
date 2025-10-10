@@ -1,4 +1,4 @@
-import { createContext, createEffect, createSignal, useContext } from "solid-js"
+import { Accessor, createContext, createEffect, createSignal, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useAppConfig } from "./AppConfig"
 import { useWsClient } from "./WsClient"
@@ -15,6 +15,7 @@ export class EventConfig {
 interface EventConfigContextType {
     eventConfig: EventConfig
     setEventConfig: (eventConfig: EventConfig) => void
+    eventOpen: Accessor<boolean>;
 }
 
 const EventConfigContext = createContext<EventConfigContextType>()

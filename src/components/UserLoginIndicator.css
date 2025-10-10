@@ -40,8 +40,6 @@
 
 .login-button:focus {
   outline: none;
-  ring: 2px solid #3b82f6;
-  ring-offset: 2px;
 }
 
 .user-avatar {
@@ -93,34 +91,34 @@
   .login-button {
     color: #f9fafb;
   }
-  
+
   .login-button:hover {
     background-color: #374151;
     color: #ffffff;
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
-  
+
   .login-button.logged-in:hover {
     background-color: #1e3a8a;
     border: 1px solid #3b82f6;
   }
-  
+
   .login-button.logged-out:hover {
     background-color: #166534;
     border: 1px solid #22c55e;
   }
-  
+
   .user-avatar,
   .avatar-fallback {
     border-color: #4b5563;
   }
-  
+
   .login-button:hover .user-avatar,
   .login-button:hover .avatar-fallback {
     border-color: #6b7280;
   }
-  
+
   .login-text {
     color: #9ca3af;
   }
@@ -155,11 +153,11 @@
   .login-button {
     padding: 0.5rem;
   }
-  
+
   .user-name {
     display: none;
   }
-  
+
   .user-avatar,
   .avatar-fallback {
     width: 2.25rem;

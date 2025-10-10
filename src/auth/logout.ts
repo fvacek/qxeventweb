@@ -38,20 +38,20 @@ export class LogoutService {
     try {
       // Clear any stored authentication data
       this.clearStoredAuth();
-      
+
       // Clear Google authentication if present
       await this.clearGoogleAuth();
-      
+
       // Clear OIDC authentication if present
       await this.clearOidcAuth();
-      
+
       console.log('User logged out successfully');
-      
+
       // Redirect if requested
       if (redirect) {
         window.location.href = redirectUrl;
       }
-      
+
     } catch (error) {
       console.error('Error during logout:', error);
       throw new Error('Failed to log out completely');

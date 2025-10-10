@@ -16,6 +16,7 @@ import { useWsClient } from "~/context/WsClient"
 import { showToast, Toast } from "~/components/ui/toast"
 import { useStage } from "~/context/StageContext"
 import { useAppConfig } from "~/context/AppConfig"
+import { useEventConfig } from "~/context/EventConfig"
 
 interface Run {
     runId: number
@@ -266,6 +267,7 @@ function ClassSelector(props: {
     const { wsClient, status } = useWsClient()
     const { currentStage } = useStage()
     const appConfig = useAppConfig()
+    const { eventOpen } = useEventConfig()
 
     const [classes, setClasses] = createSignal<string[]>([])
 
@@ -314,7 +316,7 @@ function ClassSelector(props: {
 
     // Watch for WebSocket status changes and load classes when connected
     createEffect(() => {
-        if (status() === "Connected") {
+        if (eventOpen() === true) {
             loadClasses()
         }
     })

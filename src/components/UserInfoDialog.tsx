@@ -23,23 +23,23 @@ const UserInfoDialog: Component<UserInfoDialogProps> = (props) => {
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
-      
+
       // Use logout service to handle cleanup
       await logoutService.logout();
-      
+
       // Clear the user from context
       setUser(null);
-      
+
       // Show success message
       showToast({
         title: "Logged out",
         description: "You have been successfully logged out.",
         variant: "success"
       });
-      
+
       // Close dialog
       props.onClose();
-      
+
     } catch (error) {
       console.error("Logout error:", error);
       showToast({
@@ -66,33 +66,33 @@ const UserInfoDialog: Component<UserInfoDialogProps> = (props) => {
         <DialogHeader>
           <DialogTitle>Account Information</DialogTitle>
         </DialogHeader>
-        
+
         <div class="flex flex-col items-center space-y-4 py-4">
           {/* Avatar */}
           <div class="flex items-center justify-center">
             {props.user.avatar ? (
-              <img 
-                src={props.user.avatar} 
+              <img
+                src={props.user.avatar}
                 alt={props.user.name}
                 class="w-20 h-20 rounded-full object-cover border-4 border-gray-200 shadow-lg"
                 onError={(e) => {
                   // Replace with fallback on error
                   e.currentTarget.style.display = 'none';
                   const fallback = e.currentTarget.nextElementSibling;
-                  if (fallback) fallback.style.display = 'flex';
+                  // if (fallback) fallback.style.display = 'flex';
                 }}
               />
             ) : null}
-            
+
             {/* Fallback avatar */}
-            <div 
+            <div
               class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg"
               style={{ display: props.user.avatar ? 'none' : 'flex' }}
             >
               {getUserInitials(props.user.name)}
             </div>
           </div>
-          
+
           {/* User details */}
           <div class="text-center space-y-2">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -102,7 +102,7 @@ const UserInfoDialog: Component<UserInfoDialogProps> = (props) => {
               {props.user.email}
             </p>
           </div>
-          
+
           {/* Account info */}
           <div class="w-full space-y-3 mt-6">
             <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
@@ -127,7 +127,7 @@ const UserInfoDialog: Component<UserInfoDialogProps> = (props) => {
             </div>
           </div>
         </div>
-        
+
         {/* Actions */}
         <div class="flex flex-col space-y-2 pt-4">
           <Button
