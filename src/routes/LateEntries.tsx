@@ -301,6 +301,7 @@ function ClassSelector(props: {
                 (row: any[], rowIndex: number) => row[0],
             )
             setClasses(classNames)
+            props.setClassName(classNames[0])
         } catch (error) {
             console.error("RPC call failed:", error)
             showToast({
