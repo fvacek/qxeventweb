@@ -23,10 +23,24 @@ class AuthService {
       provider === "google"
         ? this.googleUserManager
         : this.microsoftUserManager;
-    const user = await userManager.signinRedirectCallback();
-    // TODO: Do something with the user object, like storing it in a context
-    console.log(user);
-    return user;
+    
+    console.log(`Handling ${provider} callback...`);
+    console.log('Current URL:', window.location.href);
+    console.log('Search params:', new URLSearchParams(window.location.search));
+    
+    try {
+      const user = await userManager.signinRedirectCallback();
+      console.log('Successfully authenticated user:', user);
+      return user;
+    } catch (error) {
+      console.error('Detailed callback error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+      throw error;
+    }
   }
 }
 

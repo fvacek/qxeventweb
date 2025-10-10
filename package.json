@@ -1,46 +1,25 @@
 {
     "name": "qxevent",
-    "version": "0.1.0",
-    "repository": "https://github.com/fvacek/qxevent",
-    "author": "Fanda Vacek, fandavacek@gmail.com",
-    "license": "MIT",
-    "type": "module",
-    "private": true,
-    "scripts": {
-        "start": "vite",
-        "dev": "vite",
-        "build": "vite build",
-        "serve": "vite preview",
-        "fmt": "prettier --write  \"**/*.{ts,js,tsx,jsx}\"",
-        "fmt:check": "prettier --check  \"**/*.{ts,js,tsx,jsx}\"",
-        "tsc": "tsc --noEmit",
-        "tsc:watch": "tsc --noEmit --watch"
-    },
-    "dependencies": {
-        "@kobalte/core": "^0.13.11",
-        "@solidjs/router": "0.15.3",
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "libshv-js": "^3.23.1",
-        "oidc-client-ts": "^3.3.0",
-        "solid-js": "^1.9.9",
-        "tailwind-merge": "^3.3.1",
-        "tailwindcss-animate": "^1.0.7"
-    },
-    "devDependencies": {
-        "@tailwindcss/vite": "^4.1.13",
-        "prettier": "^3.6.2",
-        "prettier-plugin-tailwindcss": "^0.6.14",
-        "typescript": "^5.9.2",
-        "vite": "^7.1.4",
-        "vite-plugin-solid": "^2.11.8"
-    },
-    "prettier": {
-        "tabWidth": 4,
-        "semi": false,
-        "tailwindStylesheet": "./src/index.css",
-        "plugins": [
-            "prettier-plugin-tailwindcss"
-        ]
-    }
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "oidc-client-ts": "^3.3.0",
+    "postcss": "^8.5.6",
+    "solid-app-router": "^0.4.2",
+    "solid-js": "^1.9.9",
+    "tailwindcss": "^4.1.14"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7",
+    "vite-plugin-solid": "^2.11.8"
+  }
 }

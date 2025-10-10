@@ -33,10 +33,16 @@ if (app) {
                 <Route path="/" component={Home} />
                 <Route path="/about" component={About} />
                 <Route path="/table-demo" component={TableDemo} />
-                                    <Route path="/late-entries" component={LateEntries} />
-                                    <Route path="/auth/callback/google" component={() => <OidcLogin provider="google" />} />
-                                    <Route path="/auth/callback/microsoft" component={() => <OidcLogin provider="microsoft" />} />
-                                    <Route path="*" component={NotFound} />
+                <Route path="/late-entries" component={LateEntries} />
+                <Route
+                    path="/auth/callback/google"
+                    component={() => <OidcLogin provider="google" />}
+                />
+                <Route
+                    path="/auth/callback/microsoft"
+                    component={() => <OidcLogin provider="microsoft" />}
+                />
+                <Route path="*" component={NotFound} />
             </Router>
         ),
         app,
