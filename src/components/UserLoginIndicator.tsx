@@ -13,7 +13,7 @@ const UserLoginIndicator: Component = () => {
   return (
     <>
       <button onClick={openLoginDialog}>
-        {user() ? user()!.profile.name : "Log in"}
+        {user() ? user()!.name : "Log in"}
       </button>
       <LoginDialog
         isOpen={loginDialogIsOpen()}

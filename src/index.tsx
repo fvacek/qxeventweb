@@ -34,10 +34,7 @@ if (app) {
                 <Route path="/about" component={About} />
                 <Route path="/table-demo" component={TableDemo} />
                 <Route path="/late-entries" component={LateEntries} />
-                <Route
-                    path="/auth/callback/google"
-                    component={() => <OidcLogin provider="google" />}
-                />
+                {/* Google auth now uses Identity Services - no callback route needed */}
                 <Route
                     path="/auth/callback/microsoft"
                     component={() => <OidcLogin provider="microsoft" />}

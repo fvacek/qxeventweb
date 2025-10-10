@@ -9,7 +9,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { authService } from "~/auth/auth-service";
 import GoogleSignIn from "~/components/GoogleSignIn";
-import type { GoogleUser } from "~/auth/google-auth";
+import type { AuthUser } from "~/context/AuthContext";
 
 interface LoginDialogProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ interface LoginDialogProps {
 }
 
 const LoginDialog: Component<LoginDialogProps> = (props) => {
-  const handleGoogleSuccess = (user: GoogleUser) => {
+  const handleGoogleSuccess = (user: AuthUser) => {
     console.log('Login successful:', user);
     props.onClose();
   };

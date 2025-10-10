@@ -6,35 +6,26 @@ import {
   Accessor,
   Setter,
 } from "solid-js";
-import { User } from "oidc-client-ts";
-import type { GoogleUser } from "~/auth/google-auth";
-import { normalizeUser, type NormalizedUser } from "~/auth/user-utils";
 
-// Generic user type that works with both OIDC and Google auth
-export type AuthUser = User | GoogleUser;
+// Simplified user type with essential fields only
+export interface AuthUser {
+  email: string;
+  name: string;
+  avatar?: string;
+}
 
 interface AuthContextType {
-  user: Accessor<NormalizedUser | null>;
-  setUser: (user: AuthUser | null) => void;
-  rawUser: Accessor<AuthUser | null>;
+  user: Accessor<AuthUser | null>;
+  setUser: Setter<AuthUser | null>;
 }
 
 const AuthContext = createContext<AuthContextType>();
 
 export const AuthProvider = (props: ParentProps) => {
-  const [rawUser, setRawUser] = createSignal<AuthUser | null>(null);
-  
-  const user = () => {
-    const raw = rawUser();
-    return raw ? normalizeUser(raw) : null;
-  };
-  
-  const setUser = (user: AuthUser | null) => {
-    setRawUser(user);
-  };
+  const [user, setUser] = createSignal<AuthUser | null>(null);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, rawUser }}>
+    <AuthContext.Provider value={{ user, setUser }}>
       {props.children}
     </AuthContext.Provider>
   );

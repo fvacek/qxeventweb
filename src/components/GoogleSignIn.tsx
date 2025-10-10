@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount } from "solid-js";
-import { useAuth } from "~/context/AuthContext";
+import { useAuth, type AuthUser } from "~/context/AuthContext";
 import {
   googleAuthService,
   type GoogleUser,
@@ -8,11 +8,11 @@ import {
 import { showToast } from "~/components/ui/toast";
 
 interface GoogleSignInProps {
-  onSuccess?: (user: GoogleUser) => void;
-  onError?: (error: Error) => void;
-  buttonText?: "signin_with" | "signup_with" | "continue_with" | "signin";
-  theme?: "outline" | "filled_blue" | "filled_black";
-  size?: "large" | "medium" | "small";
+  onSuccess?: (user: AuthUser) => void
+  onError?: (error: Error) => void
+  buttonText?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+  theme?: 'outline' | 'filled_blue' | 'filled_black'
+  size?: 'large' | 'medium' | 'small'
 }
 
 const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
@@ -21,16 +21,25 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
   const [error, setError] = createSignal<string | null>(null);
   let buttonRef: HTMLDivElement | undefined;
 
-  const handleSignInSuccess = (user: GoogleUser) => {
-    console.log("Google sign-in successful:", user);
-    setUser(user);
-    props.onSuccess?.(user);
+  const convertGoogleUserToAuthUser = (googleUser: GoogleUser): AuthUser => {
+    return {
+      email: googleUser.email,
+      name: googleUser.name,
+      avatar: googleUser.picture
+    }
+  }
+
+  const handleSignInSuccess = (googleUser: GoogleUser) => {
+    console.log('Google sign-in successful:', googleUser)
+    const authUser = convertGoogleUserToAuthUser(googleUser)
+    setUser(authUser)
+    props.onSuccess?.(authUser)
     showToast({
       title: "Sign in successful",
-      description: `Welcome, ${user.name}!`,
-      variant: "success",
-    });
-  };
+      description: `Welcome, ${googleUser.name}!`,
+      variant: "success"
+    })
+  }
 
   const handleSignInError = (error: Error) => {
     console.error("Google sign-in error:", error);
@@ -47,8 +56,8 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
     try {
       setIsLoading(true);
       setError(null);
-      const user = await googleAuthService.signInWithCredential();
-      handleSignInSuccess(user);
+      const googleUser = await googleAuthService.signInWithCredential()
+      handleSignInSuccess(googleUser)
     } catch (error) {
       handleSignInError(error as Error);
     } finally {
@@ -60,8 +69,8 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { user } = await googleAuthService.signInWithToken();
-      handleSignInSuccess(user);
+      const { user: googleUser } = await googleAuthService.signInWithToken()
+      handleSignInSuccess(googleUser)
     } catch (error) {
       handleSignInError(error as Error);
     } finally {
