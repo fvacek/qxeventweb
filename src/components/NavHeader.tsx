@@ -9,6 +9,7 @@ import menuIcon from "../../assets/menu.svg"
 import { theme, toggleTheme } from "../stores/theme"
 import WsClientStatusIndicator from "./WsClientStatus"
 import { StageControl } from "./StageControl"
+import UserLoginIndicator from "./UserLoginIndicator"
 
 const NavHeader = (): JSX.Element => {
     const [menuIsOpen, setMenuIsOpen] = createSignal(false)
@@ -100,6 +101,9 @@ const NavHeader = (): JSX.Element => {
                                 </li>
                             )
                         })}
+                        <li class="ml-4 flex h-fit w-fit">
+                            <UserLoginIndicator />
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -123,6 +127,9 @@ const NavHeader = (): JSX.Element => {
                 })}
                 <li class="ml-4 flex">
                     <StageControl />
+                </li>
+                <li class="ml-4 flex">
+                    <UserLoginIndicator />
                 </li>
                 <li class="ml-4 flex">
                     <WsClientStatusIndicator/>

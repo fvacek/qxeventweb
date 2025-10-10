@@ -10,6 +10,7 @@ import {
     EventConfigProvider,
     useEventConfig,
 } from "./context/EventConfig"
+import { AuthProvider } from "./context/AuthContext"
 
 const AppContent = (props: ParentProps) => {
     return (
@@ -26,11 +27,13 @@ export const App = (props: ParentProps) => {
     return (
         <AppConfigContext.Provider value={config}>
             <WsClientProvider>
-                <EventConfigProvider>
-                    <StageProvider>
-                        <AppContent>{props.children}</AppContent>
-                    </StageProvider>
-                </EventConfigProvider>
+                <AuthProvider>
+                    <EventConfigProvider>
+                        <StageProvider>
+                            <AppContent>{props.children}</AppContent>
+                        </StageProvider>
+                    </EventConfigProvider>
+                </AuthProvider>
             </WsClientProvider>
         </AppConfigContext.Provider>
     )
