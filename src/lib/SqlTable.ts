@@ -27,53 +27,39 @@ function isTableJson(obj: unknown): obj is TableJson {
   if (typeof obj !== "object" || obj == null) {
     throw new Error("Not object");
   }
-  // console.log("Checking obj:", obj);
 
-  // Type guard to ensure we have an object with the expected properties
   const candidate = obj as any;
-  // console.log("Checking candidate:", candidate);
 
   // Check fields
   if (!Array.isArray(candidate.fields)) {
     throw new Error("Invalid fields");
   }
-  if (
-    !candidate.fields.every(
-      (f: any) => typeof f === "object" && typeof f.name === "string",
-    )
-  ) {
-    throw new Error("Invalid field type");
+  
+  for (let i = 0; i < candidate.fields.length; i++) {
+    const field = candidate.fields[i];
+    if (typeof field !== "object" || field == null || typeof field.name !== "string") {
+      throw new Error("Invalid field type");
+    }
   }
 
   // Check rows
   if (!Array.isArray(candidate.rows)) {
     throw new Error("Invalid rows array");
   }
-  if (
-    !candidate.rows.every((row: any) => {
-      if (!Array.isArray(row)) {
-        throw new Error("Invalid row:", row);
-      }
-      return true;
-    })
-  ) {
-    throw new Error("Invalid row array");
-  }
-  if (
-    !candidate.rows.every(
-      (row: any) =>
-        Array.isArray(row) &&
-        row.every((cell: any) => {
-          // console.log("Checking cell:", cell);
-          if (!isValidCell(cell)) {
-            throw new Error("Invalid cell type:", cell);
-          }
 
-          return true;
-        }),
-    )
-  ) {
-    throw new Error("Invalid rows array");
+  // Single loop to validate both row structure and cell content
+  for (let i = 0; i < candidate.rows.length; i++) {
+    const row = candidate.rows[i];
+    if (!Array.isArray(row)) {
+      throw new Error("Invalid row: not an array");
+    }
+    
+    for (let j = 0; j < row.length; j++) {
+      const cell = row[j];
+      if (!isValidCell(cell)) {
+        throw new Error("Invalid cell type");
+      }
+    }
   }
 
   return true;
