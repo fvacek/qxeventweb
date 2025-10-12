@@ -34,7 +34,6 @@ function LateEntriesTable(props: { className: () => string }) {
     const appConfig = useAppConfig()
     const eventConfig = useEventConfig()
 
-    // Sample data
     const [runs, setRuns] = createSignal<Run[]>([])
 
     const [loading, setLoading] = createSignal(false)
@@ -74,7 +73,8 @@ function LateEntriesTable(props: { className: () => string }) {
                 if (run.startTime === null) {
                     return <span>—</span>
                 }
-                return <span>{formatStartTime(run.startTime)}</span>
+                const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+                return <span>{formatStartTime(stageStart.getTime() + run.startTime)}</span>
             },
             sortable: true,
             width: "250px",

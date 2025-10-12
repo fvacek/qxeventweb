@@ -26,7 +26,7 @@ const WsClientContext = createContext<WsClientContextValue>();
 export function WsClientProvider(props: { children: JSX.Element }) {
     const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
     const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
-    let connectionTimeout: number | null = null;
+    let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const appConfig = useAppConfig();
     let currentBrokerUrl = appConfig.brokerUrl;

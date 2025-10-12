@@ -1,3 +1,5 @@
+import { RpcValue } from "libshv-js";
+
 export type TableField = {
   name: string;
 };
@@ -20,22 +22,25 @@ function isValidCell(cell: any): cell is TableCell {
   );
 }
 
-function isTableJson(obj: any): obj is TableJson {
+function isTableJson(obj: unknown): obj is TableJson {
   if (typeof obj !== "object" || obj == null) return false;
 
+  // Type guard to ensure we have an object with the expected properties
+  const candidate = obj as any;
+
   // Check fields
-  if (!Array.isArray(obj.fields)) return false;
+  if (!Array.isArray(candidate.fields)) return false;
   if (
-    !obj.fields.every(
+    !candidate.fields.every(
       (f: any) => typeof f === "object" && typeof f.name === "string",
     )
   )
     return false;
 
   // Check rows
-  if (!Array.isArray(obj.rows)) return false;
+  if (!Array.isArray(candidate.rows)) return false;
   if (
-    !obj.rows.every(
+    !candidate.rows.every(
       (row: any) => Array.isArray(row) && row.every((cell: any) => isValidCell(cell)),
     )
   )
@@ -45,8 +50,8 @@ function isTableJson(obj: any): obj is TableJson {
 }
 
 export class SqlTable {
-  private fields: TableField[];
-  private rows: TableRow[];
+  fields: TableField[];
+  rows: TableRow[];
   private fieldIndexMap: Map<string, number>;
 
   constructor(data: TableJson) {
@@ -58,7 +63,11 @@ export class SqlTable {
   }
 
   // Get value from a row by index or field name
-  get(row: TableRow, field: number | string): any {
+  get(row_ix: number, field: number | string): TableCell {
+    if (row_ix < 0 || row_ix >= this.rows.length) {
+      throw new Error(`Row index ${row_ix} out of range`);
+    }
+    const row = this.rows[row_ix];
     if (typeof field === "number") {
       return row[field];
     }
@@ -96,10 +105,11 @@ export class SqlTable {
   }
 }
 
-export function createSqlTable(input: unknown): SqlTable {
+export function createSqlTable(input: RpcValue): SqlTable {
   if (!isTableJson(input)) {
     throw new Error("Invalid TableJson structure");
   }
 
+  // After validation, TypeScript knows input is TableJson
   return new SqlTable(input);
 }
