@@ -93,7 +93,7 @@ export function EventConfigProvider(props: { children: any }) {
     let stages: StageConfig[] = [];
     for (let i = 0; i < stageCount; i++) {
       if (i < stages_table.rowCount()) {
-        const s = stages_table.get(i, "stagestart");
+        const s = stages_table.get(i, "startdatetime");
         stages.push({
           stageStart: parseDate(s?.toString() || ""),
         });

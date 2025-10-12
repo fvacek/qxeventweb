@@ -59,8 +59,7 @@ function LateEntriesTable(props: { className: () => string }) {
     })
 
     function formatStartTime(msec: number): string {
-        const start = new Date()
-        const date = new Date(start.getTime() + msec)
+        const date = new Date(msec)
         return date.toISOString()
     }
 

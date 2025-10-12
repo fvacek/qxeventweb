@@ -15,6 +15,7 @@ export interface TableJson {
 
 function isValidCell(cell: any): cell is TableCell {
   return (
+    cell === undefined ||
     cell === null ||
     typeof cell === "string" ||
     typeof cell === "number" ||
@@ -23,28 +24,57 @@ function isValidCell(cell: any): cell is TableCell {
 }
 
 function isTableJson(obj: unknown): obj is TableJson {
-  if (typeof obj !== "object" || obj == null) return false;
+  if (typeof obj !== "object" || obj == null) {
+    throw new Error("Not object");
+  }
+  // console.log("Checking obj:", obj);
 
   // Type guard to ensure we have an object with the expected properties
   const candidate = obj as any;
+  // console.log("Checking candidate:", candidate);
 
   // Check fields
-  if (!Array.isArray(candidate.fields)) return false;
+  if (!Array.isArray(candidate.fields)) {
+    throw new Error("Invalid fields");
+  }
   if (
     !candidate.fields.every(
       (f: any) => typeof f === "object" && typeof f.name === "string",
     )
-  )
-    return false;
+  ) {
+    throw new Error("Invalid field type");
+  }
 
   // Check rows
-  if (!Array.isArray(candidate.rows)) return false;
+  if (!Array.isArray(candidate.rows)) {
+    throw new Error("Invalid rows array");
+  }
+  if (
+    !candidate.rows.every((row: any) => {
+      if (!Array.isArray(row)) {
+        throw new Error("Invalid row:", row);
+      }
+      return true;
+    })
+  ) {
+    throw new Error("Invalid row array");
+  }
   if (
     !candidate.rows.every(
-      (row: any) => Array.isArray(row) && row.every((cell: any) => isValidCell(cell)),
+      (row: any) =>
+        Array.isArray(row) &&
+        row.every((cell: any) => {
+          // console.log("Checking cell:", cell);
+          if (!isValidCell(cell)) {
+            throw new Error("Invalid cell type:", cell);
+          }
+
+          return true;
+        }),
     )
-  )
-    return false;
+  ) {
+    throw new Error("Invalid rows array");
+  }
 
   return true;
 }
