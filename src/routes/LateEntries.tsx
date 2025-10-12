@@ -32,6 +32,7 @@ function LateEntriesTable(props: { className: () => string }) {
     const { wsClient, status } = useWsClient()
     const { currentStage } = useStage()
     const appConfig = useAppConfig()
+    const eventConfig = useEventConfig()
 
     // Sample data
     const [runs, setRuns] = createSignal<Run[]>([])
@@ -253,7 +254,7 @@ function LateEntriesTable(props: { className: () => string }) {
                     variant="striped"
                     sortable={true}
                     globalFilter={true}
-                    onSortChange={(sort) => console.log("Sort changed:", sort)}
+                    onSortChange={(sort: any) => console.log("Sort changed:", sort)}
                 />
             </div>
         </div>

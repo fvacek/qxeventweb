@@ -15,7 +15,7 @@
 
         // Type Checking & Safety
         "strict": true,
-        "types": ["vite/client"],
+        "types": ["vite/client", "vitest", "vitest/globals"],
 
         "baseUrl": ".",
         "paths": {
