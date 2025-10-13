@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 devlibs
+
+tsconfig.tsbuildinfo
