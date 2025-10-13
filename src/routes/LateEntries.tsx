@@ -173,18 +173,20 @@ function LateEntriesTable(props: { className: () => string }) {
       ]);
       const table = createSqlTable(runs_result);
 
-      // Transform rows to Entry objects
-      const transformedEntries: Run[] = table.rows.map(
-        (row) => ({
-          runId: row[table.fieldIndex("id")] as number,
-          className: row[table.fieldIndex("class_name")] as string || null,
-          firstName: row[table.fieldIndex("firstname")] as string || null,
-          lastName: row[table.fieldIndex("lastname")] as string || null,
-          startTime: row[table.fieldIndex("starttimems")] as number || null,
-          registration: row[table.fieldIndex("registration")] as string || null,
-          siId: row[table.fieldIndex("siid")] as number || null,
-        }),
-      );
+      // Transform rows to Entry objects using recordAt
+      const transformedEntries: Run[] = [];
+      for (let i = 0; i < table.rowCount(); i++) {
+        const record = table.recordAt(i);
+        transformedEntries.push({
+          runId: record.id as number,
+          className: record.class_name as string || null,
+          firstName: record.firstname as string || null,
+          lastName: record.lastname as string || null,
+          startTime: record.starttimems as number || null,
+          registration: record.registration as string || null,
+          siId: record.siid as number || null,
+        });
+      }
 
       setRuns(transformedEntries);
     } catch (error) {

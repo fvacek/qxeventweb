@@ -82,6 +82,17 @@ export class SqlTable {
     }
     return this.rows[index];
   }
+
+  recordAt(index: number): Record<string, TableCell> {
+    const row = this.rowAt(index);
+    const record: Record<string, TableCell> = {};
+    
+    this.fields.forEach((field, fieldIndex) => {
+      record[field.name] = row[fieldIndex];
+    });
+    
+    return record;
+  }
 }
 
 export function createSqlTable(input: RpcValue): SqlTable {
