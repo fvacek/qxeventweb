@@ -18,16 +18,20 @@ import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
+import { object, number, string, nullable, parse, type InferOutput } from "valibot";
 
-interface Run {
-  runId: number;
-  className: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  registration: string | null;
-  siId: number | null;
-  startTime: number | null;
-}
+// Valibot schema for Run validation
+const RunSchema = object({
+  id: number(),
+  classname: nullable(string()),
+  firstname: nullable(string()),
+  lastname: nullable(string()),
+  registration: nullable(string()),
+  siid: nullable(number()),
+  starttimems: nullable(number()),
+});
+
+type Run = InferOutput<typeof RunSchema>;
 
 function LateEntriesTable(props: { className: () => string }) {
   const { wsClient, status } = useWsClient();
@@ -38,7 +42,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const [runs, setRuns] = createSignal<Run[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
+  const [sortBy, setSortBy] = createSignal<keyof Run>("lastname");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   // Reactive sorted data
@@ -77,13 +81,13 @@ function LateEntriesTable(props: { className: () => string }) {
       key: "startTime",
       header: "Start Time",
       cell: (run: Run) => {
-        if (run.startTime === null) {
+        if (run.starttimems === null) {
           return <span>—</span>;
         }
         const stageStart =
           eventConfig.eventConfig.stages[currentStage()].stageStart;
         return (
-          <span>{formatStartTime(stageStart.getTime() + run.startTime)}</span>
+          <span>{formatStartTime(stageStart.getTime() + run.starttimems)}</span>
         );
       },
       sortable: true,
@@ -93,15 +97,15 @@ function LateEntriesTable(props: { className: () => string }) {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
-        const fullName = [entry.firstName, entry.lastName]
+        const fullName = [entry.firstname, entry.lastname]
           .filter((name) => name !== null && name.trim() !== "")
           .join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => {
-        const aName = [a.firstName, a.lastName].filter((n) => n).join(" ");
-        const bName = [b.firstName, b.lastName].filter((n) => n).join(" ");
+        const aName = [a.firstname, a.lastname].filter((n) => n).join(" ");
+        const bName = [b.firstname, b.lastname].filter((n) => n).join(" ");
         return aName.localeCompare(bName);
       },
       width: "250px",
@@ -113,7 +117,7 @@ function LateEntriesTable(props: { className: () => string }) {
       width: "100px",
     },
     {
-      key: "siId",
+      key: "siid",
       header: "SI",
       sortable: true,
       width: "250px",
@@ -123,12 +127,12 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const addEntry = () => {
     const newEntry: Run = {
-      runId: Math.max(...runs().map((u) => u.runId)) + 1,
-      firstName: `Fanda${runs().length + 1}`,
-      lastName: `Vacek${runs().length + 1}`,
-      className: "H55",
-      siId: null,
-      startTime: null,
+      id: Math.max(...runs().map((u) => u.id)) + 1,
+      firstname: `Fanda${runs().length + 1}`,
+      lastname: `Vacek${runs().length + 1}`,
+      classname: "H55",
+      siid: null,
+      starttimems: null,
       registration: "CHT7001",
     };
     setRuns([...runs(), newEntry]);
@@ -140,7 +144,7 @@ function LateEntriesTable(props: { className: () => string }) {
   };
 
   const deleteEntry = (id: number) => {
-    setRuns(runs().filter((user) => user.runId !== id));
+    setRuns(runs().filter((user) => user.id !== id));
   };
 
   const callRpcMethod = async (
@@ -165,7 +169,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
     try {
       const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
-        `SELECT runs.id, competitors.firstname, competitors.lastname, competitors.registration, runs.siid, runs.starttimems, classes.name AS class_name
+        `SELECT runs.id, competitors.firstname, competitors.lastname, competitors.registration, runs.siid, runs.starttimems, classes.name AS classname
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
@@ -173,22 +177,18 @@ function LateEntriesTable(props: { className: () => string }) {
       ]);
       const table = createSqlTable(runs_result);
 
-      // Transform rows to Entry objects using recordAt
-      const transformedEntries: Run[] = [];
+      const transformedRuns: Run[] = [];
       for (let i = 0; i < table.rowCount(); i++) {
         const record = table.recordAt(i);
-        transformedEntries.push({
-          runId: record.id as number,
-          className: record.class_name as string || null,
-          firstName: record.firstname as string || null,
-          lastName: record.lastname as string || null,
-          startTime: record.starttimems as number || null,
-          registration: record.registration as string || null,
-          siId: record.siid as number || null,
-        });
+        try {
+          const validatedRun = parse(RunSchema, record);
+          transformedRuns.push(validatedRun);
+        } catch (error) {
+          console.warn(`Skipping invalid row ${i}:`, error);
+        }
       }
 
-      setRuns(transformedEntries);
+      setRuns(transformedRuns);
     } catch (error) {
       console.error("RPC call failed:", error);
       showToast({
