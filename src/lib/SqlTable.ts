@@ -1,4 +1,9 @@
 import { RpcValue } from "libshv-js";
+import { parse, safeParse, ValiError } from "valibot";
+import {
+  ValidatedTableJsonSchema,
+  type TableJson as ValibotTableJson
+} from "../schema/sql-table-schema";
 
 export type TableField = {
   name: string;
@@ -12,6 +17,9 @@ export interface TableJson {
   fields: TableField[];
   rows: TableRow[];
 }
+
+// Type alias for compatibility with valibot schema
+export type { ValibotTableJson };
 
 function isValidCell(cell: any): cell is TableCell {
   return (
@@ -34,7 +42,7 @@ function isTableJson(obj: unknown): obj is TableJson {
   if (!Array.isArray(candidate.fields)) {
     throw new Error("Invalid fields");
   }
-  
+
   for (let i = 0; i < candidate.fields.length; i++) {
     const field = candidate.fields[i];
     if (typeof field !== "object" || field == null || typeof field.name !== "string") {
@@ -53,7 +61,7 @@ function isTableJson(obj: unknown): obj is TableJson {
     if (!Array.isArray(row)) {
       throw new Error("Invalid row: not an array");
     }
-    
+
     for (let j = 0; j < row.length; j++) {
       const cell = row[j];
       if (!isValidCell(cell)) {
@@ -122,10 +130,69 @@ export class SqlTable {
 }
 
 export function createSqlTable(input: RpcValue): SqlTable {
-  if (!isTableJson(input)) {
-    throw new Error("Invalid TableJson structure");
-  }
+  try {
+    // Use valibot schema validation instead of custom validation
+    const validatedData = parse(ValidatedTableJsonSchema, input);
+    return new SqlTable(validatedData as TableJson);
+  } catch (error) {
+    if (error instanceof ValiError) {
+      // Create a more informative error message from valibot validation issues
+      const issues = error.issues.map(issue => {
+        const path = issue.path?.map((p: any) => p.key).join('.') || 'root';
+        return `${path}: ${issue.message}`;
+      }).join('; ');
 
-  // After validation, TypeScript knows input is TableJson
-  return new SqlTable(input);
+      throw new Error(`Invalid TableJson structure: ${issues}`);
+    }
+
+    // Re-throw other errors
+    throw new Error(`Failed to create SqlTable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Safely creates a SqlTable from RpcValue with detailed error information
+ * @param input - RpcValue containing table data
+ * @returns Result object with success flag and either data or error details
+ */
+export function safeCreateSqlTable(input: RpcValue): {
+  success: true;
+  data: SqlTable;
+  issues?: undefined;
+} | {
+  success: false;
+  data?: undefined;
+  issues: Array<{
+    path: string;
+    message: string;
+    input: unknown;
+  }>;
+} {
+  const result = safeParse(ValidatedTableJsonSchema, input);
+
+  if (result.success) {
+    return {
+      success: true,
+      data: new SqlTable(result.output as TableJson),
+    };
+  } else {
+    return {
+      success: false,
+      issues: result.issues.map(issue => ({
+        path: issue.path?.map((p: any) => p.key).join('.') || 'root',
+        message: issue.message,
+        input: issue.input,
+      })),
+    };
+  }
+}
+
+/**
+ * Validates if input looks like table data without creating SqlTable instance
+ * @param input - Data to validate
+ * @returns true if valid, false otherwise
+ */
+export function isValidTableData(input: unknown): input is TableJson {
+  const result = safeParse(ValidatedTableJsonSchema, input);
+  return result.success;
 }

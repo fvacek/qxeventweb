@@ -1,5 +1,3 @@
-// valibot-schema.ts
-
 import {
   object,
   record,
@@ -18,7 +16,7 @@ import {
   type BaseSchema,
   type InferOutput,
   type BaseIssue,
-} from 'valibot';
+} from "valibot";
 
 import {
   Decimal,
@@ -31,36 +29,46 @@ import {
   RpcValueWithMetaData,
   shvMapType,
   UInt,
-} from 'libshv-js/rpcvalue';
+} from "libshv-js/rpcvalue";
 
-
-
-export const map = <T extends Record<string, BaseSchema<unknown, unknown, BaseIssue<unknown>>>>(
-  schema: T
+export const map = <
+  T extends Record<string, BaseSchema<unknown, unknown, BaseIssue<unknown>>>,
+>(
+  schema: T,
 ) =>
   custom<Record<string, unknown>>((input) => {
     if (!isShvMap(input)) return false;
     return true;
-  }, 'Invalid input: expected ShvMap');
+  }, "Invalid input: expected ShvMap");
 
-export const imap = <T extends Record<number, BaseSchema<unknown, unknown, BaseIssue<unknown>>>>(
-  schema: T
+export const imap = <
+  T extends Record<number, BaseSchema<unknown, unknown, BaseIssue<unknown>>>,
+>(
+  schema: T,
 ) =>
   custom<Record<number, unknown>>((input) => {
     if (!isIMap(input)) return false;
     return true;
-  }, 'Invalid input: expected IMap');
+  }, "Invalid input: expected IMap");
 
-export const metamap = <T extends Record<string | number, BaseSchema<unknown, unknown, BaseIssue<unknown>>>>(
-  schema: T
+export const metamap = <
+  T extends Record<
+    string | number,
+    BaseSchema<unknown, unknown, BaseIssue<unknown>>
+  >,
+>(
+  schema: T,
 ) =>
   custom<Record<string | number, unknown>>((input) => {
     if (!isMetaMap(input)) return false;
     return true;
-  }, 'Invalid input: expected MetaMap');
+  }, "Invalid input: expected MetaMap");
 
-export const recmap = <T extends BaseSchema<unknown, unknown, BaseIssue<unknown>>>(schema: T) =>
-  record(string(), schema);
+export const recmap = <
+  T extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
+>(
+  schema: T,
+) => record(string(), schema);
 
 export const uint = () => instance(UInt);
 export const double = () => instance(Double);
@@ -84,27 +92,26 @@ export const rpcvalue = (): BaseSchema<unknown, unknown, BaseIssue<unknown>> =>
       list(),
       recmap(rpcvalue()),
       instance(RpcValueWithMetaData),
-    ])
+    ]),
   );
 
 export const withMeta = <
   MetaSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
-  ValueSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>
+  ValueSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
 >(
   metaParser: MetaSchema,
-  valueParser: ValueSchema
+  valueParser: ValueSchema,
 ) =>
   custom<RpcValueWithMetaData>((input) => {
     if (!(input instanceof RpcValueWithMetaData)) return false;
     return true;
-  }, 'Invalid input: expected RpcValueWithMetaData');
+  }, "Invalid input: expected RpcValueWithMetaData");
 
-export {
-  // UInt,
-  // Double,
-  // Decimal,
-  // RpcValue,
-  // RpcValueWithMetaData,
-};
+export // UInt,
+// Double,
+// Decimal,
+// RpcValue,
+// RpcValueWithMetaData,
+ {};
 
 // export type { MetaMap };
