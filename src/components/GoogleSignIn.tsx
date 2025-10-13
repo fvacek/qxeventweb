@@ -84,7 +84,7 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
         // Add event listener for the custom Google sign-in event
         buttonRef.addEventListener(
           "googleSignIn",
-          (event: CustomEvent<GoogleCredentialResponse>) => {
+          ((event: CustomEvent<GoogleCredentialResponse>) => {
             const user = googleAuthService.parseCredentialResponse(
               event.detail,
             );
@@ -95,7 +95,7 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
                 new Error("Failed to parse Google credential response"),
               );
             }
-          },
+          }) as EventListener,
         );
 
         // Render the Google sign-in button

@@ -9,6 +9,7 @@ declare global {
             parent: HTMLElement,
             options: GoogleButtonConfiguration
           ) => void;
+          disableAutoSelect: () => void;
         };
         oauth2: {
           initTokenClient: (config: GoogleTokenConfiguration) => GoogleTokenClient;
