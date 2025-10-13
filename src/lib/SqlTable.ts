@@ -9,7 +9,7 @@ export type TableField = {
   name: string;
 };
 
-export type TableCell = null | string | number | Date;
+export type TableCell = null | string | number | Date | boolean;
 
 export type TableRow = TableCell[];
 
@@ -20,58 +20,6 @@ export interface TableJson {
 
 // Type alias for compatibility with valibot schema
 export type { ValibotTableJson };
-
-function isValidCell(cell: any): cell is TableCell {
-  return (
-    cell === undefined ||
-    cell === null ||
-    typeof cell === "string" ||
-    typeof cell === "number" ||
-    cell instanceof Date
-  );
-}
-
-function isTableJson(obj: unknown): obj is TableJson {
-  if (typeof obj !== "object" || obj == null) {
-    throw new Error("Not object");
-  }
-
-  const candidate = obj as any;
-
-  // Check fields
-  if (!Array.isArray(candidate.fields)) {
-    throw new Error("Invalid fields");
-  }
-
-  for (let i = 0; i < candidate.fields.length; i++) {
-    const field = candidate.fields[i];
-    if (typeof field !== "object" || field == null || typeof field.name !== "string") {
-      throw new Error("Invalid field type");
-    }
-  }
-
-  // Check rows
-  if (!Array.isArray(candidate.rows)) {
-    throw new Error("Invalid rows array");
-  }
-
-  // Single loop to validate both row structure and cell content
-  for (let i = 0; i < candidate.rows.length; i++) {
-    const row = candidate.rows[i];
-    if (!Array.isArray(row)) {
-      throw new Error("Invalid row: not an array");
-    }
-
-    for (let j = 0; j < row.length; j++) {
-      const cell = row[j];
-      if (!isValidCell(cell)) {
-        throw new Error("Invalid cell type");
-      }
-    }
-  }
-
-  return true;
-}
 
 export class SqlTable {
   fields: TableField[];
@@ -95,11 +43,7 @@ export class SqlTable {
     if (typeof field === "number") {
       return row[field];
     }
-    const index = this.fieldIndexMap.get(field);
-    if (index === undefined) {
-      throw new Error(`Field "${field}" not found`);
-    }
-    return row[index];
+    return row[this.fieldIndex(field)];
   }
 
   // Number of columns
@@ -107,12 +51,23 @@ export class SqlTable {
     return this.fields.length;
   }
 
-  // Field object at index
-  fieldAt(index: number): TableField {
-    if (index < 0 || index >= this.fields.length) {
-      throw new Error(`Field index ${index} out of range`);
+  fieldIndex(fieldName: string): number {
+    const index = this.fieldIndexMap.get(fieldName);
+    if (index === undefined) {
+      throw new Error(`Field "${fieldName}" not found`);
     }
-    return this.fields[index];
+    return index;
+  }
+
+  // Field object at index
+  fieldAt(index: number | string): TableField {
+    if (typeof index === "number") {
+      if (index < 0 || index >= this.fields.length) {
+        throw new Error(`Field index ${index} out of range`);
+      }
+      return this.fields[index];
+    }
+    return this.fieldAt(this.fieldIndex(index));
   }
 
   // Number of rows

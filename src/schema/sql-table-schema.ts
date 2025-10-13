@@ -33,6 +33,7 @@ const TableCellSchema = union([
   string(),
   number(),
   date(),
+  boolean(),
 ]);
 
 export { TableCellSchema };
