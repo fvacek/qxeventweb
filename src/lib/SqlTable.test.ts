@@ -49,18 +49,15 @@ describe('SqlTable', () => {
   });
 
   it('gets value by field index', () => {
-    const row = table.rowAt(0);
-    expect(table.get(row, 1)).toBe('Test Event');
+    expect(table.get(0, 1)).toBe('Test Event');
   });
 
   it('gets value by field name', () => {
-    const row = table.rowAt(1);
-    expect(table.get(row, 'ckey')).toBe('event.date');
-    expect(table.get(row, 'ctype')).toBe('QDate');
+    expect(table.get(1, 'ckey')).toBe('event.date');
+    expect(table.get(1, 'ctype')).toBe('QDate');
   });
 
   it('throws if field name is invalid in get()', () => {
-    const row = table.rowAt(0);
-    expect(() => table.get(row, 'nonexistent')).toThrow('Field "nonexistent" not found');
+    expect(() => table.get(0, 'nonexistent')).toThrow('Field "nonexistent" not found');
   });
 });
