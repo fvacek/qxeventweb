@@ -169,7 +169,9 @@ function LateEntriesTable(props: { className: () => string }) {
 
     try {
       const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
-        `SELECT runs.id, competitors.firstname, competitors.lastname, competitors.registration, runs.siid, runs.starttimems, classes.name AS classname
+        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time,
+                competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
+                classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
