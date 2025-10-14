@@ -25,6 +25,7 @@ export class SqlTable {
   fields: TableField[];
   rows: TableRow[];
   private fieldIndexMap: Map<string, number>;
+  private camelCaseFieldNames?: string[];
 
   constructor(data: TableJson) {
     this.fields = data.fields;
@@ -87,8 +88,13 @@ export class SqlTable {
     const row = this.rowAt(index);
     const record: Record<string, TableCell> = {};
 
-    this.fields.forEach((field, fieldIndex) => {
-      let key = snakeCaseToCamelCase(field.name);
+    // Cache camelCase field names on first use
+    if (!this.camelCaseFieldNames) {
+      this.camelCaseFieldNames = this.fields.map(field => snakeCaseToCamelCase(field.name));
+    }
+
+    this.fields.forEach((_field, fieldIndex) => {
+      let key = this.camelCaseFieldNames![fieldIndex];
       record[key] = row[fieldIndex];
     });
 
