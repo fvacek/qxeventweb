@@ -86,13 +86,45 @@ export class SqlTable {
   recordAt(index: number): Record<string, TableCell> {
     const row = this.rowAt(index);
     const record: Record<string, TableCell> = {};
-    
+
     this.fields.forEach((field, fieldIndex) => {
-      record[field.name] = row[fieldIndex];
+      let key = snakeCaseToCamelCase(field.name);
+      record[key] = row[fieldIndex];
     });
-    
+
     return record;
   }
+}
+
+function snakeCaseToCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// Tests for snakeCaseToCamelCase function
+function testSnakeCaseToCamelCase(): void {
+  // Test basic snake_case conversion
+  console.assert(snakeCaseToCamelCase("user_name") === "userName", "Failed: user_name -> userName");
+  console.assert(snakeCaseToCamelCase("first_name") === "firstName", "Failed: first_name -> firstName");
+
+  // Test multiple underscores
+  console.assert(snakeCaseToCamelCase("user_profile_id") === "userProfileId", "Failed: user_profile_id -> userProfileId");
+
+  // Test no underscores (should remain unchanged)
+  console.assert(snakeCaseToCamelCase("username") === "username", "Failed: username -> username");
+
+  // Test single character after underscore
+  console.assert(snakeCaseToCamelCase("user_a") === "userA", "Failed: user_a -> userA");
+
+  // Test empty string
+  console.assert(snakeCaseToCamelCase("") === "", "Failed: empty string");
+
+  // Test string starting with underscore (only lowercase letters after _ are converted)
+  console.assert(snakeCaseToCamelCase("_user") === "_user", "Failed: _user -> _user");
+
+  // Test uppercase letters after underscore (should not be converted)
+  console.assert(snakeCaseToCamelCase("user_Name") === "user_Name", "Failed: user_Name -> user_Name");
+
+  console.log("All snakeCaseToCamelCase tests passed!");
 }
 
 export function createSqlTable(input: RpcValue): SqlTable {

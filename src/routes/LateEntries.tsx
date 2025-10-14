@@ -22,13 +22,13 @@ import { object, number, string, nullable, parse, type InferOutput } from "valib
 
 // Valibot schema for Run validation
 const RunSchema = object({
-  id: number(),
-  classname: nullable(string()),
-  firstname: nullable(string()),
-  lastname: nullable(string()),
+  runId: number(),
+  className: nullable(string()),
+  firstName: nullable(string()),
+  lastName: nullable(string()),
   registration: nullable(string()),
-  siid: nullable(number()),
-  starttimems: nullable(number()),
+  siId: nullable(number()),
+  startTimeMs: nullable(number()),
 });
 
 type Run = InferOutput<typeof RunSchema>;
@@ -42,7 +42,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const [runs, setRuns] = createSignal<Run[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof Run>("lastname");
+  const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   // Reactive sorted data
@@ -78,16 +78,16 @@ function LateEntriesTable(props: { className: () => string }) {
   // Table columns configuration with sorting
   const columns: TableColumn<Run>[] = [
     {
-      key: "startTime",
+      key: "startTimeMs",
       header: "Start Time",
       cell: (run: Run) => {
-        if (run.starttimems === null) {
+        if (run.startTimeMs === null) {
           return <span>—</span>;
         }
         const stageStart =
           eventConfig.eventConfig.stages[currentStage()].stageStart;
         return (
-          <span>{formatStartTime(stageStart.getTime() + run.starttimems)}</span>
+          <span>{formatStartTime(stageStart.getTime() + run.startTimeMs)}</span>
         );
       },
       sortable: true,
@@ -97,15 +97,15 @@ function LateEntriesTable(props: { className: () => string }) {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
-        const fullName = [entry.firstname, entry.lastname]
+        const fullName = [entry.firstName, entry.lastName]
           .filter((name) => name !== null && name.trim() !== "")
           .join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => {
-        const aName = [a.firstname, a.lastname].filter((n) => n).join(" ");
-        const bName = [b.firstname, b.lastname].filter((n) => n).join(" ");
+        const aName = [a.firstName, a.lastName].filter((n) => n).join(" ");
+        const bName = [b.firstName, b.lastName].filter((n) => n).join(" ");
         return aName.localeCompare(bName);
       },
       width: "250px",
@@ -117,7 +117,7 @@ function LateEntriesTable(props: { className: () => string }) {
       width: "100px",
     },
     {
-      key: "siid",
+      key: "siId",
       header: "SI",
       sortable: true,
       width: "250px",
@@ -127,12 +127,12 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const addEntry = () => {
     const newEntry: Run = {
-      id: Math.max(...runs().map((u) => u.id)) + 1,
-      firstname: `Fanda${runs().length + 1}`,
-      lastname: `Vacek${runs().length + 1}`,
-      classname: "H55",
-      siid: null,
-      starttimems: null,
+      runId: Math.max(...runs().map((u) => u.runId)) + 1,
+      firstName: `Fanda${runs().length + 1}`,
+      lastName: `Vacek${runs().length + 1}`,
+      className: "H55",
+      siId: null,
+      startTimeMs: null,
       registration: "CHT7001",
     };
     setRuns([...runs(), newEntry]);
@@ -144,7 +144,7 @@ function LateEntriesTable(props: { className: () => string }) {
   };
 
   const deleteEntry = (id: number) => {
-    setRuns(runs().filter((user) => user.id !== id));
+    setRuns(runs().filter((user) => user.runId !== id));
   };
 
   const callRpcMethod = async (
@@ -169,7 +169,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
     try {
       const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
-        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time,
+        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
                 competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
                 FROM runs
