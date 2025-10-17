@@ -89,7 +89,7 @@
     --background: #222831;
     --foreground: #fafafa;
 
-    --muted: #004444;
+    --muted: #1b443e;
     --muted-foreground: #e59f17;
 
     --accent: #27272a;
@@ -98,8 +98,8 @@
     --popover: #0a0a0b;
     --popover-foreground: #fafafa;
 
-    --border: #57534e;
-    --input: #e59f17;
+    --border: #979393;
+    --input: #353535; /* input control background */
 
     --card: #0a0a0b;
     --card-foreground: #fafafa;
@@ -110,7 +110,7 @@
     --destructive: #7c2d12;
     --destructive-foreground: #fafafa;
 
-    --ring: #a8a29e;
+    --ring: #f0a20c; /* edit control focus ring color */
 }
 
 @layer base {
