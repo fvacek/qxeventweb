@@ -84,13 +84,13 @@ function LateEntriesTable(props: { className: () => string }) {
     const timeSegments = hhmmss.split(':').map(Number);
 
     if (timeSegments.length === 1) {
-      // Just seconds
-      const sec = timeSegments[0];
-      return [0, 0, sec];
+      // Just minutes
+      const min = timeSegments[0];
+      return [0, min, 0];
     } else if (timeSegments.length === 2) {
-      // Format: MM:SS
-      const [minutes, secs] = timeSegments;
-      return [0, minutes, secs];
+      // Format: HH:MM
+      const [hours, minutes] = timeSegments;
+      return [hours, minutes, 0];
     } else if (timeSegments.length === 3) {
       // Format: HH:MM:SS
       const [hours, minutes, secs] = timeSegments;
@@ -114,7 +114,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
   function formatStartTime(msec: number | undefined): string {
     if (msec === undefined) {
-      return "—";
+      return "";
     }
     const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
     const date = new Date(stageStart.getTime() + msec);
@@ -210,7 +210,7 @@ function LateEntriesTable(props: { className: () => string }) {
     if (runToEdit) {
       editingRunId = id;
       setEditDialogOpen(true);
-      
+
       // Populate form fields directly using refs
       setTimeout(() => {
         firstNameRef.value = runToEdit.firstName || "";
@@ -402,10 +402,11 @@ function LateEntriesTable(props: { className: () => string }) {
             </TextField>
 
             <TextField>
-              <TextFieldLabel>Start Time (HH:MM:SS)</TextFieldLabel>
+              <TextFieldLabel>Start Time</TextFieldLabel>
               <TextFieldInput
                 ref={startTimeRef}
                 type="text"
+                placeholder="HH:MM"
               />
             </TextField>
           </div>
