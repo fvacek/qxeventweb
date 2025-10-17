@@ -12,6 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
+  TextField,
+  TextFieldInput,
+  TextFieldLabel,
+} from "~/components/ui/text-field";
 import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
@@ -45,6 +57,10 @@ function LateEntriesTable(props: { className: () => string }) {
   const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = createSignal(false);
+  const [editingRun, setEditingRun] = createSignal<Run | null>(null);
+
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
     const data = [...runs()];
@@ -63,9 +79,45 @@ function LateEntriesTable(props: { className: () => string }) {
     });
   });
 
-  function formatStartTime(stage_start: Date, msec: number | undefined): string {
-    if (msec === undefined) return "—";
-    const date = new Date(stage_start.getTime() + msec);
+  function parseHH_MM_SS(hhmmss: string): [number, number, number] | undefined {
+
+    const timeSegments = hhmmss.split(':').map(Number);
+
+    if (timeSegments.length === 1) {
+      // Just seconds
+      const sec = timeSegments[0];
+      return [0, 0, sec];
+    } else if (timeSegments.length === 2) {
+      // Format: MM:SS
+      const [minutes, secs] = timeSegments;
+      return [0, minutes, secs];
+    } else if (timeSegments.length === 3) {
+      // Format: HH:MM:SS
+      const [hours, minutes, secs] = timeSegments;
+      return [hours, minutes, secs];
+    }
+    // throw new Error(`Invalid time format: ${hhmmss}`);
+    return undefined;
+  }
+
+  function parseStartTime(s: string): number | undefined {
+    const hms = parseHH_MM_SS(s);
+    if (!hms) {
+      return undefined;
+    }
+    const [hours, minutes, secs] = hms;
+    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+    const runStart = new Date(stageStart.getTime());
+    runStart.setHours(hours, minutes, secs, 0);
+    return runStart.getTime() - stageStart.getTime();
+  }
+
+  function formatStartTime(msec: number | undefined): string {
+    if (msec === undefined) {
+      return "—";
+    }
+    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+    const date = new Date(stageStart.getTime() + msec);
     return formatDateToTimeString(date);
   }
 
@@ -82,13 +134,12 @@ function LateEntriesTable(props: { className: () => string }) {
       key: "startTimeMs",
       header: "Start Time",
       cell: (run: Run) => {
-        if (run.startTimeMs === null) {
+        if (run.startTimeMs === undefined) {
           return <span>—</span>;
         }
-        const stageStart =
-          eventConfig.eventConfig.stages[currentStage()].stageStart;
+        const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
         return (
-          <span>{formatStartTime(stageStart, run.startTimeMs)}</span>
+          <span>{formatStartTime(run.startTimeMs)}</span>
         );
       },
       sortable: true,
@@ -131,7 +182,7 @@ function LateEntriesTable(props: { className: () => string }) {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => editEntry(run.runId)}
+          onClick={() => editRun(run.runId)}
         >
           Edit
         </Button>
@@ -154,10 +205,34 @@ function LateEntriesTable(props: { className: () => string }) {
     setRuns([...runs(), newEntry]);
   };
 
-  const editEntry = (id: number) => {
-    console.log("Edit entry:", id);
-    alert(`Editing entry with ID ${id}`);
-    // Implement edit functionality
+  const editRun = (id: number) => {
+    const runToEdit = runs().find(run => run.runId === id);
+    if (runToEdit) {
+      setEditingRun({ ...runToEdit });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleSaveRunEdit = () => {
+    const editingRunData = editingRun();
+    if (!editingRunData) return;
+
+    setRuns(runs().map(run =>
+      run.runId === editingRunData.runId ? editingRunData : run
+    ));
+
+    setEditDialogOpen(false);
+    setEditingRun(null);
+    showToast({
+      title: "Success",
+      description: "Run updated successfully",
+      variant: "default",
+    });
+  };
+
+  const handleCancelRunEdit = () => {
+    setEditDialogOpen(false);
+    setEditingRun(null);
   };
 
   const deleteEntry = (id: number) => {
@@ -260,6 +335,100 @@ function LateEntriesTable(props: { className: () => string }) {
           onSortChange={(sort: any) => console.log("Sort changed:", sort)}
         />
       </div>
+
+      {/* Edit Run Dialog */}
+      <Dialog open={editDialogOpen()} onOpenChange={setEditDialogOpen}>
+        <DialogContent class="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Run</DialogTitle>
+          </DialogHeader>
+
+          <div class="space-y-4">
+            <TextField>
+              <TextFieldLabel>First Name</TextFieldLabel>
+              <TextFieldInput
+                type="text"
+                value={editingRun()?.firstName || ""}
+                onInput={(e) => {
+                  const run = editingRun();
+                  if (run) {
+                    setEditingRun({ ...run, firstName: (e.target as HTMLInputElement).value || undefined });
+                  }
+                }}
+              />
+            </TextField>
+
+            <TextField>
+              <TextFieldLabel>Last Name</TextFieldLabel>
+              <TextFieldInput
+                type="text"
+                value={editingRun()?.lastName || ""}
+                onInput={(e) => {
+                  const run = editingRun();
+                  if (run) {
+                    setEditingRun({ ...run, lastName: (e.target as HTMLInputElement).value || undefined });
+                  }
+                }}
+              />
+            </TextField>
+
+            <TextField>
+              <TextFieldLabel>Registration</TextFieldLabel>
+              <TextFieldInput
+                type="text"
+                value={editingRun()?.registration || ""}
+                onInput={(e) => {
+                  const run = editingRun();
+                  if (run) {
+                    setEditingRun({ ...run, registration: (e.target as HTMLInputElement).value || undefined });
+                  }
+                }}
+              />
+            </TextField>
+
+            <TextField>
+              <TextFieldLabel>SI ID</TextFieldLabel>
+              <TextFieldInput
+                type="number"
+                value={
+                  editingRun()?.siId?.toString() || ""
+                }
+                onInput={(e) => {
+                  const run = editingRun();
+                  if (run) {
+                    const value = (e.target as HTMLInputElement).value;
+                    setEditingRun({ ...run, siId: value ? parseInt(value) : undefined });
+                  }
+                }}
+              />
+            </TextField>
+
+            <TextField>
+              <TextFieldLabel>Start Time (ms)</TextFieldLabel>
+              <TextFieldInput
+                type="text"
+                value={formatStartTime(editingRun()?.startTimeMs)}
+                onInput={(e) => {
+                  const run = editingRun();
+                  if (run) {
+                    const value = (e.target as HTMLInputElement).value;
+                    setEditingRun({ ...run, startTimeMs: value ? parseStartTime(value) : undefined });
+                  }
+                }}
+              />
+            </TextField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelRunEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveRunEdit}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
