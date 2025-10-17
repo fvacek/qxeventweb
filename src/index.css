@@ -105,7 +105,7 @@
     --card-foreground: #fafafa;
 
     --primary-foreground: white;
-    --secondary-foreground: var(--primary);
+    --secondary-foreground: grey;
 
     --destructive: #7c2d12;
     --destructive-foreground: #fafafa;
