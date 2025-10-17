@@ -90,7 +90,7 @@
     --foreground: #fafafa;
 
     --muted: #004444;
-    --muted-foreground: #a1a1aa;
+    --muted-foreground: #e59f17;
 
     --accent: #27272a;
     --accent-foreground: #fafafa;
@@ -99,7 +99,7 @@
     --popover-foreground: #fafafa;
 
     --border: #57534e;
-    --input: black;
+    --input: #e59f17;
 
     --card: #0a0a0b;
     --card-foreground: #fafafa;
