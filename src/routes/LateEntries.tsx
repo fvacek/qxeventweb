@@ -18,17 +18,17 @@ import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, nullable, parse, type InferOutput } from "valibot";
+import { object, number, string, nullable, parse, type InferOutput, undefinedable } from "valibot";
 
 // Valibot schema for Run validation
 const RunSchema = object({
   runId: number(),
-  className: nullable(string()),
-  firstName: nullable(string()),
-  lastName: nullable(string()),
-  registration: nullable(string()),
-  siId: nullable(number()),
-  startTimeMs: nullable(number()),
+  className: undefinedable(string()),
+  firstName: undefinedable(string()),
+  lastName: undefinedable(string()),
+  registration: undefinedable(string()),
+  siId: undefinedable(number()),
+  startTimeMs: undefinedable(number()),
 });
 
 type Run = InferOutput<typeof RunSchema>;
@@ -53,9 +53,9 @@ function LateEntriesTable(props: { className: () => string }) {
       const bVal = b[sortBy()];
 
       // Handle null values - put nulls at the beginnig
-      if (aVal === null && bVal === null) return 0;
-      if (aVal === null) return sortOrder() === "asc" ? -1 : 1;
-      if (bVal === null) return sortOrder() === "asc" ? 1 : -1;
+      if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+      if (aVal === null || aVal === undefined) return sortOrder() === "asc" ? -1 : 1;
+      if (bVal === null || bVal === undefined) return sortOrder() === "asc" ? 1 : -1;
 
       if (aVal < bVal) return sortOrder() === "asc" ? -1 : 1;
       if (aVal > bVal) return sortOrder() === "asc" ? 1 : -1;
@@ -63,8 +63,9 @@ function LateEntriesTable(props: { className: () => string }) {
     });
   });
 
-  function formatStartTime(msec: number): string {
-    const date = new Date(msec);
+  function formatStartTime(stage_start: Date, msec: number | undefined): string {
+    if (msec === undefined) return "—";
+    const date = new Date(stage_start.getTime() + msec);
     return formatDateToTimeString(date);
   }
 
@@ -87,7 +88,7 @@ function LateEntriesTable(props: { className: () => string }) {
         const stageStart =
           eventConfig.eventConfig.stages[currentStage()].stageStart;
         return (
-          <span>{formatStartTime(stageStart.getTime() + run.startTimeMs)}</span>
+          <span>{formatStartTime(stageStart, run.startTimeMs)}</span>
         );
       },
       sortable: true,
@@ -98,7 +99,7 @@ function LateEntriesTable(props: { className: () => string }) {
       header: "Name",
       cell: (entry: Run) => {
         const fullName = [entry.firstName, entry.lastName]
-          .filter((name) => name !== null && name.trim() !== "")
+          .filter((name) => name !== undefined && name.trim() !== "")
           .join(" ");
         return <span>{fullName || "—"}</span>;
       },
@@ -123,23 +124,39 @@ function LateEntriesTable(props: { className: () => string }) {
       width: "250px",
       // align: "right",
     },
+    {
+      key: "actions",
+      header: "Actions",
+      cell: (run: Run) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => editEntry(run.runId)}
+        >
+          Edit
+        </Button>
+      ),
+      sortable: false,
+      width: "100px",
+    },
   ];
 
   const addEntry = () => {
     const newEntry: Run = {
-      runId: Math.max(...runs().map((u) => u.runId)) + 1,
-      firstName: `Fanda${runs().length + 1}`,
-      lastName: `Vacek${runs().length + 1}`,
-      className: "H55",
-      siId: null,
-      startTimeMs: null,
-      registration: "CHT7001",
+        runId: Math.max(...runs().map((u) => u.runId)) + 1,
+        firstName: `Fanda${runs().length + 1}`,
+        lastName: `Vacek${runs().length + 1}`,
+        className: "H55",
+        startTimeMs: undefined,
+        registration: "CHT7001",
+        siId: undefined
     };
     setRuns([...runs(), newEntry]);
   };
 
   const editEntry = (id: number) => {
     console.log("Edit entry:", id);
+    alert(`Editing entry with ID ${id}`);
     // Implement edit functionality
   };
 
