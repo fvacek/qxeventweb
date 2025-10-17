@@ -59,7 +59,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
-  const [editingRun, setEditingRun] = createSignal<Run | null>(null);
+  let editingRunId: number | null = null;
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
@@ -208,21 +208,46 @@ function LateEntriesTable(props: { className: () => string }) {
   const editRun = (id: number) => {
     const runToEdit = runs().find(run => run.runId === id);
     if (runToEdit) {
-      setEditingRun({ ...runToEdit });
+      editingRunId = id;
       setEditDialogOpen(true);
+      
+      // Populate form fields directly using refs
+      setTimeout(() => {
+        firstNameRef.value = runToEdit.firstName || "";
+        lastNameRef.value = runToEdit.lastName || "";
+        registrationRef.value = runToEdit.registration || "";
+        siIdRef.value = runToEdit.siId?.toString() || "";
+        startTimeRef.value = formatStartTime(runToEdit.startTimeMs);
+      }, 0);
     }
   };
 
-  const handleSaveRunEdit = () => {
-    const editingRunData = editingRun();
-    if (!editingRunData) return;
+  let firstNameRef!: HTMLInputElement;
+  let lastNameRef!: HTMLInputElement;
+  let registrationRef!: HTMLInputElement;
+  let siIdRef!: HTMLInputElement;
+  let startTimeRef!: HTMLInputElement;
 
-    setRuns(runs().map(run =>
-      run.runId === editingRunData.runId ? editingRunData : run
-    ));
+  const handleSaveRunEdit = () => {
+    if (editingRunId === null) return;
+
+    // Collect form values from refs and create updated run
+    setRuns(runs().map(run => {
+      if (run.runId === editingRunId) {
+        return {
+          ...run,
+          firstName: firstNameRef.value || undefined,
+          lastName: lastNameRef.value || undefined,
+          registration: registrationRef.value || undefined,
+          siId: siIdRef.value ? parseInt(siIdRef.value) : undefined,
+          startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
+        };
+      }
+      return run;
+    }));
 
     setEditDialogOpen(false);
-    setEditingRun(null);
+    editingRunId = null;
     showToast({
       title: "Success",
       description: "Run updated successfully",
@@ -232,7 +257,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const handleCancelRunEdit = () => {
     setEditDialogOpen(false);
-    setEditingRun(null);
+    editingRunId = null;
   };
 
   const deleteEntry = (id: number) => {
@@ -347,74 +372,40 @@ function LateEntriesTable(props: { className: () => string }) {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
+                ref={firstNameRef}
                 type="text"
-                value={editingRun()?.firstName || ""}
-                onInput={(e) => {
-                  const run = editingRun();
-                  if (run) {
-                    setEditingRun({ ...run, firstName: (e.target as HTMLInputElement).value || undefined });
-                  }
-                }}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
+                ref={lastNameRef}
                 type="text"
-                value={editingRun()?.lastName || ""}
-                onInput={(e) => {
-                  const run = editingRun();
-                  if (run) {
-                    setEditingRun({ ...run, lastName: (e.target as HTMLInputElement).value || undefined });
-                  }
-                }}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
+                ref={registrationRef}
                 type="text"
-                value={editingRun()?.registration || ""}
-                onInput={(e) => {
-                  const run = editingRun();
-                  if (run) {
-                    setEditingRun({ ...run, registration: (e.target as HTMLInputElement).value || undefined });
-                  }
-                }}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
+                ref={siIdRef}
                 type="number"
-                value={
-                  editingRun()?.siId?.toString() || ""
-                }
-                onInput={(e) => {
-                  const run = editingRun();
-                  if (run) {
-                    const value = (e.target as HTMLInputElement).value;
-                    setEditingRun({ ...run, siId: value ? parseInt(value) : undefined });
-                  }
-                }}
               />
             </TextField>
 
             <TextField>
-              <TextFieldLabel>Start Time (ms)</TextFieldLabel>
+              <TextFieldLabel>Start Time (HH:MM:SS)</TextFieldLabel>
               <TextFieldInput
+                ref={startTimeRef}
                 type="text"
-                value={formatStartTime(editingRun()?.startTimeMs)}
-                onInput={(e) => {
-                  const run = editingRun();
-                  if (run) {
-                    const value = (e.target as HTMLInputElement).value;
-                    setEditingRun({ ...run, startTimeMs: value ? parseStartTime(value) : undefined });
-                  }
-                }}
               />
             </TextField>
           </div>
