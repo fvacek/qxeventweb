@@ -1,4 +1,4 @@
-import { RpcValue, WsClient } from "libshv-js";
+import { fromJson, IMap, makeIMap, makeMap, makeMetaMap, RPC_MESSAGE_CALLER_IDS, RPC_MESSAGE_METHOD, RPC_MESSAGE_PARAMS, RPC_MESSAGE_REQUEST_ID, RPC_MESSAGE_SHV_PATH, RpcMessage, RpcRequest, RpcSignal, RpcValue, RpcValueWithMetaData, WsClient } from "libshv-js";
 import { createMemo, createSignal, createEffect, For } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -30,7 +30,8 @@ import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, nullable, parse, type InferOutput, undefinedable } from "valibot";
+import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
+import { copyFieldsToRpcValueMap, toRpcValue } from "~/lib/utils";
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -128,6 +129,181 @@ function LateEntriesTable(props: { className: () => string }) {
     return `${hours}:${minutes}:${seconds}`;
   }
 
+  const addEntry = () => {
+    const newEntry: Run = {
+        runId: Math.max(...runs().map((u) => u.runId)) + 1,
+        firstName: `Fanda${runs().length + 1}`,
+        lastName: `Vacek${runs().length + 1}`,
+        className: "H55",
+        startTimeMs: undefined,
+        registration: "CHT7001",
+        siId: undefined
+    };
+    setRuns([...runs(), newEntry]);
+  };
+
+  let firstNameRef!: HTMLInputElement;
+  let lastNameRef!: HTMLInputElement;
+  let registrationRef!: HTMLInputElement;
+  let siIdRef!: HTMLInputElement;
+  let startTimeRef!: HTMLInputElement;
+
+  const editRun = (id: number) => {
+    const runToEdit = runs().find(run => run.runId === id);
+    if (runToEdit) {
+      editingRunId = id;
+      setEditDialogOpen(true);
+
+      // Populate form fields directly using refs
+      setTimeout(() => {
+        firstNameRef.value = runToEdit.firstName || "";
+        lastNameRef.value = runToEdit.lastName || "";
+        registrationRef.value = runToEdit.registration || "";
+        siIdRef.value = runToEdit.siId?.toString() || "";
+        startTimeRef.value = formatStartTime(runToEdit.startTimeMs);
+      }, 0);
+    }
+  };
+
+  const acceptRunEditDialog = () => {
+    if (editingRunId === null) return;
+
+    const originalRun = runs().find(run => run.runId === editingRunId)!;
+
+    // Collect form values from refs and create updated run
+    const updatedRun: Run = {
+      ...originalRun,
+      firstName: firstNameRef.value || undefined,
+      lastName: lastNameRef.value || undefined,
+      registration: registrationRef.value || undefined,
+      siId: siIdRef.value ? parseInt(siIdRef.value) : undefined,
+      startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
+    };
+
+    setRuns(runs().map(run => {
+      if (run.runId === editingRunId) {
+        return updatedRun;
+      }
+      return run;
+    }));
+
+    setEditDialogOpen(false);
+    editingRunId = null;
+
+    updateRunInDb(updatedRun);
+  };
+
+  const rejectRunEditDialog = () => {
+    setEditDialogOpen(false);
+    editingRunId = null;
+  };
+
+  const deleteEntry = (id: number) => {
+    setRuns(runs().filter((user) => user.runId !== id));
+  };
+
+  const callRpcMethod = async (
+    shvPath: string,
+    method: string,
+    params?: RpcValue,
+  ): Promise<RpcValue> => {
+    const client = wsClient();
+    if (!client) {
+      throw new Error("WebSocket client is not available");
+    }
+    const result = await client.callRpcMethod(shvPath, method, params);
+    if (result instanceof Error) {
+      console.error("RPC error:", result);
+      throw new Error(result.message);
+    }
+    return result;
+  };
+
+  const sendRpcMessage = (msg: RpcMessage) => {
+    const client = wsClient();
+    if (!client) {
+      throw new Error("WebSocket client is not available");
+    }
+    client.sendRpcMessage(msg);
+  };
+
+  const updateRunInDb = async (run: Run) => {
+    try {
+      let sigParam: Record<string, RpcValue> = {
+        table: 'runs',
+        id: run.runId,
+        record: makeMap(copyFieldsToRpcValueMap(run, ["firstName", "lastName", "registration"])),
+        issuer: "fanda"
+      };
+      const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
+          [RPC_MESSAGE_CALLER_IDS]: undefined,
+          [RPC_MESSAGE_REQUEST_ID]: undefined,
+          [RPC_MESSAGE_METHOD]: "recchng",
+          [RPC_MESSAGE_SHV_PATH]: `${appConfig.eventPath}/sql`,
+      }), value);
+      const sig: RpcSignal = makeSignal(makeIMap({
+          [RPC_MESSAGE_PARAMS]: makeMap(sigParam),
+      }));
+      sendRpcMessage(sig);
+    } catch (error) {
+      console.error("Error updating run:", error);
+    }
+  };
+
+  const reloadTable = async () => {
+    setLoading(true);
+
+    try {
+      const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
+        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
+                competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
+                classes.name AS class_name
+                FROM runs
+                INNER JOIN competitors ON runs.competitorid = competitors.id
+                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
+                WHERE runs.stageid = ${currentStage()}`,
+      ]);
+      const table = createSqlTable(runs_result);
+
+      const transformedRuns: Run[] = [];
+      for (let i = 0; i < table.rowCount(); i++) {
+        const record = table.recordAt(i);
+        try {
+          const validatedRun = parse(RunSchema, record);
+          transformedRuns.push(validatedRun);
+        } catch (error) {
+          console.warn(`Skipping invalid row ${i}:`, error);
+        }
+      }
+
+      setRuns(transformedRuns);
+    } catch (error) {
+      console.error("RPC call failed:", error);
+      showToast({
+        title: "Reload table error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
+    setLoading(false);
+
+    // Update data with fresh timestamps and randomized data
+    const refreshedEntries = runs().map((entry) => ({
+      ...entry,
+    }));
+
+    setRuns(refreshedEntries);
+    setLoading(false);
+  };
+
+  // Watch for WebSocket status changes and reload data when connected
+  createEffect(() => {
+    if (!!props.className()) {
+      console.log("Class name changed - reloading late entries data");
+      reloadTable();
+    }
+  });
+
   // Table columns configuration with sorting
   const columns: TableColumn<Run>[] = [
     {
@@ -191,149 +367,6 @@ function LateEntriesTable(props: { className: () => string }) {
       width: "100px",
     },
   ];
-
-  const addEntry = () => {
-    const newEntry: Run = {
-        runId: Math.max(...runs().map((u) => u.runId)) + 1,
-        firstName: `Fanda${runs().length + 1}`,
-        lastName: `Vacek${runs().length + 1}`,
-        className: "H55",
-        startTimeMs: undefined,
-        registration: "CHT7001",
-        siId: undefined
-    };
-    setRuns([...runs(), newEntry]);
-  };
-
-  const editRun = (id: number) => {
-    const runToEdit = runs().find(run => run.runId === id);
-    if (runToEdit) {
-      editingRunId = id;
-      setEditDialogOpen(true);
-
-      // Populate form fields directly using refs
-      setTimeout(() => {
-        firstNameRef.value = runToEdit.firstName || "";
-        lastNameRef.value = runToEdit.lastName || "";
-        registrationRef.value = runToEdit.registration || "";
-        siIdRef.value = runToEdit.siId?.toString() || "";
-        startTimeRef.value = formatStartTime(runToEdit.startTimeMs);
-      }, 0);
-    }
-  };
-
-  let firstNameRef!: HTMLInputElement;
-  let lastNameRef!: HTMLInputElement;
-  let registrationRef!: HTMLInputElement;
-  let siIdRef!: HTMLInputElement;
-  let startTimeRef!: HTMLInputElement;
-
-  const handleSaveRunEdit = () => {
-    if (editingRunId === null) return;
-
-    // Collect form values from refs and create updated run
-    setRuns(runs().map(run => {
-      if (run.runId === editingRunId) {
-        return {
-          ...run,
-          firstName: firstNameRef.value || undefined,
-          lastName: lastNameRef.value || undefined,
-          registration: registrationRef.value || undefined,
-          siId: siIdRef.value ? parseInt(siIdRef.value) : undefined,
-          startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
-        };
-      }
-      return run;
-    }));
-
-    setEditDialogOpen(false);
-    editingRunId = null;
-    showToast({
-      title: "Success",
-      description: "Run updated successfully",
-      variant: "default",
-    });
-  };
-
-  const handleCancelRunEdit = () => {
-    setEditDialogOpen(false);
-    editingRunId = null;
-  };
-
-  const deleteEntry = (id: number) => {
-    setRuns(runs().filter((user) => user.runId !== id));
-  };
-
-  const callRpcMethod = async (
-    shvPath: string,
-    method: string,
-    params?: RpcValue,
-  ): Promise<RpcValue> => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    const result = await client.callRpcMethod(shvPath, method, params);
-    if (result instanceof Error) {
-      console.error("RPC error:", result);
-      throw new Error(result.message);
-    }
-    return result;
-  };
-
-  const reloadTable = async () => {
-    setLoading(true);
-
-    try {
-      const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
-        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
-                competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
-                classes.name AS class_name
-                FROM runs
-                INNER JOIN competitors ON runs.competitorid = competitors.id
-                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
-                WHERE runs.stageid = ${currentStage()}`,
-      ]);
-      const table = createSqlTable(runs_result);
-
-      const transformedRuns: Run[] = [];
-      for (let i = 0; i < table.rowCount(); i++) {
-        const record = table.recordAt(i);
-        try {
-          const validatedRun = parse(RunSchema, record);
-          transformedRuns.push(validatedRun);
-        } catch (error) {
-          console.warn(`Skipping invalid row ${i}:`, error);
-        }
-      }
-
-      setRuns(transformedRuns);
-    } catch (error) {
-      console.error("RPC call failed:", error);
-      showToast({
-        title: "Reload table error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
-    }
-    setLoading(false);
-
-    // Update data with fresh timestamps and randomized data
-    const refreshedEntries = runs().map((entry) => ({
-      ...entry,
-    }));
-
-    setRuns(refreshedEntries);
-    setLoading(false);
-  };
-
-  // Watch for WebSocket status changes and reload data when connected
-  createEffect(() => {
-    if (!!props.className()) {
-      console.log("Class name changed - reloading late entries data");
-      reloadTable();
-    }
-  });
 
   return (
     <div>
@@ -412,10 +445,10 @@ function LateEntriesTable(props: { className: () => string }) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={handleCancelRunEdit}>
+            <Button variant="outline" onClick={rejectRunEditDialog}>
               Cancel
             </Button>
-            <Button onClick={handleSaveRunEdit}>
+            <Button onClick={acceptRunEditDialog}>
               Save Changes
             </Button>
           </DialogFooter>
