@@ -65,17 +65,13 @@ function LateEntriesTable(props: { className: () => string }) {
   createEffect(() => {
     if (status() === "Connected") {
       const client = wsClient()!;
-      console.log("Subscribing SQL recchng", eventSqlPath());
-      client.subscribe(eventSqlPath(), "", "recchng", (path: string, method: string, param?: RpcValue) => {
+      console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
+      client.subscribe(appConfig.eventSqlPath(), "", "recchng", (path: string, method: string, param?: RpcValue) => {
         // setRuns(data);
         console.log("Received signal:", path, method, param);
       });
     }
   });
-
-  function eventSqlPath(): string {
-    return `${appConfig.eventPath}/sql`;
-  }
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
@@ -256,11 +252,11 @@ function LateEntriesTable(props: { className: () => string }) {
       };
       const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
       if (isRecordEmpty(competitors_record)) {
-        await callRpcMethod(eventSqlPath(), "update", createParam('competitors', competitors_record));
+        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', competitors_record));
       }
       const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
       if (isRecordEmpty(runs_record)) {
-        await callRpcMethod(eventSqlPath(), "update", createParam('runs', runs_record));
+        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('runs', runs_record));
       }
       // const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
       //     [RPC_MESSAGE_CALLER_IDS]: undefined,
@@ -289,7 +285,7 @@ function LateEntriesTable(props: { className: () => string }) {
     setLoading(true);
 
     try {
-      const runs_result = await callRpcMethod(eventSqlPath(), "select", [
+      const runs_result = await callRpcMethod(appConfig.eventSqlPath(), "select", [
         `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
                 competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
@@ -521,14 +517,12 @@ function ClassSelector(props: {
     return result;
   };
 
-  function eventSqlPath(): string {
-    return `${appConfig.eventPath}/sql`;
-  }
+
 
   async function loadClasses() {
     try {
       const classes_result = await callRpcMethod(
-        eventSqlPath(),
+        appConfig.eventSqlPath(),
         "select",
         [
           `SELECT classes.name AS class_name FROM classes, classdefs
