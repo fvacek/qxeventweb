@@ -31,7 +31,7 @@ import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
-import { copyFieldsToRpcValueMap, toRpcValue } from "~/lib/utils";
+import { copyValidFieldsToRpcValueMap as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -229,22 +229,32 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const updateRunInDb = async (run: Run) => {
     try {
-      let sigParam: Record<string, RpcValue> = {
-        table: 'runs',
-        id: run.runId,
-        record: makeMap(copyFieldsToRpcValueMap(run, ["firstName", "lastName", "registration"])),
-        issuer: "fanda"
+      const createParam = (table: string, record: Record<string, RpcValue>): RpcValue => {
+        return makeMap({
+          table,
+          id: run.runId,
+          record: makeMap(record),
+          issuer: "fanda"
+        });
       };
-      const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
-          [RPC_MESSAGE_CALLER_IDS]: undefined,
-          [RPC_MESSAGE_REQUEST_ID]: undefined,
-          [RPC_MESSAGE_METHOD]: "recchng",
-          [RPC_MESSAGE_SHV_PATH]: `${appConfig.eventPath}/sql`,
-      }), value);
-      const sig: RpcSignal = makeSignal(makeIMap({
-          [RPC_MESSAGE_PARAMS]: makeMap(sigParam),
-      }));
-      sendRpcMessage(sig);
+      const competitors_record = copyValidFieldsToRpcMap(run, ["firstName", "lastName", "registration"]);
+      if (isRecordEmpty(competitors_record)) {
+        await callRpcMethod(`${appConfig.eventPath}/sql`, "update", createParam('competitors', competitors_record));
+      }
+      const runs_record = copyValidFieldsToRpcMap(run, ["siId", "startTimeMs"]);
+      if (isRecordEmpty(runs_record)) {
+        await callRpcMethod(`${appConfig.eventPath}/sql`, "update", createParam('runs', runs_record));
+      }
+      // const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
+      //     [RPC_MESSAGE_CALLER_IDS]: undefined,
+      //     [RPC_MESSAGE_REQUEST_ID]: undefined,
+      //     [RPC_MESSAGE_METHOD]: "recchng",
+      //     [RPC_MESSAGE_SHV_PATH]: `${appConfig.eventPath}/sql`,
+      // }), value);
+      // const sig: RpcSignal = makeSignal(makeIMap({
+      //     [RPC_MESSAGE_PARAMS]: makeMap(sigParam),
+      // }));
+      // sendRpcMessage(sig);
     } catch (error) {
       console.error("Error updating run:", error);
     }

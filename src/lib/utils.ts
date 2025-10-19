@@ -41,7 +41,7 @@ export function toRpcValue(value: unknown): RpcValue {
   throw new Error(`Cannot convert value to RpcValue: ${String(value)}`);
 }
 
-export function copyFieldsToRpcValueMap(value: Object, fields: string[]): Record<string, RpcValue> {
+export function copyValidFieldsToRpcValueMap(value: Object, fields: string[]): Record<string, RpcValue> {
   const obj: Record<string, RpcValue> = {};
   for (const [k, v] of Object.entries(value)) {
     // Optionally skip undefined fields or throw
@@ -54,4 +54,8 @@ export function copyFieldsToRpcValueMap(value: Object, fields: string[]): Record
     }
   }
   return obj;
+}
+
+export function isRecordEmpty(val: Record<string, RpcValue>): val is Record<string, RpcValue> {
+  return Object.keys(val).length === 0;
 }
