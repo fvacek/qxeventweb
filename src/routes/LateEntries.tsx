@@ -31,7 +31,7 @@ import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
-import { copyValidFieldsToRpcValueMap as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
+import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -59,8 +59,23 @@ function LateEntriesTable(props: { className: () => string }) {
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   // Edit dialog state
-  const [editDialogOpen, setEditDialogOpen] = createSignal(false);
+  const [runEditDialogOpen, setRunEditDialogOpen] = createSignal(false);
   let editingRunId: number | null = null;
+
+  createEffect(() => {
+    if (status() === "Connected") {
+      const client = wsClient()!;
+      console.log("Subscribing SQL recchng", eventSqlPath());
+      client.subscribe(eventSqlPath(), "", "recchng", (path: string, method: string, param?: RpcValue) => {
+        // setRuns(data);
+        console.log("Received signal:", path, method, param);
+      });
+    }
+  });
+
+  function eventSqlPath(): string {
+    return `${appConfig.eventPath}/sql`;
+  }
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
@@ -148,11 +163,12 @@ function LateEntriesTable(props: { className: () => string }) {
   let siIdRef!: HTMLInputElement;
   let startTimeRef!: HTMLInputElement;
 
-  const editRun = (id: number) => {
+  const openRunEditDialog = (id: number) => {
+    editingRunId = null;
     const runToEdit = runs().find(run => run.runId === id);
     if (runToEdit) {
       editingRunId = id;
-      setEditDialogOpen(true);
+      setRunEditDialogOpen(true);
 
       // Populate form fields directly using refs
       setTimeout(() => {
@@ -180,21 +196,20 @@ function LateEntriesTable(props: { className: () => string }) {
       startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
     };
 
-    setRuns(runs().map(run => {
-      if (run.runId === editingRunId) {
-        return updatedRun;
-      }
-      return run;
-    }));
+    // setRuns(runs().map(run => {
+    //   if (run.runId === editingRunId) {
+    //     return updatedRun;
+    //   }
+    //   return run;
+    // }));
 
-    setEditDialogOpen(false);
-    editingRunId = null;
-
+    setRunEditDialogOpen(false);
     updateRunInDb(updatedRun);
+    editingRunId = null;
   };
 
   const rejectRunEditDialog = () => {
-    setEditDialogOpen(false);
+    setRunEditDialogOpen(false);
     editingRunId = null;
   };
 
@@ -227,36 +242,46 @@ function LateEntriesTable(props: { className: () => string }) {
     client.sendRpcMessage(msg);
   };
 
-  const updateRunInDb = async (run: Run) => {
+  const updateRunInDb = async (newRun: Run) => {
     try {
+      const origRun = runs().find(run => newRun.runId === run.runId)!;
+
       const createParam = (table: string, record: Record<string, RpcValue>): RpcValue => {
         return makeMap({
           table,
-          id: run.runId,
+          id: newRun.runId,
           record: makeMap(record),
           issuer: "fanda"
         });
       };
-      const competitors_record = copyValidFieldsToRpcMap(run, ["firstName", "lastName", "registration"]);
+      const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
       if (isRecordEmpty(competitors_record)) {
-        await callRpcMethod(`${appConfig.eventPath}/sql`, "update", createParam('competitors', competitors_record));
+        await callRpcMethod(eventSqlPath(), "update", createParam('competitors', competitors_record));
       }
-      const runs_record = copyValidFieldsToRpcMap(run, ["siId", "startTimeMs"]);
+      const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
       if (isRecordEmpty(runs_record)) {
-        await callRpcMethod(`${appConfig.eventPath}/sql`, "update", createParam('runs', runs_record));
+        await callRpcMethod(eventSqlPath(), "update", createParam('runs', runs_record));
       }
       // const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
       //     [RPC_MESSAGE_CALLER_IDS]: undefined,
       //     [RPC_MESSAGE_REQUEST_ID]: undefined,
       //     [RPC_MESSAGE_METHOD]: "recchng",
-      //     [RPC_MESSAGE_SHV_PATH]: `${appConfig.eventPath}/sql`,
+      //     [RPC_MESSAGE_SHV_PATH]: sqlShvPath(),
       // }), value);
       // const sig: RpcSignal = makeSignal(makeIMap({
       //     [RPC_MESSAGE_PARAMS]: makeMap(sigParam),
       // }));
       // sendRpcMessage(sig);
+      showToast({
+        title: "Update run success",
+      });
     } catch (error) {
       console.error("Error updating run:", error);
+      showToast({
+        title: "Update run error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -264,7 +289,7 @@ function LateEntriesTable(props: { className: () => string }) {
     setLoading(true);
 
     try {
-      const runs_result = await callRpcMethod(appConfig.eventPath, "select", [
+      const runs_result = await callRpcMethod(eventSqlPath(), "select", [
         `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
                 competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
@@ -368,7 +393,7 @@ function LateEntriesTable(props: { className: () => string }) {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => editRun(run.runId)}
+          onClick={() => openRunEditDialog(run.runId)}
         >
           Edit
         </Button>
@@ -405,7 +430,7 @@ function LateEntriesTable(props: { className: () => string }) {
       </div>
 
       {/* Edit Run Dialog */}
-      <Dialog open={editDialogOpen()} onOpenChange={setEditDialogOpen}>
+      <Dialog open={runEditDialogOpen()} onOpenChange={setRunEditDialogOpen}>
         <DialogContent class="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Run</DialogTitle>
@@ -496,10 +521,14 @@ function ClassSelector(props: {
     return result;
   };
 
+  function eventSqlPath(): string {
+    return `${appConfig.eventPath}/sql`;
+  }
+
   async function loadClasses() {
     try {
       const classes_result = await callRpcMethod(
-        appConfig.eventPath,
+        eventSqlPath(),
         "select",
         [
           `SELECT classes.name AS class_name FROM classes, classdefs

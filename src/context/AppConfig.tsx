@@ -10,7 +10,7 @@ export type AppConfig = {
 // Non-reactive config object
 export const config: AppConfig = {
     brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
-    eventPath: import.meta.env.QXEVENT_EVENT_PATH || "test/sql/hsh2025/sql",
+    eventPath: import.meta.env.QXEVENT_EVENT_PATH || "test/sql/hsh2025",
     theme: "dark",
     debug: import.meta.env.DEV || false,
 };
