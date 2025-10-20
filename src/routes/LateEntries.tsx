@@ -32,6 +32,7 @@ import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
+import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -66,9 +67,20 @@ function LateEntriesTable(props: { className: () => string }) {
     if (status() === "Connected") {
       const client = wsClient()!;
       console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
-      client.subscribe(appConfig.eventSqlPath(), "", "recchng", (path: string, method: string, param?: RpcValue) => {
-        // setRuns(data);
+      client.subscribe("kkt", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
         console.log("Received signal:", path, method, param);
+        const recchng: RecChng = parse(RecChngSchema, param);
+        console.log("recchng:", recchng);
+        const { id, record, op } = recchng;
+        if (op === SqlOperation.Update) {
+          const originalRun = runs().find(run => run.runId === id);
+          if (!!originalRun) {
+            const updatedRun = { ...originalRun, ...record };
+            setRuns(prev => prev.map(run => run.runId === id ? updatedRun : run));
+          }
+        } else if (op === SqlOperation.Insert) {
+        } else if (op === SqlOperation.Delete) {
+        }
       });
     }
   });
@@ -251,11 +263,11 @@ function LateEntriesTable(props: { className: () => string }) {
         });
       };
       const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
-      if (isRecordEmpty(competitors_record)) {
+      if (!isRecordEmpty(competitors_record)) {
         await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', competitors_record));
       }
       const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
-      if (isRecordEmpty(runs_record)) {
+      if (!isRecordEmpty(runs_record)) {
         await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('runs', runs_record));
       }
       // const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
