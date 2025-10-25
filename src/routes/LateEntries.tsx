@@ -37,6 +37,7 @@ import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 // Valibot schema for Run validation
 const RunSchema = object({
   runId: number(),
+  competitorId: number(),
   className: undefinedable(string()),
   firstName: undefinedable(string()),
   lastName: undefinedable(string()),
@@ -71,12 +72,12 @@ function LateEntriesTable(props: { className: () => string }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        const { id, record, op } = recchng;
+        const { table, id, record, op } = recchng;
         if (op === SqlOperation.Update) {
-          const originalRun = runs().find(run => run.runId === id);
+          const originalRun = (table === "runs") ? runs().find(run => run.runId === id) : runs().find(run => run.competitorId === id);
           if (!!originalRun) {
             const updatedRun = { ...originalRun, ...record };
-            setRuns(prev => prev.map(run => run.runId === id ? updatedRun : run));
+            setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
           }
         } else if (op === SqlOperation.Insert) {
         } else if (op === SqlOperation.Delete) {
@@ -160,7 +161,8 @@ function LateEntriesTable(props: { className: () => string }) {
         className: "H55",
         startTimeMs: undefined,
         registration: "CHT7001",
-        siId: undefined
+        siId: undefined,
+        competitorId: 1234
     };
     setRuns([...runs(), newEntry]);
   };
@@ -203,13 +205,6 @@ function LateEntriesTable(props: { className: () => string }) {
       siId: siIdRef.value ? parseInt(siIdRef.value) : undefined,
       startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
     };
-
-    // setRuns(runs().map(run => {
-    //   if (run.runId === editingRunId) {
-    //     return updatedRun;
-    //   }
-    //   return run;
-    // }));
 
     setRunEditDialogOpen(false);
     updateRunInDb(updatedRun);
@@ -254,32 +249,22 @@ function LateEntriesTable(props: { className: () => string }) {
     try {
       const origRun = runs().find(run => newRun.runId === run.runId)!;
 
-      const createParam = (table: string, record: Record<string, RpcValue>): RpcValue => {
+      const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue => {
         return makeMap({
           table,
-          id: newRun.runId,
+          id,
           record: makeMap(record),
           issuer: "fanda"
         });
       };
       const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
       if (!isRecordEmpty(competitors_record)) {
-        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', competitors_record));
+        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', origRun.competitorId, competitors_record));
       }
       const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
       if (!isRecordEmpty(runs_record)) {
-        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('runs', runs_record));
+        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('runs', origRun.runId, runs_record));
       }
-      // const makeSignal = (value: IMap) => new RpcValueWithMetaData(makeMetaMap({
-      //     [RPC_MESSAGE_CALLER_IDS]: undefined,
-      //     [RPC_MESSAGE_REQUEST_ID]: undefined,
-      //     [RPC_MESSAGE_METHOD]: "recchng",
-      //     [RPC_MESSAGE_SHV_PATH]: sqlShvPath(),
-      // }), value);
-      // const sig: RpcSignal = makeSignal(makeIMap({
-      //     [RPC_MESSAGE_PARAMS]: makeMap(sigParam),
-      // }));
-      // sendRpcMessage(sig);
       showToast({
         title: "Update run success",
       });
@@ -299,7 +284,7 @@ function LateEntriesTable(props: { className: () => string }) {
     try {
       const runs_result = await callRpcMethod(appConfig.eventSqlPath(), "select", [
         `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
-                competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
+                competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
