@@ -68,23 +68,27 @@ function LateEntriesTable(props: { className: () => string }) {
     if (status() === "Connected") {
       const client = wsClient()!;
       console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
-      client.subscribe("kkt", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
+      client.subscribe("qxeventweb", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        const { table, id, record, op } = recchng;
-        if (op === SqlOperation.Update) {
-          const originalRun = (table === "runs") ? runs().find(run => run.runId === id) : runs().find(run => run.competitorId === id);
-          if (!!originalRun) {
-            const updatedRun = { ...originalRun, ...record };
-            setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
-          }
-        } else if (op === SqlOperation.Insert) {
-        } else if (op === SqlOperation.Delete) {
-        }
+        processRecChng(recchng)
       });
     }
   });
+
+  const processRecChng = (recchng: RecChng) => {
+    const { table, id, record, op } = recchng;
+    if (op === SqlOperation.Update) {
+      const originalRun = (table === "runs") ? runs().find(run => run.runId === id) : runs().find(run => run.competitorId === id);
+      if (!!originalRun) {
+        const updatedRun = { ...originalRun, ...record };
+        setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+      }
+    } else if (op === SqlOperation.Insert) {
+    } else if (op === SqlOperation.Delete) {
+    }
+  };
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
@@ -513,8 +517,6 @@ function ClassSelector(props: {
     }
     return result;
   };
-
-
 
   async function loadClasses() {
     try {

@@ -6,7 +6,7 @@ import {
   useContext,
 } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue } from "libshv-js";
+import { RpcValue, WsClient } from "libshv-js";
 import { useAppConfig } from "./AppConfig";
 import { useWsClient } from "./WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -112,8 +112,6 @@ export function EventConfigProvider(props: { children: any }) {
       stages,
     };
   }
-
-
 
   const loadEventConfig = async () => {
     if (appConfig.debug) {

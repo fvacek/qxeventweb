@@ -32,10 +32,16 @@ const NavHeader = (): JSX.Element => {
     {
       name: "Table Demo",
       to: "/table-demo",
+      file: "TableDemo",
     },
     {
       name: "Late Entries",
       to: "/late-entries",
+      file: "LateEntries",
+    },
+    {
+      name: "Events",
+      to: "/events",
     },
   ];
 
@@ -56,7 +62,7 @@ const NavHeader = (): JSX.Element => {
           <div class="flex items-center justify-between">
             <button
               onClick={toggleTheme}
-              class="flex h-[48px] w-[48px] border-none bg-transparent"
+              class="flex h-12 w-12 border-none bg-transparent"
             >
               <img
                 src={theme() === "light" ? darkModeIcon : lightModeIcon}

@@ -6,6 +6,7 @@ export type AppConfig = {
   theme: "light" | "dark",
   debug: boolean,
   eventSqlPath: () => string,
+  qxEventShvPath: () => string,
 };
 
 // Non-reactive config object
@@ -15,6 +16,7 @@ export const config: AppConfig = {
     theme: "dark",
     debug: import.meta.env.DEV || false,
     eventSqlPath: function() { return `${this.eventPath}/sql`; },
+    qxEventShvPath: function() { return 'test/qxeventd'; },
 };
 
 const AppConfigContext = createContext(config);

@@ -32,7 +32,7 @@ const PrefetchLink = ({
         <A
             href={to}
             onClick={handleClick}
-            class="border-b-2 border-b-[var(--highlight)] transition hover:text-[var(--highlight)]"
+            class="border-b-2 border-b-(--highlight) transition hover:text---highlight)"
         >
             {children}
         </A>

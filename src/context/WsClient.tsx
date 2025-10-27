@@ -9,14 +9,22 @@ import {
   createMemo,
   untrack,
 } from "solid-js";
-import { WsClient } from 'libshv-js';
+import { RpcValue, WsClient } from "libshv-js";
 import { useAppConfig } from "./AppConfig";
+import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
+import { parse } from "valibot";
 
-type WsClientStatus = "Connecting" | "Connected" | "Disconnected" | "Error" | "AuthError";
+type WsClientStatus =
+  | "Connecting"
+  | "Connected"
+  | "Disconnected"
+  | "Error"
+  | "AuthError";
 
 interface WsClientContextValue {
   wsClient: Accessor<WsClient | null>;
   status: Accessor<WsClientStatus>;
+  // recChng: Accessor<RecChng>;
   reconnect: () => void;
   reconnectWithNewUrl: (newUrl: string) => void;
 }
@@ -24,144 +32,170 @@ interface WsClientContextValue {
 const WsClientContext = createContext<WsClientContextValue>();
 
 export function WsClientProvider(props: { children: JSX.Element }) {
-    const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
-    const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
-    let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
+  const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
+  // const [recChng, setRecChng] = createSignal<RecChng>({
+  //     table: "",
+  //     id: 0,
+  //     record: {},
+  //     op: SqlOperation.Update,
+  //     issuer: ""
+  // });
+  let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const appConfig = useAppConfig();
-    let currentBrokerUrl = appConfig.brokerUrl;
+  const appConfig = useAppConfig();
+  let currentBrokerUrl = appConfig.brokerUrl;
 
-    const createConnection = () => {
-        // Prevent multiple simultaneous connection attempts
-        if (status() === "Connecting") {
-            if (appConfig.debug) {
-                console.log('Skipping connection attempt - already connecting');
-            }
-            return;
-        }
+  const createConnection = () => {
+    // Prevent multiple simultaneous connection attempts
+    if (status() === "Connecting") {
+      if (appConfig.debug) {
+        console.log("Skipping connection attempt - already connecting");
+      }
+      return;
+    }
 
-        if (appConfig.debug) {
-            console.log('Starting connection attempt to:', currentBrokerUrl);
-        }
+    if (appConfig.debug) {
+      console.log("Starting connection attempt to:", currentBrokerUrl);
+    }
 
-        // Clear any existing timeout
-        if (connectionTimeout) {
+    // Clear any existing timeout
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+    }
+
+    // Close existing connection if it exists
+    const existingSocket = wsClient();
+    if (existingSocket) {
+      existingSocket.close();
+      setWsClient(null);
+    }
+
+    setStatus("Connecting");
+
+    // Set timeout to prevent infinite connecting state
+    connectionTimeout = setTimeout(() => {
+      if (status() === "Connecting") {
+        setStatus("Error");
+        console.error(
+          "Connection timeout: Failed to connect within 10 seconds",
+        );
+      }
+    }, 10000);
+
+    try {
+      const broker_url = URL.parse(currentBrokerUrl);
+      if (!broker_url) {
+        throw new Error("Invalid broker URL");
+      }
+
+      const ws = new WsClient({
+        logDebug: appConfig.debug ? console.debug : () => {},
+        wsUri: currentBrokerUrl.toString(),
+        login: {
+          type: "PLAIN",
+          user: broker_url.searchParams.get("user") || "",
+          password: broker_url.searchParams.get("password") || "",
+        },
+        onConnected: () => {
+          if (connectionTimeout) {
             clearTimeout(connectionTimeout);
-        }
+            connectionTimeout = null;
+          }
+          setStatus("Connected");
+        },
+        onDisconnected: () => {
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
+          setStatus("Disconnected");
+        },
+        onConnectionFailure: (error: Error) => {
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
+          console.log(`Connection failed: ${error.message}`);
+          // Check if it's likely an authentication error
+          if (
+            error.message.toLowerCase().includes("auth") ||
+            error.message.toLowerCase().includes("login") ||
+            error.message.toLowerCase().includes("credential")
+          ) {
+            setStatus("AuthError");
+          } else {
+            setStatus("Error");
+          }
+        },
+        onRequest: (shvPath: string) => {
+          if (appConfig.debug) {
+            console.log(`Requesting SHV path: ${shvPath}`);
+          }
+          return undefined;
+        },
+      });
 
-        // Close existing connection if it exists
-        const existingSocket = wsClient();
-        if (existingSocket) {
-            existingSocket.close();
-            setWsClient(null);
-        }
+      setWsClient(ws);
+    } catch (error) {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
+      console.error("Failed to create WsClient:", error);
+      setStatus("Error");
+    }
+  };
 
-        setStatus("Connecting");
+  // Initial connection
+  createConnection();
 
-        // Set timeout to prevent infinite connecting state
-        connectionTimeout = setTimeout(() => {
-            if (status() === "Connecting") {
-                setStatus("Error");
-                console.error("Connection timeout: Failed to connect within 10 seconds");
-            }
-        }, 10000);
-
-        try {
-            const broker_url = URL.parse(currentBrokerUrl);
-            if (!broker_url) {
-                throw new Error("Invalid broker URL");
-            }
-
-            const ws = new WsClient({
-                logDebug: appConfig.debug ? console.debug : () => {},
-                wsUri: currentBrokerUrl.toString(),
-                login: {
-                    type: 'PLAIN',
-                    user: broker_url.searchParams.get('user') || '',
-                    password: broker_url.searchParams.get('password') || '',
-                },
-                onConnected: () => {
-                    if (connectionTimeout) {
-                        clearTimeout(connectionTimeout);
-                        connectionTimeout = null;
-                    }
-                    setStatus('Connected');
-                },
-                onDisconnected: () => {
-                    if (connectionTimeout) {
-                        clearTimeout(connectionTimeout);
-                        connectionTimeout = null;
-                    }
-                    setStatus('Disconnected');
-                },
-                onConnectionFailure: (error: Error) => {
-                    if (connectionTimeout) {
-                        clearTimeout(connectionTimeout);
-                        connectionTimeout = null;
-                    }
-                    console.log(`Connection failed: ${error.message}`);
-                    // Check if it's likely an authentication error
-                    if (error.message.toLowerCase().includes('auth') ||
-                        error.message.toLowerCase().includes('login') ||
-                        error.message.toLowerCase().includes('credential')) {
-                        setStatus('AuthError');
-                    } else {
-                        setStatus('Error');
-                    }
-                },
-                onRequest: (shvPath: string) => {
-                    if (appConfig.debug) {
-                        console.log(`Requesting SHV path: ${shvPath}`);
-                    }
-                    return undefined;
-                },
-            });
-
-            setWsClient(ws);
-        } catch (error) {
-            if (connectionTimeout) {
-                clearTimeout(connectionTimeout);
-                connectionTimeout = null;
-            }
-            console.error('Failed to create WsClient:', error);
-            setStatus('Error');
-        }
-    };
-
-    // Initial connection
+  const reconnect = () => {
+    // Manual reconnect - directly call createConnection
+    if (appConfig.debug) {
+      console.log("Manual reconnect requested");
+    }
     createConnection();
+  };
 
-    const reconnect = () => {
-        // Manual reconnect - directly call createConnection
-        if (appConfig.debug) {
-            console.log('Manual reconnect requested');
-        }
-        createConnection();
-    };
+  const reconnectWithNewUrl = (newUrl: string) => {
+    if (appConfig.debug) {
+      console.log("Reconnecting with new URL:", newUrl);
+    }
+    currentBrokerUrl = newUrl;
+    createConnection();
+  };
 
-    const reconnectWithNewUrl = (newUrl: string) => {
-        if (appConfig.debug) {
-            console.log('Reconnecting with new URL:', newUrl);
-        }
-        currentBrokerUrl = newUrl;
-        createConnection();
-    };
+  onCleanup(() => {
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+    }
+    const ws = wsClient();
+    if (ws) {
+      ws.close();
+    }
+  });
 
-    onCleanup(() => {
-        if (connectionTimeout) {
-            clearTimeout(connectionTimeout);
-        }
-        const ws = wsClient();
-        if (ws) {
-            ws.close();
-        }
-    });
+  // createEffect(() => {
+  //   if (status() === "Connected") {
+  //     const client = wsClient()!;
+  //     console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
+  //     client.subscribe("qxeventweb", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
+  //       console.log("Received signal:", path, method, param);
+  //       const recchng: RecChng = parse(RecChngSchema, param);
+  //       console.log("recchng:", recchng);
+  //       setRecChng(recchng)
+  //     });
+  //   }
+  // });
 
-    return (
-        <WsClientContext.Provider value={{ wsClient: wsClient, status, reconnect, reconnectWithNewUrl }}>
-        {props.children}
-        </WsClientContext.Provider>
-    );
+  return (
+    <WsClientContext.Provider
+      value={{ wsClient: wsClient, status, reconnect, reconnectWithNewUrl }}
+    >
+      {props.children}
+    </WsClientContext.Provider>
+  );
 }
 
 export function useWsClient() {
