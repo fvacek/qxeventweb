@@ -1,5 +1,5 @@
 import { fromJson, IMap, makeIMap, makeMap, makeMetaMap, RPC_MESSAGE_CALLER_IDS, RPC_MESSAGE_METHOD, RPC_MESSAGE_PARAMS, RPC_MESSAGE_REQUEST_ID, RPC_MESSAGE_SHV_PATH, RpcMessage, RpcRequest, RpcSignal, RpcValue, RpcValueWithMetaData, WsClient } from "libshv-js";
-import { createMemo, createSignal, createEffect, For } from "solid-js";
+import { createMemo, createSignal, createEffect, For, onMount } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -33,6 +33,7 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
+import { callRpcMethod } from "~/lib/rpc";
 
 const EventSchema = object({
   id: number(),
@@ -44,8 +45,8 @@ const EventSchema = object({
 
 type Event = InferOutput<typeof EventSchema>;
 
-function EventsTable(props: { className: () => string }) {
-  const { wsClient, status, recChng } = useWsClient();
+function EventsTable() {
+  const { wsClient, status } = useWsClient();
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
@@ -187,31 +188,6 @@ function EventsTable(props: { className: () => string }) {
     setTableRecords(tableRecords().filter((user) => user.id !== id));
   };
 
-  const callRpcMethod = async (
-    shvPath: string,
-    method: string,
-    params?: RpcValue,
-  ): Promise<RpcValue> => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    const result = await client.callRpcMethod(shvPath, method, params);
-    if (result instanceof Error) {
-      console.error("RPC error:", result);
-      throw new Error(result.message);
-    }
-    return result;
-  };
-
-  const sendRpcMessage = (msg: RpcMessage) => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    client.sendRpcMessage(msg);
-  };
-
   const updateRecordInDb = async (newRecord: Event) => {
     try {
       const origRecord = tableRecords().find(record => newRecord.id === record.id)!;
@@ -279,12 +255,10 @@ function EventsTable(props: { className: () => string }) {
     setLoading(false);
   };
 
-  // Watch for WebSocket status changes and reload data when connected
-  createEffect(() => {
-    if (!!props.className()) {
-      console.log("Class name changed - reloading late entries data");
-      reloadTable();
-    }
+  // Reload table when component mounts
+  onMount(() => {
+    console.log("Events mounted");
+    reloadTable();
   });
 
   // Table columns configuration with sorting
@@ -344,7 +318,7 @@ function EventsTable(props: { className: () => string }) {
   return (
     <div>
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Class {props.className()}</h2>
+        <h2 class="text-2xl font-bold">Events</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
           <Button variant="outline" onClick={reloadTable} disabled={loading()}>
@@ -431,13 +405,11 @@ function EventsTable(props: { className: () => string }) {
 }
 
 const Events = () => {
-  const [className, setClassName] = createSignal("");
-
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Late Entries</h1>
+      <h1 class="mt-7 mb-7 text-3xl font-bold">Events</h1>
       <div class="w-full max-w-7xl space-y-4">
-        <EventsTable className={className} />
+        <EventsTable/>
       </div>
     </div>
   );

@@ -33,6 +33,7 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
+import { callRpcMethod } from "~/lib/rpc";
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -222,31 +223,6 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const deleteEntry = (id: number) => {
     setRuns(runs().filter((user) => user.runId !== id));
-  };
-
-  const callRpcMethod = async (
-    shvPath: string,
-    method: string,
-    params?: RpcValue,
-  ): Promise<RpcValue> => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    const result = await client.callRpcMethod(shvPath, method, params);
-    if (result instanceof Error) {
-      console.error("RPC error:", result);
-      throw new Error(result.message);
-    }
-    return result;
-  };
-
-  const sendRpcMessage = (msg: RpcMessage) => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    client.sendRpcMessage(msg);
   };
 
   const updateRunInDb = async (newRun: Run) => {
