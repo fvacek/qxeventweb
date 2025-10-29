@@ -1,4 +1,21 @@
-import { fromJson, IMap, makeIMap, makeMap, makeMetaMap, RPC_MESSAGE_CALLER_IDS, RPC_MESSAGE_METHOD, RPC_MESSAGE_PARAMS, RPC_MESSAGE_REQUEST_ID, RPC_MESSAGE_SHV_PATH, RpcMessage, RpcRequest, RpcSignal, RpcValue, RpcValueWithMetaData, WsClient } from "libshv-js";
+import {
+  fromJson,
+  IMap,
+  makeIMap,
+  makeMap,
+  makeMetaMap,
+  RPC_MESSAGE_CALLER_IDS,
+  RPC_MESSAGE_METHOD,
+  RPC_MESSAGE_PARAMS,
+  RPC_MESSAGE_REQUEST_ID,
+  RPC_MESSAGE_SHV_PATH,
+  RpcMessage,
+  RpcRequest,
+  RpcSignal,
+  RpcValue,
+  RpcValueWithMetaData,
+  WsClient,
+} from "libshv-js";
 import { createMemo, createSignal, createEffect, For, onMount } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -30,19 +47,42 @@ import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
-import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
+import {
+  object,
+  number,
+  string,
+  nullable,
+  parse,
+  type InferOutput,
+  undefinedable,
+  safeParse,
+  array,
+} from "valibot";
+import {
+  copyRecordChanges as copyValidFieldsToRpcMap,
+  isRecordEmpty,
+  toRpcValue,
+} from "~/lib/utils";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
+
+const EventListItemSchema = object({
+  id: number(),
+  name: undefinedable(string()),
+  date: undefinedable(string()),
+  owner: undefinedable(string()),
+});
+type EventListItem = InferOutput<typeof EventListItemSchema>;
+
+const EventListSchema = array(EventListItemSchema);
 
 const EventSchema = object({
   id: number(),
   name: undefinedable(string()),
-  apiToken: undefinedable(string()),
+  api_token: undefinedable(string()),
   date: undefinedable(string()),
   owner: undefinedable(string()),
 });
-
 type Event = InferOutput<typeof EventSchema>;
 
 function EventsTable() {
@@ -51,15 +91,11 @@ function EventsTable() {
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
 
-  const [tableRecords, setTableRecords] = createSignal<Event[]>([]);
+  const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof Event>("name");
+  const [sortBy, setSortBy] = createSignal<keyof EventListItem>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
-
-  // Edit dialog state
-  const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  let editingRecordId: number | null = null;
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
@@ -69,9 +105,15 @@ function EventsTable() {
       const bVal = b[sortBy()];
 
       // Handle null values - put nulls at the beginnig
-      if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
-      if (aVal === null || aVal === undefined) return sortOrder() === "asc" ? -1 : 1;
-      if (bVal === null || bVal === undefined) return sortOrder() === "asc" ? 1 : -1;
+      if (
+        (aVal === null || aVal === undefined) &&
+        (bVal === null || bVal === undefined)
+      )
+        return 0;
+      if (aVal === null || aVal === undefined)
+        return sortOrder() === "asc" ? -1 : 1;
+      if (bVal === null || bVal === undefined)
+        return sortOrder() === "asc" ? 1 : -1;
 
       if (aVal < bVal) return sortOrder() === "asc" ? -1 : 1;
       if (aVal > bVal) return sortOrder() === "asc" ? 1 : -1;
@@ -79,159 +121,26 @@ function EventsTable() {
     });
   });
 
-  function parseHH_MM_SS(hhmmss: string): [number, number, number] | undefined {
-
-    const timeSegments = hhmmss.split(':').map(Number);
-
-    if (timeSegments.length === 1) {
-      // Just minutes
-      const min = timeSegments[0];
-      return [0, min, 0];
-    } else if (timeSegments.length === 2) {
-      // Format: HH:MM
-      const [hours, minutes] = timeSegments;
-      return [hours, minutes, 0];
-    } else if (timeSegments.length === 3) {
-      // Format: HH:MM:SS
-      const [hours, minutes, secs] = timeSegments;
-      return [hours, minutes, secs];
-    }
-    // throw new Error(`Invalid time format: ${hhmmss}`);
-    return undefined;
-  }
-
-  function parseStartTime(s: string): number | undefined {
-    const hms = parseHH_MM_SS(s);
-    if (!hms) {
-      return undefined;
-    }
-    const [hours, minutes, secs] = hms;
-    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
-    const runStart = new Date(stageStart.getTime());
-    runStart.setHours(hours, minutes, secs, 0);
-    return runStart.getTime() - stageStart.getTime();
-  }
-
-  function formatStartTime(msec: number | undefined): string {
-    if (msec === undefined) {
-      return "";
-    }
-    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
-    const date = new Date(stageStart.getTime() + msec);
-    return formatDateToTimeString(date);
-  }
-
-  function formatDateToTimeString(date: Date): string {
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const seconds = date.getSeconds().toString().padStart(2, "0");
-    return `${hours}:${minutes}:${seconds}`;
-  }
-
-  const addEntry = () => {
-    const newEntry: Event = {
-        id: Math.max(...tableRecords().map((u) => u.id)) + 1,
-        name: undefined,
-        apiToken: undefined,
-        date: undefined,
-        owner: undefined
-    };
-    setTableRecords([...tableRecords(), newEntry]);
-  };
-
-  let nameRef!: HTMLInputElement;
-  let dateRef!: HTMLInputElement;
-  let apiTokenRef!: HTMLInputElement;
-  let idRef!: HTMLInputElement;
-
-  const openEditRecordDialog = (id: number) => {
-    editingRecordId = null;
-    const recordToEdit = tableRecords().find(record => record.id === id);
-    if (recordToEdit) {
-      editingRecordId = id;
-      setEditRecordDialogOpen(true);
-
-      // Populate form fields directly using refs
-      setTimeout(() => {
-        idRef.value = recordToEdit.id?.toString() || "";
-        nameRef.value = recordToEdit.name || "";
-        dateRef.value = recordToEdit.date || "";
-        apiTokenRef.value = recordToEdit.apiToken || "";
-      }, 0);
-    }
-  };
-
-  const acceptEditRecordDialog = () => {
-    if (editingRecordId === null) return;
-
-    const originalRecord = tableRecords().find(record => record.id === editingRecordId)!;
-
-    const updatedRecord: Event = {
-      ...originalRecord,
-      name: nameRef.value || undefined,
-      date: dateRef.value || undefined,
-      apiToken: apiTokenRef.value || undefined,
-      id: parseInt(idRef.value),
-    };
-
-    setEditRecordDialogOpen(false);
-    updateRecordInDb(updatedRecord);
-    editingRecordId = null;
-  };
-
-  const rejectEditRecordDialog = () => {
-    setEditRecordDialogOpen(false);
-    editingRecordId = null;
-  };
-
-  const deleteRecord = (id: number) => {
-    setTableRecords(tableRecords().filter((user) => user.id !== id));
-  };
-
-  const updateRecordInDb = async (newRecord: Event) => {
-    try {
-      const origRecord = tableRecords().find(record => newRecord.id === record.id)!;
-
-      const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue => {
-        return makeMap({
-          table,
-          id,
-          record: makeMap(record),
-          issuer: "fanda"
-        });
-      };
-      const events_table_record = copyValidFieldsToRpcMap(origRecord, newRecord, ["firstName", "lastName", "registration"]);
-      if (!isRecordEmpty(events_table_record)) {
-        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', origRecord.id, events_table_record));
-      }
-      showToast({
-        title: "Update event success",
-      });
-    } catch (error) {
-      console.error("Error updating event:", error);
-      showToast({
-        title: "Update event error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
-    }
-  };
-
   const reloadTable = async () => {
     setLoading(true);
 
     try {
-      const sql_select_result = await callRpcMethod(`${appConfig.qxEventShvPath()}/events`, "list");
-      const table = createSqlTable(sql_select_result);
+      const sql_select_result = await callRpcMethod(
+        wsClient(),
+        `${appConfig.qxEventShvPath()}/sql`,
+        "list",
+        makeMap({"table": "events", "fields": ["id", "name", "date", "owner"]}),
 
-      const transformedRecords: Event[] = [];
-      for (let i = 0; i < table.rowCount(); i++) {
-        const record = table.recordAt(i);
+      );
+      const table = parse(EventListSchema, sql_select_result);
+
+      const transformedRecords: EventListItem[] = [];
+      for (const record of table) {
         try {
-          const validatedRecord = parse(EventSchema, record);
+          const validatedRecord = parse(EventListItemSchema, record);
           transformedRecords.push(validatedRecord);
         } catch (error) {
-          console.warn(`Skipping invalid row ${i}:`, error);
+          console.warn(`Skipping invalid record ${record}:`, error);
         }
       }
 
@@ -255,18 +164,115 @@ function EventsTable() {
     setLoading(false);
   };
 
-  // Reload table when component mounts
+  const addEntry = () => {
+    const newEntry: EventListItem = {
+      id: Math.max(...tableRecords().map((u) => u.id)) + 1,
+      name: "",
+      date: "",
+      owner: "",
+    };
+    setTableRecords([...tableRecords(), newEntry]);
+  };
+
+  // Edit dialog state
+  const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
+  let originalRecord: Event | null = null;
+
+  const deleteRecord = (id: number) => {
+    setTableRecords(tableRecords().filter((user) => user.id !== id));
+  };
+
+  let idRef!: HTMLInputElement;
+  let nameRef!: HTMLInputElement;
+  let dateRef!: HTMLInputElement;
+  let apiTokenRef!: HTMLInputElement;
+  let ownerRef!: HTMLInputElement;
+
+  const openEditRecordDialog = async (id: number) => {
+    originalRecord = null;
+    const eventItem = tableRecords().find((record) => record.id === id);
+    if (eventItem) {
+      setEditRecordDialogOpen(true);
+
+      const result = await callRpcMethod(
+        wsClient(),
+        `${appConfig.qxEventShvPath()}/sql`,
+        "read",
+        makeMap({"table": "events", "id": id}),
+      );
+      originalRecord = parse(EventSchema, result);
+
+      // Populate form fields directly using refs
+      idRef.value = originalRecord.id?.toString() || "";
+      nameRef.value = originalRecord.name || "";
+      dateRef.value = originalRecord.date || "";
+      apiTokenRef.value = originalRecord.api_token || "";
+      ownerRef.value = originalRecord.owner || "";
+    }
+  };
+
+  const acceptEditRecordDialog = () => {
+    if (originalRecord === null) return;
+
+    const updatedRecord: Event = {
+      ...originalRecord,
+      name: nameRef.value || undefined,
+      date: dateRef.value || undefined,
+      api_token: apiTokenRef.value || undefined,
+      owner: ownerRef.value || undefined,
+    };
+
+    setEditRecordDialogOpen(false);
+    updateRecordInDb(originalRecord, updatedRecord);
+    originalRecord = null;
+  };
+
+  const rejectEditRecordDialog = () => {
+    setEditRecordDialogOpen(false);
+    originalRecord = null;
+  };
+
+  const updateRecordInDb = async (origRecord: Event, newRecord: Event) => {
+    try {
+      const changes = copyValidFieldsToRpcMap(origRecord, newRecord);
+      if (!isRecordEmpty(changes)) {
+        await callRpcMethod(
+          wsClient(),
+          `${appConfig.qxEventShvPath()}/sql`,
+          "update",
+          makeMap({table: "events", id: origRecord.id, record: makeMap(changes)}),
+        );
+      }
+      showToast({
+        title: "Update event success",
+      });
+    } catch (error) {
+      console.error("Error updating event:", error);
+      showToast({
+        title: "Update event error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+
   onMount(() => {
-    console.log("Events mounted");
-    reloadTable();
+    // console.log("EVENTS MOUNTED");
+  });
+
+  createEffect(() => {
+    if (status() === "Connected") {
+      // console.log("EVENTS CONNECTED");
+      reloadTable();
+    }
   });
 
   // Table columns configuration with sorting
-  const columns: TableColumn<Event>[] = [
+  const columns: TableColumn<EventListItem>[] = [
     {
       key: "id",
       header: "ID",
-      cell: (rec: Event) => {
+      cell: (rec: EventListItem) => {
         return <span>{rec.id}</span>;
       },
       sortable: true,
@@ -275,7 +281,7 @@ function EventsTable() {
     {
       key: "name",
       header: "Name",
-      cell: (rec: Event) => {
+      cell: (rec: EventListItem) => {
         return <span>{rec.name}</span>;
       },
       sortable: true,
@@ -283,7 +289,7 @@ function EventsTable() {
     {
       key: "date",
       header: "Date",
-      cell: (rec: Event) => {
+      cell: (rec: EventListItem) => {
         return <span>{rec.date}</span>;
       },
       sortable: true,
@@ -291,7 +297,7 @@ function EventsTable() {
     {
       key: "owner",
       header: "Owner",
-      cell: (rec: Event) => {
+      cell: (rec: EventListItem) => {
         return <span>{rec.owner}</span>;
       },
       sortable: true,
@@ -301,7 +307,7 @@ function EventsTable() {
     {
       key: "actions",
       header: "Actions",
-      cell: (rec: Event) => (
+      cell: (rec: EventListItem) => (
         <Button
           size="sm"
           variant="outline"
@@ -341,7 +347,10 @@ function EventsTable() {
         />
       </div>
 
-      <Dialog open={editRecordDialogOpen()} onOpenChange={setEditRecordDialogOpen}>
+      <Dialog
+        open={editRecordDialogOpen()}
+        onOpenChange={setEditRecordDialogOpen}
+      >
         <DialogContent class="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
@@ -349,44 +358,24 @@ function EventsTable() {
 
           <div class="space-y-4">
             <TextField>
-              <TextFieldLabel>First Name</TextFieldLabel>
-              <TextFieldInput
-                ref={nameRef}
-                type="text"
-              />
+              <TextFieldLabel>ID</TextFieldLabel>
+              <TextFieldInput ref={idRef} type="number" readOnly={true} />
             </TextField>
-
             <TextField>
-              <TextFieldLabel>Last Name</TextFieldLabel>
-              <TextFieldInput
-                ref={dateRef}
-                type="text"
-              />
+              <TextFieldLabel>Name</TextFieldLabel>
+              <TextFieldInput ref={nameRef} type="text" />
             </TextField>
-
             <TextField>
-              <TextFieldLabel>Registration</TextFieldLabel>
-              <TextFieldInput
-                ref={apiTokenRef}
-                type="text"
-              />
+              <TextFieldLabel>Date</TextFieldLabel>
+              <TextFieldInput ref={dateRef} type="text" />
             </TextField>
-
             <TextField>
-              <TextFieldLabel>SI ID</TextFieldLabel>
-              <TextFieldInput
-                ref={idRef}
-                type="number"
-              />
+              <TextFieldLabel>API token</TextFieldLabel>
+              <TextFieldInput ref={apiTokenRef} type="text" />
             </TextField>
-
             <TextField>
-              <TextFieldLabel>Start Time</TextFieldLabel>
-              <TextFieldInput
-                ref={dateRef}
-                type="text"
-                placeholder="HH:MM"
-              />
+              <TextFieldLabel>Owner</TextFieldLabel>
+              <TextFieldInput ref={ownerRef} type="text" />
             </TextField>
           </div>
 
@@ -394,9 +383,7 @@ function EventsTable() {
             <Button variant="outline" onClick={rejectEditRecordDialog}>
               Cancel
             </Button>
-            <Button onClick={acceptEditRecordDialog}>
-              Save Changes
-            </Button>
+            <Button onClick={acceptEditRecordDialog}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -409,7 +396,7 @@ const Events = () => {
     <div class="flex w-full flex-col items-center justify-center">
       <h1 class="mt-7 mb-7 text-3xl font-bold">Events</h1>
       <div class="w-full max-w-7xl space-y-4">
-        <EventsTable/>
+        <EventsTable />
       </div>
     </div>
   );

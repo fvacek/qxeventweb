@@ -239,11 +239,11 @@ function LateEntriesTable(props: { className: () => string }) {
       };
       const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
       if (!isRecordEmpty(competitors_record)) {
-        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('competitors', origRun.competitorId, competitors_record));
+        await callRpcMethod(wsClient(), appConfig.eventSqlPath(), "update", createParam('competitors', origRun.competitorId, competitors_record));
       }
       const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
       if (!isRecordEmpty(runs_record)) {
-        await callRpcMethod(appConfig.eventSqlPath(), "update", createParam('runs', origRun.runId, runs_record));
+        await callRpcMethod(wsClient(), appConfig.eventSqlPath(), "update", createParam('runs', origRun.runId, runs_record));
       }
       showToast({
         title: "Update run success",
@@ -262,7 +262,7 @@ function LateEntriesTable(props: { className: () => string }) {
     setLoading(true);
 
     try {
-      const runs_result = await callRpcMethod(appConfig.eventSqlPath(), "select", [
+      const runs_result = await callRpcMethod(wsClient(), appConfig.eventSqlPath(), "query", [
         `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
                 competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
@@ -498,7 +498,7 @@ function ClassSelector(props: {
     try {
       const classes_result = await callRpcMethod(
         appConfig.eventSqlPath(),
-        "select",
+        "query",
         [
           `SELECT classes.name AS class_name FROM classes, classdefs
                   WHERE classdefs.classid = classes.id AND classdefs.stageid = ${currentStage()}
@@ -520,7 +520,6 @@ function ClassSelector(props: {
     }
   }
 
-  // Watch for WebSocket status changes and load classes when connected
   createEffect(() => {
     if (eventOpen() === true) {
       loadClasses();

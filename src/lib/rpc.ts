@@ -1,13 +1,12 @@
-import { RpcMessage, RpcValue } from "libshv-js";
+import { RpcMessage, RpcValue, WsClient } from "libshv-js";
 import { useWsClient } from "~/context/WsClient";
 
 export const callRpcMethod = async (
+  client: WsClient | null,
   shvPath: string,
   method: string,
   params?: RpcValue,
 ): Promise<RpcValue> => {
-  const { wsClient } = useWsClient();
-  const client = wsClient();
   if (!client) {
     throw new Error("WebSocket client is not available");
   }
@@ -19,9 +18,10 @@ export const callRpcMethod = async (
   return result;
 };
 
-export const sendRpcMessage = (msg: RpcMessage) => {
-  const { wsClient } = useWsClient();
-  const client = wsClient();
+export const sendRpcMessage = (
+  client: WsClient | null,
+  msg: RpcMessage
+) => {
   if (!client) {
     throw new Error("WebSocket client is not available");
   }

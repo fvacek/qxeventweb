@@ -41,11 +41,11 @@ export function toRpcValue(value: unknown): RpcValue {
   throw new Error(`Cannot convert value to RpcValue: ${String(value)}`);
 }
 
-export function copyRecordChanges(origValue: Record<string, any>, newValue: Record<string, any>, fields: string[]): Record<string, RpcValue> {
+export function copyRecordChanges(origValue: Record<string, any>, newValue: Record<string, any>, fields?: string[]): Record<string, RpcValue> {
   const obj: Record<string, RpcValue> = {};
   for (const [k, v] of Object.entries(newValue)) {
     // Optionally skip undefined fields or throw
-    if (!fields.includes(k)) {
+    if (fields !== undefined && !fields.includes(k)) {
       continue;
     }
     if (v != origValue[k]) {

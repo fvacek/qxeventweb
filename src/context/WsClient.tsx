@@ -102,6 +102,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
           }
+          console.log("WS CONNECTED");
           setStatus("Connected");
         },
         onDisconnected: () => {
