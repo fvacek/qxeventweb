@@ -97,6 +97,34 @@ function EventsTable() {
   const [sortBy, setSortBy] = createSignal<keyof EventListItem>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
+  createEffect(() => {
+    if (status() === "Connected") {
+      const client = wsClient()!;
+      console.log("Subscribing SQL recchng", appConfig.qxEventShvPath());
+      client.subscribe("qxeventweb", `${appConfig.qxEventShvPath()}/sql`, "recchng", (path: string, method: string, param?: RpcValue) => {
+        console.log("Received signal:", path, method, param);
+        const recchng: RecChng = parse(RecChngSchema, param);
+        console.log("recchng:", recchng);
+        processRecChng(recchng)
+      });
+    }
+  });
+
+  const processRecChng = (recchng: RecChng) => {
+    const { table, id, record, op } = recchng;
+    if (table === "events") {
+      if (op === SqlOperation.Update) {
+        const originalEvent = tableRecords().find(rec => rec.id === id);
+        if (!!originalEvent) {
+          const updatedEvent = { ...originalEvent, ...record };
+          setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
+        }
+      } else if (op === SqlOperation.Insert) {
+      } else if (op === SqlOperation.Delete) {
+      }
+    }
+  };
+
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
     const data = [...tableRecords()];
