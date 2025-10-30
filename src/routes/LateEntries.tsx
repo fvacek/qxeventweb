@@ -1,6 +1,6 @@
-import { fromJson, IMap, makeIMap, makeMap, makeMetaMap, RPC_MESSAGE_CALLER_IDS, RPC_MESSAGE_METHOD, RPC_MESSAGE_PARAMS, RPC_MESSAGE_REQUEST_ID, RPC_MESSAGE_SHV_PATH, RpcMessage, RpcRequest, RpcSignal, RpcValue, RpcValueWithMetaData, WsClient } from "libshv-js";
+import { makeMap, RpcValue } from "libshv-js";
 import { createMemo, createSignal, createEffect, For } from "solid-js";
-import { Badge } from "~/components/ui/badge";
+
 import { Button } from "~/components/ui/button";
 import {
   Table,
@@ -29,10 +29,11 @@ import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
+import { useRecChng } from "~/context/RecChngContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
-import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
+import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 
 // Valibot schema for Run validation
@@ -54,6 +55,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
+  const { recchngReceived } = useRecChng();
 
   const [runs, setRuns] = createSignal<Run[]>([]);
 
@@ -65,18 +67,12 @@ function LateEntriesTable(props: { className: () => string }) {
   const [runEditDialogOpen, setRunEditDialogOpen] = createSignal(false);
   let editingRunId: number | null = null;
 
-  createEffect(() => {
-    if (status() === "Connected") {
-      const client = wsClient()!;
-      console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
-      client.subscribe("qxeventweb", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
-        console.log("Received signal:", path, method, param);
-        const recchng: RecChng = parse(RecChngSchema, param);
-        console.log("recchng:", recchng);
-        processRecChng(recchng)
-      });
-    }
-  });
+  // createEffect(() => {
+  //   const recchng = recchngReceived();
+  //   if (recchng) {
+  //     processRecChng(recchng);
+  //   }
+  // });
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;

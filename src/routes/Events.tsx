@@ -1,23 +1,9 @@
 import {
-  fromJson,
-  IMap,
-  makeIMap,
   makeMap,
-  makeMetaMap,
-  RPC_MESSAGE_CALLER_IDS,
-  RPC_MESSAGE_METHOD,
-  RPC_MESSAGE_PARAMS,
-  RPC_MESSAGE_REQUEST_ID,
-  RPC_MESSAGE_SHV_PATH,
-  RpcMessage,
-  RpcRequest,
-  RpcSignal,
   RpcValue,
-  RpcValueWithMetaData,
-  WsClient,
 } from "libshv-js";
-import { createMemo, createSignal, createEffect, For, onMount } from "solid-js";
-import { Badge } from "~/components/ui/badge";
+import { createMemo, createSignal, createEffect, For, onMount, batch } from "solid-js";
+
 import { Button } from "~/components/ui/button";
 import {
   Table,
@@ -46,6 +32,7 @@ import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
+import { useRecChng } from "~/context/RecChngContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import {
   object,
@@ -63,7 +50,7 @@ import {
   isRecordEmpty,
   toRpcValue,
 } from "~/lib/utils";
-import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
+import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 
 const EventListItemSchema = object({
@@ -90,6 +77,7 @@ function EventsTable() {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
+  const recChngContext = useRecChng();
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
@@ -97,16 +85,19 @@ function EventsTable() {
   const [sortBy, setSortBy] = createSignal<keyof EventListItem>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
+  // Guard to prevent processing the same signal multiple times
+  let lastProcessedRecchng: RecChng | null = null;
+
   createEffect(() => {
-    if (status() === "Connected") {
-      const client = wsClient()!;
-      console.log("Subscribing SQL recchng", appConfig.qxEventShvPath());
-      client.subscribe("qxeventweb", `${appConfig.qxEventShvPath()}/sql`, "recchng", (path: string, method: string, param?: RpcValue) => {
-        console.log("Received signal:", path, method, param);
-        const recchng: RecChng = parse(RecChngSchema, param);
-        console.log("recchng:", recchng);
-        processRecChng(recchng)
+    const recchng = recChngContext.recchngReceived();
+    if (recchng && recchng !== lastProcessedRecchng) {
+      console.log("Processing new recchng signal:", recchng);
+      lastProcessedRecchng = recchng;
+      batch(() => {
+        processRecChng(recchng);
       });
+    } else if (recchng === lastProcessedRecchng) {
+      console.log("Ignoring duplicate recchng signal:", recchng);
     }
   });
 
@@ -117,7 +108,9 @@ function EventsTable() {
         const originalEvent = tableRecords().find(rec => rec.id === id);
         if (!!originalEvent) {
           const updatedEvent = { ...originalEvent, ...record };
-          setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
+          batch(() => {
+            setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
+          });
         }
       } else if (op === SqlOperation.Insert) {
       } else if (op === SqlOperation.Delete) {
@@ -290,7 +283,6 @@ function EventsTable() {
 
   createEffect(() => {
     if (status() === "Connected") {
-      // console.log("EVENTS CONNECTED");
       reloadTable();
     }
   });

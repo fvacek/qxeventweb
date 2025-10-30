@@ -11,6 +11,7 @@ import {
     useEventConfig,
 } from "./context/EventConfig"
 import { AuthProvider } from "./context/AuthContext"
+import { RecChngProvider } from "./context/RecChngContext"
 
 const AppContent = (props: ParentProps) => {
     return (
@@ -30,7 +31,9 @@ export const App = (props: ParentProps) => {
                 <AuthProvider>
                     <EventConfigProvider>
                         <StageProvider>
-                            <AppContent>{props.children}</AppContent>
+                            <RecChngProvider>
+                                <AppContent>{props.children}</AppContent>
+                            </RecChngProvider>
                         </StageProvider>
                     </EventConfigProvider>
                 </AuthProvider>
