@@ -1,5 +1,5 @@
 import { makeMap, RpcValue } from "libshv-js";
-import { createMemo, createSignal, createEffect, For } from "solid-js";
+import { createMemo, createSignal, createEffect, For, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -55,7 +55,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
-  // Removed unused recchngReceived to prevent tracking issues
+  const { recchngReceived } = useRecChng();
 
   const [runs, setRuns] = createSignal<Run[]>([]);
 
@@ -67,20 +67,26 @@ function LateEntriesTable(props: { className: () => string }) {
   const [runEditDialogOpen, setRunEditDialogOpen] = createSignal(false);
   let editingRunId: number | null = null;
 
-  // createEffect(() => {
-  //   const recchng = recChngContext.recchngReceived();
-  //   if (recchng) {
-  //     untrack(() => {
-  //       processRecChng(recchng);
-  //     });
-  //   }
-  // });
+  createEffect(() => {
+    const recchng = recchngReceived();
+    if (recchng) {
+      untrack(() => {
+        // setTableRecords() causes infinite reactive recursion without this untrack
+        // nobody knows why
+        processRecChng(recchng);
+      });
+    }
+  });
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
     if (op === SqlOperation.Update) {
-      const originalRun = (table === "runs") ? runs().find(run => run.runId === id) : runs().find(run => run.competitorId === id);
-      if (!!originalRun) {
+      const originalRun = (table === "runs")
+        ? runs().find(run => run.runId === id)
+        : (table === "competitors")
+        ? runs().find(run => run.competitorId === id)
+        : undefined;
+      if (originalRun !== undefined) {
         const updatedRun = { ...originalRun, ...record };
         setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
       }

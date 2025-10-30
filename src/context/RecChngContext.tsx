@@ -35,7 +35,7 @@ export function RecChngProvider(props: { children: JSX.Element }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        // untrack(() => setRecchngReceived(recchng));
+        setRecchngReceived(recchng);
       });
 
       // Subscribe to qxEvent SQL path (used by Events)
