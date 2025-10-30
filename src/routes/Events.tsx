@@ -191,20 +191,22 @@ function EventsTable() {
 
   // Edit dialog state
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  let originalRecord: Event | null = null;
+  const [originalRecord, setOriginalRecord] = createSignal<Event | null>(null);
 
   const deleteRecord = (id: number) => {
     setTableRecords(tableRecords().filter((user) => user.id !== id));
   };
 
-  let idRef!: HTMLInputElement;
-  let nameRef!: HTMLInputElement;
-  let dateRef!: HTMLInputElement;
-  let apiTokenRef!: HTMLInputElement;
-  let ownerRef!: HTMLInputElement;
-  
+  // Form state signals
+  const [formData, setFormData] = createSignal<Event>({
+    id: 0,
+    name: undefined,
+    date: undefined,
+    api_token: undefined,
+    owner: undefined,
+  });
+
   const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
-  const [currentApiToken, setCurrentApiToken] = createSignal<string>("");
 
   const generateQRCode = async (apiToken: string) => {
     if (apiToken && apiToken.trim()) {
@@ -219,27 +221,61 @@ function EventsTable() {
           }
         });
         setQrCodeDataURL(dataURL);
-        setCurrentApiToken(apiToken.trim());
       } catch (error) {
         console.error('Error generating QR code:', error);
         setQrCodeDataURL("");
-        setCurrentApiToken("");
       }
     } else {
       setQrCodeDataURL("");
-      setCurrentApiToken("");
     }
   };
 
-  // Reactive effect to update QR code when API token changes
+  // Reactive QR code generation
   createEffect(() => {
-    if (editRecordDialogOpen() && apiTokenRef && apiTokenRef.value !== currentApiToken()) {
-      generateQRCode(apiTokenRef.value);
+    if (editRecordDialogOpen()) {
+      generateQRCode(formData().api_token || "");
     }
   });
 
+  // Check if form has been modified
+  const isFormDirty = createMemo(() => {
+    const orig = originalRecord();
+    if (!orig) return false;
+    const current = formData();
+    
+    // Normalize undefined/empty values for comparison
+    const normalize = (val: string | undefined) => val || "";
+    
+    const isDirty = (
+      normalize(orig.name) !== normalize(current.name) ||
+      normalize(orig.date) !== normalize(current.date) ||
+      normalize(orig.api_token) !== normalize(current.api_token) ||
+      normalize(orig.owner) !== normalize(current.owner)
+    );
+    
+    console.log('Dirty check:', { 
+      originalRecord: orig, 
+      current, 
+      isDirty,
+      nameChanged: normalize(orig.name) !== normalize(current.name),
+      dateChanged: normalize(orig.date) !== normalize(current.date),
+      tokenChanged: normalize(orig.api_token) !== normalize(current.api_token),
+      ownerChanged: normalize(orig.owner) !== normalize(current.owner)
+    });
+    
+    return isDirty;
+  });
+
+  // Form validation
+  const isFormValid = createMemo(() => {
+    const current = formData();
+    const isValid = !!(current.name && current.name.trim().length > 0);
+    console.log('Form validation:', { current, isValid });
+    return isValid;
+  });
+
   const openEditRecordDialog = async (id: number) => {
-    originalRecord = null;
+    setOriginalRecord(null);
     const eventItem = tableRecords().find((record) => record.id === id);
     if (eventItem) {
       setEditRecordDialogOpen(true);
@@ -250,39 +286,41 @@ function EventsTable() {
         "read",
         makeMap({"table": "events", "id": id}),
       );
-      originalRecord = parse(EventSchema, result);
+      const parsedRecord = parse(EventSchema, result);
+      setOriginalRecord(parsedRecord);
 
-      // Populate form fields directly using refs
-      idRef.value = originalRecord.id?.toString() || "";
-      nameRef.value = originalRecord.name || "";
-      dateRef.value = originalRecord.date || "";
-      apiTokenRef.value = originalRecord.api_token || "";
-      ownerRef.value = originalRecord.owner || "";
-      
-      // Generate QR code for the API token
-      await generateQRCode(originalRecord.api_token || "");
+      // Populate form data signal
+      setFormData({
+        id: parsedRecord.id,
+        name: parsedRecord.name,
+        date: parsedRecord.date,
+        api_token: parsedRecord.api_token,
+        owner: parsedRecord.owner,
+      });
     }
   };
 
   const acceptEditRecordDialog = () => {
-    if (originalRecord === null) return;
+    const orig = originalRecord();
+    if (!orig || !isFormValid()) return;
 
-    const updatedRecord: Event = {
-      ...originalRecord,
-      name: nameRef.value || undefined,
-      date: dateRef.value || undefined,
-      api_token: apiTokenRef.value || undefined,
-      owner: ownerRef.value || undefined,
-    };
+    const updatedRecord: Event = formData();
 
     setEditRecordDialogOpen(false);
-    updateRecordInDb(originalRecord, updatedRecord);
-    originalRecord = null;
+    updateRecordInDb(orig, updatedRecord);
+    setOriginalRecord(null);
   };
 
   const rejectEditRecordDialog = () => {
     setEditRecordDialogOpen(false);
-    originalRecord = null;
+    setOriginalRecord(null);
+    setFormData({
+      id: 0,
+      name: undefined,
+      date: undefined,
+      api_token: undefined,
+      owner: undefined,
+    });
   };
 
   const updateRecordInDb = async (origRecord: Event, newRecord: Event) => {
@@ -411,56 +449,96 @@ function EventsTable() {
           <div class="space-y-4">
             <TextField>
               <TextFieldLabel>ID</TextFieldLabel>
-              <TextFieldInput ref={idRef} type="number" readOnly={true} />
+              <TextFieldInput
+                value={formData().id?.toString() || ""}
+                type="number"
+                readOnly={true}
+              />
             </TextField>
+
             <TextField>
-              <TextFieldLabel>Name</TextFieldLabel>
-              <TextFieldInput ref={nameRef} type="text" />
+              <TextFieldLabel>Name *</TextFieldLabel>
+              <TextFieldInput
+                value={formData().name || ""}
+                type="text"
+                onInput={(e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  setFormData(prev => ({ ...prev, name: value || undefined }));
+                }}
+                class={!isFormValid() ? "border-red-500" : ""}
+              />
+              {!isFormValid() && (
+                <div class="text-sm text-red-500 mt-1">Name is required</div>
+              )}
             </TextField>
+
             <TextField>
               <TextFieldLabel>Date</TextFieldLabel>
-              <TextFieldInput ref={dateRef} type="text" />
-            </TextField>
-            <TextField>
-              <TextFieldLabel>API token</TextFieldLabel>
-              <TextFieldInput 
-                ref={apiTokenRef} 
-                type="text" 
-                onInput={async (e) => {
+              <TextFieldInput
+                value={formData().date || ""}
+                type="text"
+                onInput={(e) => {
                   const value = (e.target as HTMLInputElement).value;
-                  await generateQRCode(value);
-                }}
-                onChange={async (e) => {
-                  const value = (e.target as HTMLInputElement).value;
-                  await generateQRCode(value);
+                  setFormData(prev => ({ ...prev, date: value || undefined }));
                 }}
               />
             </TextField>
-            
+
+            <TextField>
+              <TextFieldLabel>API token</TextFieldLabel>
+              <TextFieldInput
+                value={formData().api_token || ""}
+                type="text"
+                onInput={(e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  setFormData(prev => ({ ...prev, api_token: value || undefined }));
+                }}
+              />
+            </TextField>
+
             {qrCodeDataURL() && (
               <div class="flex flex-col items-center space-y-2">
                 <div class="text-sm font-medium text-gray-700">Event URL QR Code</div>
-                <img 
-                  src={qrCodeDataURL()} 
-                  alt="Event QR Code" 
+                <img
+                  src={qrCodeDataURL()}
+                  alt="Event QR Code"
                   class="border rounded-lg shadow-sm"
                 />
                 <div class="text-xs text-gray-500 text-center max-w-xs break-all">
-                  {currentApiToken() ? `https://qxqx.org/event?api_token=${currentApiToken()}` : "Enter API token to generate QR code"}
+                  {formData().api_token ? `https://qxqx.org/event?api_token=${formData().api_token}` : "Enter API token to generate QR code"}
                 </div>
               </div>
             )}
+
             <TextField>
               <TextFieldLabel>Owner</TextFieldLabel>
-              <TextFieldInput ref={ownerRef} type="text" />
+              <TextFieldInput
+                value={formData().owner || ""}
+                type="text"
+                onInput={(e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  setFormData(prev => ({ ...prev, owner: value || undefined }));
+                }}
+              />
             </TextField>
+
+            {isFormDirty() && (
+              <div class="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                Form has unsaved changes
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={rejectEditRecordDialog}>
               Cancel
             </Button>
-            <Button onClick={acceptEditRecordDialog}>Save Changes</Button>
+            <Button
+              onClick={acceptEditRecordDialog}
+              disabled={!isFormValid() || !isFormDirty()}
+            >
+              Save Changes {!isFormValid() ? "(Invalid)" : !isFormDirty() ? "(No Changes)" : ""}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
