@@ -357,84 +357,91 @@ function EventsTable() {
     }
   });
 
-  // Table columns configuration with sorting
+  // Table columns configuration with sorting - optimized for mobile
   const columns: TableColumn<EventListItem>[] = [
     {
       key: "id",
       header: "ID",
       cell: (rec: EventListItem) => {
-        return <span>{rec.id}</span>;
+        return <span class="text-sm hidden sm:inline">{rec.id}</span>;
       },
       sortable: true,
-      width: "100px",
+      width: "50px",
+      headerClass: "hidden sm:table-cell",
+      cellClass: "hidden sm:table-cell",
     },
     {
       key: "name",
       header: "Name",
       cell: (rec: EventListItem) => {
-        return <span>{rec.name}</span>;
+        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}>{rec.name}</span>;
       },
       sortable: true,
+      width: "120px",
     },
     {
       key: "date",
       header: "Date",
       cell: (rec: EventListItem) => {
-        return <span>{rec.date}</span>;
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.date}>{rec.date}</span>;
       },
       sortable: true,
+      width: "100px",
     },
     {
       key: "owner",
       header: "Owner",
       cell: (rec: EventListItem) => {
-        return <span>{rec.owner}</span>;
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
-      width: "250px",
-      // align: "right",
+      width: "100px",
     },
     {
       key: "actions",
-      header: "Actions",
+      header: "Edit",
       cell: (rec: EventListItem) => (
         <Button
           size="sm"
           variant="outline"
           onClick={() => openEditRecordDialog(rec.id)}
+          class="text-xs px-2 py-1 h-7"
         >
           Edit
         </Button>
       ),
       sortable: false,
-      width: "100px",
+      width: "60px",
     },
   ];
 
   return (
-    <div>
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Events</h2>
-        <div class="flex gap-2">
-          <Button onClick={addEntry}>Add entry</Button>
-          <Button variant="outline" onClick={reloadTable} disabled={loading()}>
+    <div class="w-full">
+      <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 class="text-xl sm:text-2xl font-bold">Events</h2>
+        <div class="flex gap-2 flex-wrap">
+          <Button onClick={addEntry} size="sm" class="text-xs">Add entry</Button>
+          <Button variant="outline" onClick={reloadTable} disabled={loading()} size="sm" class="text-xs">
             {loading() ? "Loading..." : "Refresh"}
           </Button>
         </div>
       </div>
 
-      {/* Example 1: Auto-rendered table with sorting and global search */}
-      <div class="rounded-md border">
-        <Table
-          data={tableRecords()}
-          columns={columns}
-          loading={loading()}
-          emptyMessage="No events found"
-          variant="striped"
-          sortable={true}
-          globalFilter={true}
-          onSortChange={(sort: any) => console.log("Sort changed:", sort)}
-        />
+      {/* Mobile-optimized table with compact styling */}
+      <div class="rounded-md border overflow-x-auto min-w-0">
+        <div class="min-w-[420px]">
+          <Table
+            data={tableRecords()}
+            columns={columns}
+            loading={loading()}
+            emptyMessage="No events found"
+            variant="striped"
+            sortable={true}
+            globalFilter={true}
+            onSortChange={(sort: any) => console.log("Sort changed:", sort)}
+            class="text-sm w-full table-fixed"
+          />
+        </div>
       </div>
 
       <Dialog
@@ -543,9 +550,9 @@ function EventsTable() {
 
 const Events = () => {
   return (
-    <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Events</h1>
-      <div class="w-full max-w-7xl space-y-4">
+    <div class="flex w-full flex-col items-center justify-center px-2 sm:px-4">
+      <h1 class="mt-7 mb-7 text-2xl sm:text-3xl font-bold">Events</h1>
+      <div class="w-full max-w-full sm:max-w-7xl space-y-4">
         <EventsTable />
       </div>
     </div>
