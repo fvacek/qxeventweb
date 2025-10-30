@@ -45,7 +45,7 @@ const tableHeaderVariants = cva(
 )
 
 const tableCellVariants = cva(
-  "p-4 align-middle [&:has([role=checkbox])]:pl-3",
+  "px-2 py-3 align-middle [&:has([role=checkbox])]:pl-3",
   {
     variants: {
       align: {
@@ -449,7 +449,7 @@ const TableHead = <T extends ValidComponent = "th">(
   return (
     <th
       class={cn(
-        "h-12 px-4 text-left align-middle font-bold text-muted-foreground [&:has([role=checkbox])]:pl-3",
+        "h-10 px-2 text-left align-middle font-bold text-muted-foreground [&:has([role=checkbox])]:pl-3",
         tableCellVariants({ align: local.align }),
         local.class
       )}
