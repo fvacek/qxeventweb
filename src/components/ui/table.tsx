@@ -34,7 +34,7 @@ const tableHeaderVariants = cva(
   {
     variants: {
       sticky: {
-        true: "sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        true: "sticky top-0 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60",
         false: ""
       }
     },
@@ -119,7 +119,7 @@ const Table = <T extends ValidComponent = "table">(
 ) => {
   const [local, others] = splitProps(props as TableProps, [
     "variant",
-    "size", 
+    "size",
     "class",
     "children",
     "data",
@@ -137,17 +137,17 @@ const Table = <T extends ValidComponent = "table">(
   const [globalFilterValue, setGlobalFilterValue] = createSignal("")
 
   // If data and columns are provided, render automatically
-  const shouldAutoRender = createMemo(() => 
+  const shouldAutoRender = createMemo(() =>
     local.data && local.columns && local.columns.length > 0
   )
 
   // Sorting function
   const sortedData = createMemo(() => {
     if (!local.data || !sortState()) return local.data || []
-    
+
     const sort = sortState()!
     const column = local.columns?.find(col => col.key === sort.column)
-    
+
     return [...local.data].sort((a, b) => {
       if (column?.sortFn) {
         const result = column.sortFn(a, b)
@@ -156,11 +156,11 @@ const Table = <T extends ValidComponent = "table">(
 
       let aVal = a[sort.column]
       let bVal = b[sort.column]
-      
+
       // Handle different data types
       if (typeof aVal === "string") aVal = aVal.toLowerCase()
       if (typeof bVal === "string") bVal = bVal.toLowerCase()
-      
+
       if (aVal < bVal) return sort.direction === "asc" ? -1 : 1
       if (aVal > bVal) return sort.direction === "asc" ? 1 : -1
       return 0
@@ -171,9 +171,9 @@ const Table = <T extends ValidComponent = "table">(
   const filteredAndSortedData = createMemo(() => {
     let data = sortedData()
     if (!data) return []
-    
+
     const globalFilter = globalFilterValue().toLowerCase()
-    
+
     // Apply global filter if enabled and has value
     if (globalFilter && local.globalFilter) {
       return data.filter(item => {
@@ -183,7 +183,7 @@ const Table = <T extends ValidComponent = "table">(
         return searchableText.includes(globalFilter)
       })
     }
-    
+
     return data
   })
 
@@ -204,18 +204,18 @@ const Table = <T extends ValidComponent = "table">(
   const handleSort = (columnKey: string) => {
     const column = local.columns?.find(col => col.key === columnKey)
     if (!column?.sortable && !local.sortable) return
-    
+
     const currentSort = sortState()
     let newSort: SortState | null
-    
+
     if (currentSort?.column === columnKey) {
-      newSort = currentSort.direction === "asc" 
+      newSort = currentSort.direction === "asc"
         ? { column: columnKey, direction: "desc" }
         : null
     } else {
       newSort = { column: columnKey, direction: "asc" }
     }
-    
+
     setSortState(newSort)
     local.onSortChange?.(newSort)
   }
@@ -254,17 +254,17 @@ const Table = <T extends ValidComponent = "table">(
                 <TableRow>
                   <For each={local.columns}>
                     {(column) => {
-                      const hiddenClass = typeof column.hidden === 'string' ? column.hidden : 
+                      const hiddenClass = typeof column.hidden === 'string' ? column.hidden :
                                         column.hidden === true ? 'hidden' : ''
                       return (
-                        <TableHead 
+                        <TableHead
                           align={column.align}
                           style={column.width ? { width: column.width } : undefined}
                           class={hiddenClass}
                         >
                           <div>
                             {/* Column header with sorting */}
-                            {(column.sortable || local.sortable) ? (
+                            {(column.sortable !== false && (column.sortable || local.sortable)) ? (
                               <button
                                 onClick={() => handleSort(column.key)}
                                 class={cn(
@@ -314,12 +314,12 @@ const Table = <T extends ValidComponent = "table">(
                       <TableRow>
                         <For each={local.columns}>
                           {(column) => {
-                            const hiddenClass = typeof column.hidden === 'string' ? column.hidden : 
+                            const hiddenClass = typeof column.hidden === 'string' ? column.hidden :
                                               column.hidden === true ? 'hidden' : ''
                             return (
                               <TableCell align={column.align} class={hiddenClass}>
-                                {column.cell 
-                                  ? column.cell(item, index()) 
+                                {column.cell
+                                  ? column.cell(item, index())
                                   : item[column.key]?.toString() || ""
                                 }
                               </TableCell>
@@ -353,8 +353,8 @@ const TableHeader = <T extends ValidComponent = "thead">(
 ) => {
   const [local, others] = splitProps(props as TableHeaderProps, ["class", "sticky", "children"])
   return (
-    <thead 
-      class={cn(tableHeaderVariants({ sticky: local.sticky }), local.class)} 
+    <thead
+      class={cn(tableHeaderVariants({ sticky: local.sticky }), local.class)}
       {...others}
     >
       {local.children}
@@ -408,12 +408,12 @@ const TableRow = <T extends ValidComponent = "tr">(
   props: PolymorphicProps<T, TableRowProps<T>>
 ) => {
   const [local, others] = splitProps(props as TableRowProps, [
-    "class", 
-    "children", 
+    "class",
+    "children",
     "onClick",
     "selected"
   ])
-  
+
   return (
     <tr
       class={cn(
@@ -441,11 +441,11 @@ const TableHead = <T extends ValidComponent = "th">(
   props: PolymorphicProps<T, TableHeadProps<T>>
 ) => {
   const [local, others] = splitProps(props as TableHeadProps, [
-    "class", 
+    "class",
     "children",
     "align"
   ])
-  
+
   return (
     <th
       class={cn(
@@ -470,11 +470,11 @@ const TableCell = <T extends ValidComponent = "td">(
   props: PolymorphicProps<T, TableCellProps<T>>
 ) => {
   const [local, others] = splitProps(props as TableCellProps, [
-    "class", 
+    "class",
     "children",
     "align"
   ])
-  
+
   return (
     <td
       class={cn(tableCellVariants({ align: local.align }), local.class)}
