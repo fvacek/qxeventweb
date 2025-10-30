@@ -109,6 +109,7 @@ interface TableColumn<T> {
   sortFn?: (a: T, b: T) => number
   width?: string
   align?: "left" | "center" | "right"
+  hidden?: boolean | string
 }
 
 // Removed ColumnFilter component since we only use global search
@@ -186,6 +187,19 @@ const Table = <T extends ValidComponent = "table">(
     return data
   })
 
+  // Visible columns computed based on hidden attribute
+  const visibleColumns = createMemo(() => {
+    if (!local.columns) return []
+    return local.columns.filter(column => {
+      if (!column.hidden) return true
+      if (typeof column.hidden === 'string') {
+        // Support responsive classes like "hidden sm:table-cell"
+        return false // Will be handled by CSS
+      }
+      return !column.hidden
+    })
+  })
+
   // Sort handler
   const handleSort = (columnKey: string) => {
     const column = local.columns?.find(col => col.key === columnKey)
@@ -239,49 +253,58 @@ const Table = <T extends ValidComponent = "table">(
               <TableHeader>
                 <TableRow>
                   <For each={local.columns}>
-                    {(column) => (
-                      <TableHead 
-                        align={column.align}
-                        style={column.width ? { width: column.width } : undefined}
-                      >
-                        <div>
-                          {/* Column header with sorting */}
-                          {(column.sortable || local.sortable) ? (
-                            <button
-                              onClick={() => handleSort(column.key)}
-                              class={cn(
-                                sortButtonVariants({ 
-                                  active: sortState()?.column === column.key 
-                                }),
-                                "flex items-center gap-1"
-                              )}
-                            >
-                              {column.header}
-                              <span class="text-xs">
-                                {sortState()?.column === column.key ? (
-                                  sortState()?.direction === "asc" ? "↑" : "↓"
-                                ) : "↕"}
-                              </span>
-                            </button>
-                          ) : (
-                            column.header
-                          )}
-                        </div>
-                      </TableHead>
-                    )}
+                    {(column) => {
+                      const hiddenClass = typeof column.hidden === 'string' ? column.hidden : 
+                                        column.hidden === true ? 'hidden' : ''
+                      return (
+                        <TableHead 
+                          align={column.align}
+                          style={column.width ? { width: column.width } : undefined}
+                          class={hiddenClass}
+                        >
+                          <div>
+                            {/* Column header with sorting */}
+                            {(column.sortable || local.sortable) ? (
+                              <button
+                                onClick={() => handleSort(column.key)}
+                                class={cn(
+                                  sortButtonVariants({ 
+                                    active: sortState()?.column === column.key 
+                                  }),
+                                  "flex items-center gap-1"
+                                )}
+                              >
+                                {column.header}
+                                {/* Hide sort indicator when column is hidden on mobile */}
+                                <span class={cn(
+                                  "text-xs",
+                                  hiddenClass && "hidden sm:inline"
+                                )}>
+                                  {sortState()?.column === column.key ? (
+                                    sortState()?.direction === "asc" ? "↑" : "↓"
+                                  ) : "↕"}
+                                </span>
+                              </button>
+                            ) : (
+                              column.header
+                            )}
+                          </div>
+                        </TableHead>
+                      )
+                    }}
                   </For>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {local.loading ? (
                   <TableRow>
-                    <TableCell colSpan={local.columns!.length} class="h-24 text-center">
+                    <TableCell colSpan={visibleColumns().length || local.columns!.length} class="h-24 text-center">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filteredAndSortedData().length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={local.columns!.length} class="h-24 text-center">
+                    <TableCell colSpan={visibleColumns().length || local.columns!.length} class="h-24 text-center">
                       {local.emptyMessage || "No data available"}
                     </TableCell>
                   </TableRow>
@@ -290,14 +313,18 @@ const Table = <T extends ValidComponent = "table">(
                     {(item, index) => (
                       <TableRow>
                         <For each={local.columns}>
-                          {(column) => (
-                            <TableCell align={column.align}>
-                              {column.cell 
-                                ? column.cell(item, index()) 
-                                : item[column.key]?.toString() || ""
-                              }
-                            </TableCell>
-                          )}
+                          {(column) => {
+                            const hiddenClass = typeof column.hidden === 'string' ? column.hidden : 
+                                              column.hidden === true ? 'hidden' : ''
+                            return (
+                              <TableCell align={column.align} class={hiddenClass}>
+                                {column.cell 
+                                  ? column.cell(item, index()) 
+                                  : item[column.key]?.toString() || ""
+                                }
+                              </TableCell>
+                            )
+                          }}
                         </For>
                       </TableRow>
                     )}

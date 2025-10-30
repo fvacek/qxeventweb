@@ -363,12 +363,11 @@ function EventsTable() {
       key: "id",
       header: "ID",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm hidden sm:inline">{rec.id}</span>;
+        return <span class="text-sm">{rec.id}</span>;
       },
       sortable: true,
       width: "50px",
-      headerClass: "hidden sm:table-cell",
-      cellClass: "hidden sm:table-cell",
+      hidden: "hidden sm:table-cell",
     },
     {
       key: "name",
