@@ -2,7 +2,7 @@ import {
   makeMap,
   RpcValue,
 } from "libshv-js";
-import { createMemo, createSignal, createEffect, For, onMount, batch } from "solid-js";
+import { createMemo, createSignal, createEffect, For, onMount, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -85,19 +85,12 @@ function EventsTable() {
   const [sortBy, setSortBy] = createSignal<keyof EventListItem>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
-  // Guard to prevent processing the same signal multiple times
-  let lastProcessedRecchng: RecChng | null = null;
-
   createEffect(() => {
     const recchng = recChngContext.recchngReceived();
-    if (recchng && recchng !== lastProcessedRecchng) {
-      console.log("Processing new recchng signal:", recchng);
-      lastProcessedRecchng = recchng;
-      batch(() => {
+    if (recchng) {
+      untrack(() => {
         processRecChng(recchng);
       });
-    } else if (recchng === lastProcessedRecchng) {
-      console.log("Ignoring duplicate recchng signal:", recchng);
     }
   });
 
@@ -108,9 +101,7 @@ function EventsTable() {
         const originalEvent = tableRecords().find(rec => rec.id === id);
         if (!!originalEvent) {
           const updatedEvent = { ...originalEvent, ...record };
-          batch(() => {
-            setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
-          });
+          setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
         }
       } else if (op === SqlOperation.Insert) {
       } else if (op === SqlOperation.Delete) {

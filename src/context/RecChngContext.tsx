@@ -24,16 +24,6 @@ export function RecChngProvider(props: { children: JSX.Element }) {
   const appConfig = useAppConfig();
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
   
-  // Add comprehensive logging to track setRecchngReceived calls
-  let setRecchngReceivedCallCount = 0;
-  const wrappedSetRecchngReceived = (value: RecChng | null) => {
-    setRecchngReceivedCallCount++;
-    console.log(`[${setRecchngReceivedCallCount}] setRecchngReceived called with:`, value);
-    console.trace(`[${setRecchngReceivedCallCount}] Call stack for setRecchngReceived`);
-    setRecchngReceived(value);
-    console.log(`[${setRecchngReceivedCallCount}] setRecchngReceived completed`);
-  };
-  
 
 
   // Subscribe to both event SQL and qxEvent SQL paths
@@ -47,7 +37,7 @@ export function RecChngProvider(props: { children: JSX.Element }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        // untrack(() => setRecchngReceived(recchng));
+        setRecchngReceived(recchng);
       });
 
       // Subscribe to qxEvent SQL path (used by Events)
@@ -56,29 +46,17 @@ export function RecChngProvider(props: { children: JSX.Element }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        wrappedSetRecchngReceived(recchng);
+        untrack(() => setRecchngReceived(recchng));
       });
     }
   });
-
+  
   const contextValue: RecChngContextValue = {
     recchngReceived,
   };
-  
-  // Log when the signal value is accessed
-  const originalRecchngReceived = recchngReceived;
-  const wrappedRecchngReceived = () => {
-    const value = originalRecchngReceived();
-    console.log("recchngReceived signal accessed, current value:", value);
-    return value;
-  };
-  
-  const wrappedContextValue: RecChngContextValue = {
-    recchngReceived: wrappedRecchngReceived,
-  };
 
   return (
-    <RecChngContext.Provider value={wrappedContextValue}>
+    <RecChngContext.Provider value={contextValue}>
       {props.children}
     </RecChngContext.Provider>
   );

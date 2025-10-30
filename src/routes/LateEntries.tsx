@@ -55,7 +55,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
-  const { recchngReceived } = useRecChng();
+  // Removed unused recchngReceived to prevent tracking issues
 
   const [runs, setRuns] = createSignal<Run[]>([]);
 
