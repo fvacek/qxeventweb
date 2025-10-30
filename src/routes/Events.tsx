@@ -242,27 +242,27 @@ function EventsTable() {
     const orig = originalRecord();
     if (!orig) return false;
     const current = formData();
-    
+
     // Normalize undefined/empty values for comparison
     const normalize = (val: string | undefined) => val || "";
-    
+
     const isDirty = (
       normalize(orig.name) !== normalize(current.name) ||
       normalize(orig.date) !== normalize(current.date) ||
       normalize(orig.api_token) !== normalize(current.api_token) ||
       normalize(orig.owner) !== normalize(current.owner)
     );
-    
-    console.log('Dirty check:', { 
-      originalRecord: orig, 
-      current, 
+
+    console.log('Dirty check:', {
+      originalRecord: orig,
+      current,
       isDirty,
       nameChanged: normalize(orig.name) !== normalize(current.name),
       dateChanged: normalize(orig.date) !== normalize(current.date),
       tokenChanged: normalize(orig.api_token) !== normalize(current.api_token),
       ownerChanged: normalize(orig.owner) !== normalize(current.owner)
     });
-    
+
     return isDirty;
   });
 
@@ -522,11 +522,6 @@ function EventsTable() {
               />
             </TextField>
 
-            {isFormDirty() && (
-              <div class="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                Form has unsaved changes
-              </div>
-            )}
           </div>
 
           <DialogFooter>
@@ -537,7 +532,7 @@ function EventsTable() {
               onClick={acceptEditRecordDialog}
               disabled={!isFormValid() || !isFormDirty()}
             >
-              Save Changes {!isFormValid() ? "(Invalid)" : !isFormDirty() ? "(No Changes)" : ""}
+              {!isFormValid() ? "Invalid data" : !isFormDirty() ? "No Changes" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
