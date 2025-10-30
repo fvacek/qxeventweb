@@ -3,6 +3,7 @@ import {
   RpcValue,
 } from "libshv-js";
 import { createMemo, createSignal, createEffect, For, onMount, untrack } from "solid-js";
+import QRCode from "qrcode";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -201,6 +202,41 @@ function EventsTable() {
   let dateRef!: HTMLInputElement;
   let apiTokenRef!: HTMLInputElement;
   let ownerRef!: HTMLInputElement;
+  
+  const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
+  const [currentApiToken, setCurrentApiToken] = createSignal<string>("");
+
+  const generateQRCode = async (apiToken: string) => {
+    if (apiToken && apiToken.trim()) {
+      try {
+        const url = `https://qxqx.org/event?api_token=${apiToken.trim()}`;
+        const dataURL = await QRCode.toDataURL(url, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        setQrCodeDataURL(dataURL);
+        setCurrentApiToken(apiToken.trim());
+      } catch (error) {
+        console.error('Error generating QR code:', error);
+        setQrCodeDataURL("");
+        setCurrentApiToken("");
+      }
+    } else {
+      setQrCodeDataURL("");
+      setCurrentApiToken("");
+    }
+  };
+
+  // Reactive effect to update QR code when API token changes
+  createEffect(() => {
+    if (editRecordDialogOpen() && apiTokenRef && apiTokenRef.value !== currentApiToken()) {
+      generateQRCode(apiTokenRef.value);
+    }
+  });
 
   const openEditRecordDialog = async (id: number) => {
     originalRecord = null;
@@ -222,6 +258,9 @@ function EventsTable() {
       dateRef.value = originalRecord.date || "";
       apiTokenRef.value = originalRecord.api_token || "";
       ownerRef.value = originalRecord.owner || "";
+      
+      // Generate QR code for the API token
+      await generateQRCode(originalRecord.api_token || "");
     }
   };
 
@@ -352,7 +391,7 @@ function EventsTable() {
           data={tableRecords()}
           columns={columns}
           loading={loading()}
-          emptyMessage="No users found"
+          emptyMessage="No events found"
           variant="striped"
           sortable={true}
           globalFilter={true}
@@ -384,8 +423,33 @@ function EventsTable() {
             </TextField>
             <TextField>
               <TextFieldLabel>API token</TextFieldLabel>
-              <TextFieldInput ref={apiTokenRef} type="text" />
+              <TextFieldInput 
+                ref={apiTokenRef} 
+                type="text" 
+                onInput={async (e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  await generateQRCode(value);
+                }}
+                onChange={async (e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  await generateQRCode(value);
+                }}
+              />
             </TextField>
+            
+            {qrCodeDataURL() && (
+              <div class="flex flex-col items-center space-y-2">
+                <div class="text-sm font-medium text-gray-700">Event URL QR Code</div>
+                <img 
+                  src={qrCodeDataURL()} 
+                  alt="Event QR Code" 
+                  class="border rounded-lg shadow-sm"
+                />
+                <div class="text-xs text-gray-500 text-center max-w-xs break-all">
+                  {currentApiToken() ? `https://qxqx.org/event?api_token=${currentApiToken()}` : "Enter API token to generate QR code"}
+                </div>
+              </div>
+            )}
             <TextField>
               <TextFieldLabel>Owner</TextFieldLabel>
               <TextFieldInput ref={ownerRef} type="text" />
