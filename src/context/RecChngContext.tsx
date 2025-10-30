@@ -23,8 +23,6 @@ export function RecChngProvider(props: { children: JSX.Element }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
-  
-
 
   // Subscribe to both event SQL and qxEvent SQL paths
   createEffect(() => {
@@ -37,7 +35,7 @@ export function RecChngProvider(props: { children: JSX.Element }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        setRecchngReceived(recchng);
+        // untrack(() => setRecchngReceived(recchng));
       });
 
       // Subscribe to qxEvent SQL path (used by Events)
@@ -46,11 +44,11 @@ export function RecChngProvider(props: { children: JSX.Element }) {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
-        untrack(() => setRecchngReceived(recchng));
+        setRecchngReceived(recchng);
       });
     }
   });
-  
+
   const contextValue: RecChngContextValue = {
     recchngReceived,
   };

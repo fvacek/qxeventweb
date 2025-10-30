@@ -77,7 +77,7 @@ function EventsTable() {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
-  const recChngContext = useRecChng();
+  const { recchngReceived } = useRecChng();
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
@@ -86,9 +86,11 @@ function EventsTable() {
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   createEffect(() => {
-    const recchng = recChngContext.recchngReceived();
+    const recchng = recchngReceived();
     if (recchng) {
       untrack(() => {
+        // setTableRecords() causes infinite reactive recursion without this untrack
+        // nobody knows why
         processRecChng(recchng);
       });
     }

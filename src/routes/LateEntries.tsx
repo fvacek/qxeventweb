@@ -68,9 +68,11 @@ function LateEntriesTable(props: { className: () => string }) {
   let editingRunId: number | null = null;
 
   // createEffect(() => {
-  //   const recchng = recchngReceived();
+  //   const recchng = recChngContext.recchngReceived();
   //   if (recchng) {
-  //     processRecChng(recchng);
+  //     untrack(() => {
+  //       processRecChng(recchng);
+  //     });
   //   }
   // });
 
