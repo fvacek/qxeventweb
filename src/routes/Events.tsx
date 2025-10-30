@@ -32,7 +32,7 @@ import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
-import { useRecChng } from "~/context/RecChngContext";
+import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import {
   object,
@@ -77,7 +77,7 @@ function EventsTable() {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
-  const { recchngReceived } = useRecChng();
+  const { recchngReceived } = useSubscribe();
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 

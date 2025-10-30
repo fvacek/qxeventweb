@@ -13,13 +13,13 @@ import { useWsClient } from "./WsClient";
 import { useAppConfig } from "./AppConfig";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 
-interface RecChngContextValue {
+interface SubscribeContextValue {
   recchngReceived: Accessor<RecChng | null>;
 }
 
-const RecChngContext = createContext<RecChngContextValue>();
+const SubscribeContext = createContext<SubscribeContextValue>();
 
-export function RecChngProvider(props: { children: JSX.Element }) {
+export function SubscribeProvider(props: { children: JSX.Element }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
@@ -49,21 +49,21 @@ export function RecChngProvider(props: { children: JSX.Element }) {
     }
   });
 
-  const contextValue: RecChngContextValue = {
+  const contextValue: SubscribeContextValue = {
     recchngReceived,
   };
 
   return (
-    <RecChngContext.Provider value={contextValue}>
+    <SubscribeContext.Provider value={contextValue}>
       {props.children}
-    </RecChngContext.Provider>
+    </SubscribeContext.Provider>
   );
 }
 
-export function useRecChng(): RecChngContextValue {
-  const context = useContext(RecChngContext);
+export function useSubscribe(): SubscribeContextValue {
+  const context = useContext(SubscribeContext);
   if (!context) {
-    throw new Error("useRecChng must be used within a RecChngProvider");
+    throw new Error("useSubscribe must be used within a SubscribeProvider");
   }
   return context;
 }

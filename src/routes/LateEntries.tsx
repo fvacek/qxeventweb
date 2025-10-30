@@ -29,7 +29,7 @@ import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { useEventConfig } from "~/context/EventConfig";
-import { useRecChng } from "~/context/RecChngContext";
+import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
@@ -55,7 +55,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
-  const { recchngReceived } = useRecChng();
+  const { recchngReceived } = useSubscribe();
 
   const [runs, setRuns] = createSignal<Run[]>([]);
 
