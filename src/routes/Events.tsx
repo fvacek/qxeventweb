@@ -142,7 +142,7 @@ function EventsTable() {
     try {
       const sql_select_result = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxEventShvPath()}/sql`,
+        `${appConfig.eventSqlApiPath()}/sql`,
         "list",
         makeMap({"table": "events", "fields": ["id", "name", "date", "owner"]}),
 
@@ -282,7 +282,7 @@ function EventsTable() {
 
       const result = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxEventShvPath()}/sql`,
+        `${appConfig.eventSqlApiPath()}/sql`,
         "read",
         makeMap({"table": "events", "id": id}),
       );
@@ -329,7 +329,7 @@ function EventsTable() {
       if (!isRecordEmpty(changes)) {
         await callRpcMethod(
           wsClient(),
-          `${appConfig.qxEventShvPath()}/sql`,
+          `${appConfig.eventSqlApiPath()}/sql`,
           "update",
           makeMap({table: "events", id: origRecord.id, record: makeMap(changes)}),
         );

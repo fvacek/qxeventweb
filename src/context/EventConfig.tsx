@@ -118,10 +118,10 @@ export function EventConfigProvider(props: { children: any }) {
       console.log("Loading event config");
     }
     try {
-      const event_config_result = await callRpcMethod(appConfig.eventSqlPath(), "query", [
+      const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(), "query", [
         "SELECT * FROM config",
       ]);
-      const stages_result = await callRpcMethod(appConfig.eventSqlPath(), "query", [
+      const stages_result = await callRpcMethod(appConfig.eventSqlApiPath(), "query", [
         "SELECT startdateTime FROM stages",
       ]);
       const event_config = parseEventConfig(event_config_result, stages_result);

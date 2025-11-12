@@ -1,4 +1,4 @@
-import { boolean, enum_, InferOutput, null_, number, object, record, string, undefined_, union } from "valibot";
+import { boolean, enum_, InferOutput, null_, nullable, number, object, optional, record, string, undefined_, undefinedable, union } from "valibot";
 
 export enum SqlOperation {
   Update = 'Update',
@@ -19,7 +19,7 @@ export const RecChngSchema = object({
   id: number(),
   record: record(string(), SqlValueSchema),
   op: enum_(SqlOperation),
-  issuer: string(),
+  issuer: optional(string()),
 });
 
 export type RecChng = InferOutput<typeof RecChngSchema>;

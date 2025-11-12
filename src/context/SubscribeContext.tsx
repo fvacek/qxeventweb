@@ -30,8 +30,8 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
       const client = wsClient()!;
 
       // Subscribe to event SQL path (used by LateEntries)
-      console.log("Subscribing SQL recchng", appConfig.eventSqlPath());
-      client.subscribe("qxeventweb", appConfig.eventSqlPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
+      console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath());
+      client.subscribe("qxeventweb", appConfig.eventSqlApiPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
@@ -39,8 +39,8 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
       });
 
       // Subscribe to qxEvent SQL path (used by Events)
-      console.log("Subscribing SQL recchng", `${appConfig.qxEventShvPath()}/sql`);
-      client.subscribe("qxeventweb", `${appConfig.qxEventShvPath()}/sql`, "recchng", (path: string, method: string, param?: RpcValue) => {
+      console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath());
+      client.subscribe("qxeventweb", appConfig.eventSqlApiPath(), "recchng", (path: string, method: string, param?: RpcValue) => {
         console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         console.log("recchng:", recchng);
