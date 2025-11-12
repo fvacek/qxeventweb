@@ -24,6 +24,8 @@ import {
   TextFieldInput,
   TextFieldLabel,
 } from "~/components/ui/text-field";
+import { FlexDropdown } from "~/components/ui/flexdropdown";
+
 import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
@@ -299,14 +301,6 @@ function LateEntriesTable(props: { className: () => string }) {
       });
     }
     setLoading(false);
-
-    // Update data with fresh timestamps and randomized data
-    const refreshedEntries = runs().map((entry) => ({
-      ...entry,
-    }));
-
-    setRuns(refreshedEntries);
-    setLoading(false);
   };
 
   // Watch for WebSocket status changes and reload data when connected
@@ -532,17 +526,15 @@ function ClassSelector(props: {
   });
 
   return (
-    <div class="flex flex-wrap gap-2">
-      <For each={classes()}>
-        {(cls) => (
-          <Button
-            variant={props.className() === cls ? "default" : "outline"}
-            onClick={() => props.setClassName(cls)}
-          >
-            {cls}
-          </Button>
-        )}
-      </For>
+    <div>
+      {props.className() && (
+        <FlexDropdown
+          value={props.className()}
+          options={classes()}
+          onSelect={props.setClassName}
+          variant="default"
+        />
+      )}
     </div>
   );
 }
