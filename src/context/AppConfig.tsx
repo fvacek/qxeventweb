@@ -2,19 +2,21 @@ import { createContext, useContext } from "solid-js";
 
 export type AppConfig = {
   brokerUrl: string,
-  eventPath: string,
+  qxeventdPath: string,
+  eventsPath: string,
   theme: "light" | "dark",
   debug: boolean,
-  eventSqlApiPath: () => string,
+  eventSqlApiPath: (event_id: number) => string,
 };
 
 // Non-reactive config object
 export const config: AppConfig = {
     brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
-    eventPath: import.meta.env.QXEVENT_EVENT_PATH || "test/quickevent",
+    qxeventdPath: import.meta.env.QXEVENTD_PATH || "test/qx/eventd",
+    eventsPath: import.meta.env.QXEVENTS_PATH || "test/qx/events",
     theme: "dark",
     debug: import.meta.env.DEV || false,
-    eventSqlApiPath: function() { return `${this.eventPath}/sql`; },
+    eventSqlApiPath: function(event_id: number) { return `${this.eventsPath}/{event_id}/sql`; },
 };
 
 const AppConfigContext = createContext(config);

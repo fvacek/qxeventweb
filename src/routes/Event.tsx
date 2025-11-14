@@ -1,14 +1,8 @@
-import {
-  Accessor,
-  createContext,
-  createEffect,
-  createSignal,
-  useContext,
-} from "solid-js";
+import { createSignal, createEffect, createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue, WsClient } from "libshv-js";
-import { useAppConfig } from "./AppConfig";
-import { useWsClient } from "./WsClient";
+import { RpcValue } from "libshv-js";
+import { useAppConfig } from "~/context/AppConfig";
+import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 
 export type StageConfig = {
@@ -23,26 +17,18 @@ export class EventConfig {
   stages: StageConfig[] = [];
 }
 
-interface EventConfigContextType {
-  eventConfig: EventConfig;
-  setEventConfig: (eventConfig: EventConfig) => void;
-  eventId: Accessor<number>;
+interface EventProps {
+  event_id: number;
 }
 
-const EventConfigContext = createContext<EventConfigContextType>();
-
-export function EventConfigProvider(props: { children: any }) {
+const Event = ({ event_id: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
 
+  const [eventId, setEventId] = createSignal(initialEventId);
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
-  const [eventId, setEventId] = createSignal(0);
-
-  createEffect(() => {
-    if (status() === "Connected") {
-      loadEventConfig(1);
-    }
-  });
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string>("");
 
   const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue) => {
     const client = wsClient();
@@ -57,9 +43,8 @@ export function EventConfigProvider(props: { children: any }) {
     if (appConfig.debug) {
       console.log("Event config raw result:", result);
     }
-
     return result;
-}
+  };
 
   function parseEventConfig(event_config: RpcValue, stages_config: RpcValue): EventConfig {
     const data = createSqlTable(event_config);
@@ -114,9 +99,18 @@ export function EventConfigProvider(props: { children: any }) {
   }
 
   const loadEventConfig = async (event_id: number) => {
-    if (appConfig.debug) {
-      console.log("Loading event config");
+    if (event_id === 0) {
+      setEventConfig(new EventConfig());
+      return;
     }
+
+    if (appConfig.debug) {
+      console.log("Loading event config for event ID:", event_id);
+    }
+
+    setLoading(true);
+    setError("");
+
     try {
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
         "SELECT * FROM config",
@@ -129,31 +123,78 @@ export function EventConfigProvider(props: { children: any }) {
         console.log("Loaded event config:", event_config);
       }
       setEventConfig(event_config);
-      setEventId(event_id);
     } catch (error) {
       console.error("Failed to load event config:", error);
+      setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const value = {
-    eventConfig,
-    setEventConfig,
-    eventId,
-  };
+  // Load event config when WebSocket is connected and event ID changes
+  createEffect(() => {
+    if (status() === "Connected" && eventId() > 0) {
+      loadEventConfig(eventId());
+    }
+  });
 
   return (
-    <EventConfigContext.Provider value={value}>
-      {props.children}
-    </EventConfigContext.Provider>
-  );
-}
+    <div class="flex w-full flex-col items-center justify-center p-4">
+      <h1 class="text-3xl font-bold mb-4">Event {eventId()}</h1>
 
-export function useEventConfig() {
-  const context = useContext(EventConfigContext);
-  if (!context) {
-    throw new Error(
-      "useEventConfig must be used within an EventConfigProvider",
-    );
-  }
-  return context;
-}
+      {loading() && (
+        <div class="text-blue-600 mb-4">Loading event configuration...</div>
+      )}
+
+      {error() && (
+        <div class="text-red-600 mb-4 p-2 border border-red-300 rounded bg-red-50">
+          {error()}
+        </div>
+      )}
+
+      {!loading() && !error() && eventConfig.name && (
+        <div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
+          <h2 class="text-2xl font-semibold mb-4">Event Configuration</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <p class="text-lg">{eventConfig.name || 'N/A'}</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Place</label>
+              <p class="text-lg">{eventConfig.place || 'N/A'}</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Stages</label>
+              <p class="text-lg">{eventConfig.stageCount}</p>
+            </div>
+          </div>
+
+          {eventConfig.stages.length > 0 && (
+            <div class="mt-6">
+              <h3 class="text-lg font-medium mb-3">Stage Information</h3>
+              <div class="space-y-2">
+                {eventConfig.stages.map((stage, index) => (
+                  <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                    <span class="font-medium">Stage {index + 1}</span>
+                    <span>{stage.stageStart.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Event;
