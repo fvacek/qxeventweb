@@ -31,6 +31,7 @@ import {
 import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
+import { useAuth } from "~/context/AuthContext";
 
 import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -75,6 +76,7 @@ type Event = InferOutput<typeof EventSchema>;
 function EventsTable() {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
+  const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
@@ -177,13 +179,23 @@ function EventsTable() {
   };
 
   const addEntry = () => {
-    const newEntry: EventListItem = {
-      id: Math.max(...tableRecords().map((u) => u.id)) + 1,
+    const newId = tableRecords().length > 0 ? Math.max(...tableRecords().map((u) => u.id)) + 1 : 1;
+    const currentUser = user();
+
+    // Set up form with default values for new entry
+    setFormData({
+      id: newId,
       name: "",
-      date: "",
-      owner: "",
-    };
-    setTableRecords([...tableRecords(), newEntry]);
+      date: new Date().toISOString().split('T')[0], // Today's date as default
+      api_token: "",
+      owner: currentUser?.email || "",
+    });
+
+    // Clear original record to indicate this is a new entry
+    setOriginalRecord(null);
+
+    // Open the edit dialog
+    setEditRecordDialogOpen(true);
   };
 
   // Edit dialog state
@@ -237,7 +249,11 @@ function EventsTable() {
   // Check if form has been modified
   const isFormDirty = createMemo(() => {
     const orig = originalRecord();
-    if (!orig) return false;
+    if (!orig) {
+      // For new entries, form is dirty if any field has content
+      const current = formData();
+      return !!(current.name || current.date || current.api_token || current.owner);
+    }
     const current = formData();
 
     // Normalize undefined/empty values for comparison
@@ -298,13 +314,21 @@ function EventsTable() {
   };
 
   const acceptEditRecordDialog = () => {
-    const orig = originalRecord();
-    if (!orig || !isFormValid()) return;
+    if (!isFormValid()) return;
 
     const updatedRecord: Event = formData();
+    const orig = originalRecord();
 
     setEditRecordDialogOpen(false);
-    updateRecordInDb(orig, updatedRecord);
+
+    if (orig) {
+      // Update existing record
+      updateRecordInDb(orig, updatedRecord);
+    } else {
+      // Create new record
+      createRecordInDb(updatedRecord);
+    }
+
     setOriginalRecord(null);
   };
 
@@ -318,6 +342,38 @@ function EventsTable() {
       api_token: undefined,
       owner: undefined,
     });
+  };
+
+  const createRecordInDb = async (newRecord: Event) => {
+    try {
+      const recordData = {
+        name: newRecord.name,
+        date: newRecord.date,
+        api_token: newRecord.api_token,
+        owner: newRecord.owner,
+      };
+
+      await callRpcMethod(
+        wsClient(),
+        `${appConfig.qxeventdPath}/sql`,
+        "create",
+        makeMap({table: "events", record: makeMap(recordData)}),
+      );
+
+      showToast({
+        title: "Create event success",
+      });
+
+      // Reload table to show new record
+      reloadTable();
+    } catch (error) {
+      console.error("Error creating event:", error);
+      showToast({
+        title: "Create event error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const updateRecordInDb = async (origRecord: Event, newRecord: Event) => {
@@ -416,7 +472,7 @@ function EventsTable() {
       <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 class="text-xl sm:text-2xl font-bold">Events</h2>
         <div class="flex gap-2 flex-wrap">
-          <Button onClick={addEntry} size="sm" class="text-xs">Add entry</Button>
+          <Button onClick={addEntry} size="sm" class="text-xs">Create event</Button>
           <Button variant="outline" onClick={reloadTable} disabled={loading()} size="sm" class="text-xs">
             {loading() ? "Loading..." : "Refresh"}
           </Button>
@@ -446,18 +502,20 @@ function EventsTable() {
       >
         <DialogContent class="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Event</DialogTitle>
+            <DialogTitle>{originalRecord() ? "Edit Event" : "Create New Event"}</DialogTitle>
           </DialogHeader>
 
           <div class="space-y-4">
-            <TextField>
-              <TextFieldLabel>ID</TextFieldLabel>
-              <TextFieldInput
-                value={formData().id?.toString() || ""}
-                type="number"
-                readOnly={true}
-              />
-            </TextField>
+            {originalRecord() && (
+              <TextField>
+                <TextFieldLabel>ID</TextFieldLabel>
+                <TextFieldInput
+                  value={formData().id?.toString() || ""}
+                  type="number"
+                  readOnly={true}
+                />
+              </TextField>
+            )}
 
             <TextField>
               <TextFieldLabel>Name *</TextFieldLabel>
@@ -533,9 +591,9 @@ function EventsTable() {
             </Button>
             <Button
               onClick={acceptEditRecordDialog}
-              disabled={!isFormValid() || !isFormDirty()}
+              disabled={!isFormValid() || (!originalRecord() && !isFormDirty())}
             >
-              {!isFormValid() ? "Invalid data" : !isFormDirty() ? "No Changes" : "Save Changes"}
+              {!isFormValid() ? "Invalid data" : (!originalRecord() && !isFormDirty()) ? "Enter data" : originalRecord() ? "Save Changes" : "Create Event"}
             </Button>
           </DialogFooter>
         </DialogContent>
