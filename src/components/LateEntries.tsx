@@ -279,7 +279,8 @@ function LateEntriesTable(props: {
         if (run.startTimeMs === undefined) {
           return <span>—</span>;
         }
-        const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
+        const eventConfig = props.eventConfig();
+        const stageStart = eventConfig.stages[props.currentStage()].stageStart;
         return (
           <span>{formatStartTime(run.startTimeMs)}</span>
         );
@@ -492,12 +493,16 @@ function ClassSelector(props: {
   );
 }
 
-const LateEntries = () => {
+const LateEntries = (props: {
+  eventId: number,
+  eventConfig: () => EventConfig,
+  currentStage: number
+}) => {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
-  const [eventConfig, setEventConfig] = createSignal(new EventConfig());
-  const [eventId, setEventId] = createSignal(0);
-  const [currentStage, setCurrentStage] = createSignal(0);
+  const eventConfig = props.eventConfig;
+  const [eventId, setEventId] = createSignal(props.eventId);
+  const [currentStage, setCurrentStage] = createSignal(props.currentStage);
 
   const callRpcMethod = async (
     client: any,
@@ -592,7 +597,7 @@ const LateEntries = () => {
         </div>
         <LateEntriesTable
           className={className}
-          eventConfig={() => eventConfig()}
+          eventConfig={eventConfig}
           eventId={eventId}
           currentStage={currentStage}
           runs={runs}

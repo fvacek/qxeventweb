@@ -140,7 +140,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
-    if (eventId() > 0) {
+    if (status() === "Connected" && eventId() > 0) {
       const eid = eventId();
       loadEventConfig(eid);
 
@@ -158,7 +158,10 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
   return (
     <div class="flex w-full flex-col items-center justify-center p-4">
-      <h1 class="text-3xl font-bold mb-4">Event {eventId()}</h1>
+      <div class="flex flex-row gap-4">
+        <h1 class="text-3xl font-bold">{eventConfig.name}</h1>
+        <StageControl currentStage={currentStage} />
+      </div>
 
       {loading() && (
         <div class="text-blue-600 mb-4">Loading event configuration...</div>
@@ -172,8 +175,6 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <StageControl currentStage={currentStage} />
-
           <Tabs defaultValue="runs" class="w-full">
             <TabsList class="grid w-full grid-cols-2">
               <TabsTrigger value="runs">Runs</TabsTrigger>
@@ -228,7 +229,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
             </TabsContent>
 
             <TabsContent value="late-entries" class="space-y-4">
-              <LateEntries/>
+              <LateEntries eventId={eventId()} eventConfig={() => eventConfig} currentStage={currentStage()} />
             </TabsContent>
           </Tabs>
         </div>

@@ -426,7 +426,7 @@ function EventsTable() {
       key: "name",
       header: "Name",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}>{rec.name}</span>;
+        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href="event/1">{rec.name}</a></span>;
       },
       sortable: true,
       width: "120px",
