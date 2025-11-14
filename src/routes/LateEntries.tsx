@@ -334,11 +334,6 @@ function LateEntriesTable(props: {
 
   return (
     <div>
-      <div class="mb-4">
-        <h2 class="text-2xl font-bold">Class {props.className()}</h2>
-      </div>
-
-      {/* Example 1: Auto-rendered table with sorting and global search */}
       <div class="rounded-md border">
         <Table
           data={props.runs()}

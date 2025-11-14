@@ -27,7 +27,7 @@ export function FlexDropdown(props: FlexDropdownProps) {
         size={props.size || "default"}
         onClick={() => setIsOpen(!isOpen())}
         disabled={props.disabled}
-        class="min-w-24"
+        class="min-w-24 text-2xl font-bold"
       >
         {props.value || props.placeholder || "Select..."}
         <svg
