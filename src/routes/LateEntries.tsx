@@ -52,16 +52,21 @@ const RunSchema = object({
 
 type Run = InferOutput<typeof RunSchema>;
 
-function LateEntriesTable(props: { className: () => string }) {
+function LateEntriesTable(props: { 
+  className: () => string;
+  runs: () => Run[];
+  setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
+  loading: () => boolean;
+  setLoading: (loading: boolean) => void;
+  onReload: () => void;
+}) {
   const { wsClient, status } = useWsClient();
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const eventConfig = useEventConfig();
   const { recchngReceived } = useSubscribe();
 
-  const [runs, setRuns] = createSignal<Run[]>([]);
 
-  const [loading, setLoading] = createSignal(false);
   const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
@@ -90,7 +95,7 @@ function LateEntriesTable(props: { className: () => string }) {
         : undefined;
       if (originalRun !== undefined) {
         const updatedRun = { ...originalRun, ...record };
-        setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+        props.setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
       }
     } else if (op === SqlOperation.Insert) {
     } else if (op === SqlOperation.Delete) {
@@ -99,7 +104,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
   // Reactive sorted data
   const sortedEntries = createMemo(() => {
-    const data = [...runs()];
+    const data = [...props.runs()];
     return data.sort((a, b) => {
       const aVal = a[sortBy()];
       const bVal = b[sortBy()];
@@ -166,16 +171,16 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const addEntry = () => {
     const newEntry: Run = {
-        runId: Math.max(...runs().map((u) => u.runId)) + 1,
-        firstName: `Fanda${runs().length + 1}`,
-        lastName: `Vacek${runs().length + 1}`,
+        runId: Math.max(...props.runs().map((u) => u.runId)) + 1,
+        firstName: `Fanda${props.runs().length + 1}`,
+        lastName: `Vacek${props.runs().length + 1}`,
         className: "H55",
         startTimeMs: undefined,
         registration: "CHT7001",
         siId: undefined,
         competitorId: 1234
     };
-    setRuns([...runs(), newEntry]);
+    props.setRuns([...props.runs(), newEntry]);
   };
 
   let firstNameRef!: HTMLInputElement;
@@ -186,7 +191,7 @@ function LateEntriesTable(props: { className: () => string }) {
 
   const openRunEditDialog = (id: number) => {
     editingRunId = null;
-    const runToEdit = runs().find(run => run.runId === id);
+    const runToEdit = props.runs().find(run => run.runId === id);
     if (runToEdit) {
       editingRunId = id;
       setRunEditDialogOpen(true);
@@ -205,7 +210,7 @@ function LateEntriesTable(props: { className: () => string }) {
   const acceptRunEditDialog = () => {
     if (editingRunId === null) return;
 
-    const originalRun = runs().find(run => run.runId === editingRunId)!;
+    const originalRun = props.runs().find(run => run.runId === editingRunId)!;
 
     // Collect form values from refs and create updated run
     const updatedRun: Run = {
@@ -228,12 +233,12 @@ function LateEntriesTable(props: { className: () => string }) {
   };
 
   const deleteEntry = (id: number) => {
-    setRuns(runs().filter((user) => user.runId !== id));
+    props.setRuns(props.runs().filter((user) => user.runId !== id));
   };
 
   const updateRunInDb = async (newRun: Run) => {
     try {
-      const origRun = runs().find(run => newRun.runId === run.runId)!;
+      const origRun = props.runs().find(run => newRun.runId === run.runId)!;
 
       const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue => {
         return makeMap({
@@ -264,50 +269,13 @@ function LateEntriesTable(props: { className: () => string }) {
     }
   };
 
-  const reloadTable = async () => {
-    setLoading(true);
 
-    try {
-      const runs_result = await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(), "query", [
-        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
-                competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
-                classes.name AS class_name
-                FROM runs
-                INNER JOIN competitors ON runs.competitorid = competitors.id
-                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${props.className()}'
-                WHERE runs.stageid = ${currentStage()}
-                ORDER BY runs.starttimems ASC`,
-      ]);
-      const table = createSqlTable(runs_result);
-
-      const transformedRuns: Run[] = [];
-      for (let i = 0; i < table.rowCount(); i++) {
-        const record = table.recordAt(i);
-        try {
-          const validatedRun = parse(RunSchema, record);
-          transformedRuns.push(validatedRun);
-        } catch (error) {
-          console.warn(`Skipping invalid row ${i}:`, error);
-        }
-      }
-
-      setRuns(transformedRuns);
-    } catch (error) {
-      console.error("RPC call failed:", error);
-      showToast({
-        title: "Reload table error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
-    }
-    setLoading(false);
-  };
 
   // Watch for WebSocket status changes and reload data when connected
   createEffect(() => {
     if (!!props.className()) {
       console.log("Class name changed - reloading late entries data");
-      reloadTable();
+      props.onReload();
     }
   });
 
@@ -381,18 +349,15 @@ function LateEntriesTable(props: { className: () => string }) {
         <h2 class="text-2xl font-bold">Class {props.className()}</h2>
         <div class="flex gap-2">
           <Button onClick={addEntry}>Add entry</Button>
-          <Button variant="outline" onClick={reloadTable} disabled={loading()}>
-            {loading() ? "Loading..." : "Refresh"}
-          </Button>
         </div>
       </div>
 
       {/* Example 1: Auto-rendered table with sorting and global search */}
       <div class="rounded-md border">
         <Table
-          data={runs()}
+          data={props.runs()}
           columns={columns}
-          loading={loading()}
+          loading={props.loading()}
           emptyMessage="No users found"
           variant="striped"
           sortable={true}
@@ -540,14 +505,73 @@ function ClassSelector(props: {
 }
 
 const LateEntries = () => {
+  const { wsClient, status } = useWsClient();
+  const { currentStage } = useStage();
+  const appConfig = useAppConfig();
+
   const [className, setClassName] = createSignal("");
+  const [runs, setRuns] = createSignal<Run[]>([]);
+  const [loading, setLoading] = createSignal(false);
+
+  const reloadTable = async () => {
+    if (!className()) return;
+    
+    setLoading(true);
+
+    try {
+      const runs_result = await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(), "query", [
+        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
+                competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
+                classes.name AS class_name
+                FROM runs
+                INNER JOIN competitors ON runs.competitorid = competitors.id
+                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
+                WHERE runs.stageid = ${currentStage()}
+                ORDER BY runs.starttimems ASC`,
+      ]);
+      const table = createSqlTable(runs_result);
+
+      const transformedRuns: Run[] = [];
+      for (let i = 0; i < table.rowCount(); i++) {
+        const record = table.recordAt(i);
+        try {
+          const validatedRun = parse(RunSchema, record);
+          transformedRuns.push(validatedRun);
+        } catch (error) {
+          console.warn(`Skipping invalid row ${i}:`, error);
+        }
+      }
+
+      setRuns(transformedRuns);
+    } catch (error) {
+      console.error("RPC call failed:", error);
+      showToast({
+        title: "Reload table error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
+    setLoading(false);
+  };
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
       <h1 class="mt-7 mb-7 text-3xl font-bold">Late Entries</h1>
       <div class="w-full max-w-7xl space-y-4">
-        <ClassSelector className={className} setClassName={setClassName} />
-        <LateEntriesTable className={className} />
+        <div class="flex items-center justify-between">
+          <ClassSelector className={className} setClassName={setClassName} />
+          <Button variant="outline" onClick={reloadTable} disabled={loading()}>
+            {loading() ? "Loading..." : "Refresh"}
+          </Button>
+        </div>
+        <LateEntriesTable 
+          className={className} 
+          runs={runs}
+          setRuns={setRuns}
+          loading={loading}
+          setLoading={setLoading}
+          onReload={reloadTable}
+        />
       </div>
     </div>
   );
