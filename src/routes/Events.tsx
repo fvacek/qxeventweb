@@ -32,7 +32,7 @@ import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
 import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { useEventConfig } from "~/context/EventConfig";
+
 import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import {
@@ -77,7 +77,6 @@ function EventsTable() {
   const { wsClient, status } = useWsClient();
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
-  const eventConfig = useEventConfig();
   const { recchngReceived } = useSubscribe();
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
