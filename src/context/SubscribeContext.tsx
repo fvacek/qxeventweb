@@ -23,7 +23,6 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
-  const [eventId, setEventId] = createSignal<number>(0);
 
   createEffect(() => {
     if (status() === "Connected") {
@@ -38,20 +37,6 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
         setRecchngReceived(recchng);
       });
     }
-  });
-
-  createEffect(() => {
-    const eid = eventId();
-    const client = wsClient()!;
-
-    // Subscribe to event SQL path (used by LateEntries)
-    console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
-    client.subscribe("qxeventweb", appConfig.eventSqlApiPath(eid), "recchng", (path: string, method: string, param?: RpcValue) => {
-      console.log("Received signal:", path, method, param);
-      const recchng: RecChng = parse(RecChngSchema, param);
-      console.log("recchng:", recchng);
-      setRecchngReceived(recchng);
-    });
   });
 
   const contextValue: SubscribeContextValue = {

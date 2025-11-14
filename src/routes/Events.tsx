@@ -30,7 +30,6 @@ import {
 } from "~/components/ui/text-field";
 import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
-import { useStage } from "~/context/StageContext";
 import { useAppConfig } from "~/context/AppConfig";
 
 import { useSubscribe } from "~/context/SubscribeContext";
@@ -75,7 +74,6 @@ type Event = InferOutput<typeof EventSchema>;
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
-  const { currentStage } = useStage();
   const appConfig = useAppConfig();
   const { recchngReceived } = useSubscribe();
 

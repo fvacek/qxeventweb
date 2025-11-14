@@ -4,6 +4,11 @@ import { RpcValue } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
+import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
+import { parse } from "valibot";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import LateEntries from "../components/LateEntries";
+import { StageControl } from "~/components/StageControl";
 
 export type StageConfig = {
   stageStart: Date;
@@ -18,17 +23,19 @@ export class EventConfig {
 }
 
 interface EventProps {
-  event_id: number;
+  event_id_str: string;
 }
 
-const Event = ({ event_id: initialEventId }: EventProps) => {
+const Event = ({ event_id_str: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
 
-  const [eventId, setEventId] = createSignal(initialEventId);
+  const [eventId, _setEventId] = createSignal<number>(parseInt(initialEventId));
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>("");
+  const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
+  const [currentStage, setCurrentStage] = createSignal(1);
 
   const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue) => {
     const client = wsClient();
@@ -133,8 +140,19 @@ const Event = ({ event_id: initialEventId }: EventProps) => {
 
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
-    if (status() === "Connected" && eventId() > 0) {
-      loadEventConfig(eventId());
+    if (eventId() > 0) {
+      const eid = eventId();
+      loadEventConfig(eid);
+
+      const client = wsClient()!;
+      // Subscribe to event SQL path (used by LateEntries)
+      console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
+      client.subscribe("qxeventweb", appConfig.eventSqlApiPath(eid), "recchng", (path: string, method: string, param?: RpcValue) => {
+        console.log("Received signal:", path, method, param);
+        const recchng: RecChng = parse(RecChngSchema, param);
+        console.log("recchng:", recchng);
+        setRecchngReceived(recchng);
+      });
     }
   });
 
@@ -153,44 +171,66 @@ const Event = ({ event_id: initialEventId }: EventProps) => {
       )}
 
       {!loading() && !error() && eventConfig.name && (
-        <div class="w-full max-w-2xl bg-white shadow-lg rounded-lg p-6">
-          <h2 class="text-2xl font-semibold mb-4">Event Configuration</h2>
+        <div class="w-full max-w-7xl">
+          <StageControl currentStage={currentStage} />
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <p class="text-lg">{eventConfig.name || 'N/A'}</p>
-            </div>
+          <Tabs defaultValue="runs" class="w-full">
+            <TabsList class="grid w-full grid-cols-2">
+              <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="late-entries">Late Entries</TabsTrigger>
+            </TabsList>
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Place</label>
-              <p class="text-lg">{eventConfig.place || 'N/A'}</p>
-            </div>
+            <TabsContent value="runs" class="space-y-4">
+              <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4">Event Configuration</h2>
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Stages</label>
-              <p class="text-lg">{eventConfig.stageCount}</p>
-            </div>
-          </div>
-
-          {eventConfig.stages.length > 0 && (
-            <div class="mt-6">
-              <h3 class="text-lg font-medium mb-3">Stage Information</h3>
-              <div class="space-y-2">
-                {eventConfig.stages.map((stage, index) => (
-                  <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
-                    <span class="font-medium">Stage {index + 1}</span>
-                    <span>{stage.stageStart.toLocaleString()}</span>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <p class="text-lg">{eventConfig.name || 'N/A'}</p>
                   </div>
-                ))}
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Place</label>
+                    <p class="text-lg">{eventConfig.place || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Stages</label>
+                    <p class="text-lg">{eventConfig.stageCount}</p>
+                  </div>
+                </div>
+
+                {eventConfig.stages.length > 0 && (
+                  <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3">Stage Information</h3>
+                    <div class="space-y-2">
+                      {eventConfig.stages.map((stage, index) => (
+                        <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                          <span class="font-medium">Stage {index + 1}</span>
+                          <span>{stage.stageStart.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+
+              <div class="bg-white shadow-lg rounded-lg p-6">
+                <h3 class="text-xl font-semibold mb-4">Runs Information</h3>
+                <p class="text-gray-600">Runs data will be displayed here in future updates.</p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="late-entries" class="space-y-4">
+              <LateEntries/>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>

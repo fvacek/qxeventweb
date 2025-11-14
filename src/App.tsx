@@ -4,12 +4,7 @@ import NavHeader from "./components/NavHeader"
 import { WsClientProvider, useWsClient } from "./context/WsClient"
 import AppConfigContext, { config } from "./context/AppConfig"
 import { Toaster } from "~/components/ui/toast"
-import { StageProvider } from "./context/StageContext"
-import {
-    EventConfig,
-    EventConfigProvider,
-    useEventConfig,
-} from "./context/EventConfig"
+
 import { AuthProvider } from "./context/AuthContext"
 import { SubscribeProvider } from "./context/SubscribeContext"
 
@@ -29,13 +24,9 @@ export const App = (props: ParentProps) => {
         <AppConfigContext.Provider value={config}>
             <WsClientProvider>
                 <AuthProvider>
-                    <EventConfigProvider>
-                        <StageProvider>
-                            <SubscribeProvider>
-                                <AppContent>{props.children}</AppContent>
-                            </SubscribeProvider>
-                        </StageProvider>
-                    </EventConfigProvider>
+                  <SubscribeProvider>
+                      <AppContent>{props.children}</AppContent>
+                  </SubscribeProvider>
                 </AuthProvider>
             </WsClientProvider>
         </AppConfigContext.Provider>

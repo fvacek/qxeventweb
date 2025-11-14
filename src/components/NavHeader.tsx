@@ -1,4 +1,4 @@
-import { JSX, createSignal } from "solid-js";
+import { JSX, createSignal, Accessor } from "solid-js";
 
 import { A } from "@solidjs/router";
 import PrefetchLink from "./PrefetchLink";
@@ -11,10 +11,14 @@ import WsClientStatusIndicator from "./WsClientStatus";
 import { StageControl } from "./StageControl";
 import UserLoginIndicator from "./UserLoginIndicator";
 
-const NavHeader = (): JSX.Element => {
+const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => {
   const [menuIsOpen, setMenuIsOpen] = createSignal(false);
+  const [defaultStage, setDefaultStage] = createSignal(0);
   let hamburgerButton: HTMLButtonElement | undefined;
   let hamburgerMenu: HTMLDivElement | undefined;
+
+  // Use provided currentStage or default to 0
+  const currentStage = props?.currentStage || defaultStage;
 
   const routes: Array<{
     name: string;
@@ -120,9 +124,6 @@ const NavHeader = (): JSX.Element => {
             </li>
           );
         })}
-        <li class="ml-4 flex">
-          <StageControl />
-        </li>
         <li class="ml-4 flex">
           <WsClientStatusIndicator />
         </li>

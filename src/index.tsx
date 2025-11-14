@@ -28,7 +28,7 @@ import Events from "./routes/Events"
 import Home from "./routes/Home"
 import About from "./routes/About"
 import TableDemo from "./routes/TableDemo"
-import LateEntries from "./routes/LateEntries"
+import LateEntries from "./components/LateEntries"
 import Event from "./routes/Event"
 import OidcLogin from "./auth/OidcLogin"
 import NotFound from "./routes/NotFound"
@@ -42,8 +42,8 @@ if (app) {
                 <Route path="/about" component={About} />
                 <Route path="/table-demo" component={TableDemo} />
                 <Route path="/events" component={Events} />
-                <Route path="/event/:id" component={(props) => <Event event_id={props.params.id} />} />
-                <Route path="/late-entries" component={LateEntries} />
+                <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id} />} />
+                {/*<Route path="/late-entries" component={LateEntries} />*/}
                 {/* Google auth now uses Identity Services - no callback route needed */}
                 <Route
                     path="/auth/callback/microsoft"

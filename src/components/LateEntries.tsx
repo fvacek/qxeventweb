@@ -28,15 +28,16 @@ import { FlexDropdown } from "~/components/ui/flexdropdown";
 
 import { useWsClient } from "~/context/WsClient";
 import { showToast, Toast } from "~/components/ui/toast";
-import { useStage } from "~/context/StageContext";
+
 import { useAppConfig } from "~/context/AppConfig";
-import { useEventConfig } from "~/context/EventConfig";
 import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
+import { EventConfig } from "~/routes/Event";
+
 
 // Valibot schema for Run validation
 const RunSchema = object({
@@ -54,6 +55,9 @@ type Run = InferOutput<typeof RunSchema>;
 
 function LateEntriesTable(props: {
   className: () => string;
+  eventConfig: () => EventConfig;
+  eventId: () => number;
+  currentStage: () => number;
   runs: () => Run[];
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
@@ -62,9 +66,7 @@ function LateEntriesTable(props: {
   onAddEntry: () => void;
 }) {
   const { wsClient, status } = useWsClient();
-  const { currentStage } = useStage();
   const appConfig = useAppConfig();
-  const eventConfig = useEventConfig();
   const { recchngReceived } = useSubscribe();
 
 
@@ -90,13 +92,13 @@ function LateEntriesTable(props: {
     const { table, id, record, op } = recchng;
     if (op === SqlOperation.Update) {
       const originalRun = (table === "runs")
-        ? runs().find(run => run.runId === id)
+        ? props.runs().find((run: Run) => run.runId === id)
         : (table === "competitors")
-        ? runs().find(run => run.competitorId === id)
+        ? props.runs().find((run: Run) => run.competitorId === id)
         : undefined;
       if (originalRun !== undefined) {
         const updatedRun = { ...originalRun, ...record };
-        props.setRuns(prev => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+        props.setRuns((prev: Run[]) => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
       }
     } else if (op === SqlOperation.Insert) {
     } else if (op === SqlOperation.Delete) {
@@ -148,7 +150,7 @@ function LateEntriesTable(props: {
       return undefined;
     }
     const [hours, minutes, secs] = hms;
-    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+    const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
     const runStart = new Date(stageStart.getTime());
     runStart.setHours(hours, minutes, secs, 0);
     return runStart.getTime() - stageStart.getTime();
@@ -158,7 +160,7 @@ function LateEntriesTable(props: {
     if (msec === undefined) {
       return "";
     }
-    const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+    const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
     const date = new Date(stageStart.getTime() + msec);
     return formatDateToTimeString(date);
   }
@@ -239,11 +241,11 @@ function LateEntriesTable(props: {
       };
       const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
       if (!isRecordEmpty(competitors_record)) {
-        await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(), "update", createParam('competitors', origRun.competitorId, competitors_record));
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('competitors', origRun.competitorId, competitors_record));
       }
       const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
       if (!isRecordEmpty(runs_record)) {
-        await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(), "update", createParam('runs', origRun.runId, runs_record));
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('runs', origRun.runId, runs_record));
       }
       showToast({
         title: "Update run success",
@@ -277,7 +279,7 @@ function LateEntriesTable(props: {
         if (run.startTimeMs === undefined) {
           return <span>—</span>;
         }
-        const stageStart = eventConfig.eventConfig.stages[currentStage()].stageStart;
+        const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
         return (
           <span>{formatStartTime(run.startTimeMs)}</span>
         );
@@ -414,11 +416,12 @@ function LateEntriesTable(props: {
 function ClassSelector(props: {
   className: () => string;
   setClassName: (name: string) => void;
+  eventId: () => number;
+  currentStage: () => number;
 }) {
   const { wsClient, status } = useWsClient();
-  const { currentStage } = useStage();
   const appConfig = useAppConfig();
-  const { eventOpen } = useEventConfig();
+  const [eventOpen, setEventOpen] = createSignal(false);
 
   const [classes, setClasses] = createSignal<string[]>([]);
 
@@ -442,11 +445,11 @@ function ClassSelector(props: {
   async function loadClasses() {
     try {
       const classes_result = await callRpcMethod(
-        appConfig.eventSqlApiPath(),
+        appConfig.eventSqlApiPath(props.eventId()),
         "query",
         [
           `SELECT classes.name AS class_name FROM classes, classdefs
-                  WHERE classdefs.classid = classes.id AND classdefs.stageid = ${currentStage()}
+                  WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
                   ORDER BY classes.name`,
         ],
       );
@@ -454,7 +457,9 @@ function ClassSelector(props: {
         (row: any[], rowIndex: number) => row[0],
       );
       setClasses(classNames);
-      props.setClassName(classNames[0]);
+      if (classNames.length > 0) {
+        props.setClassName(classNames[0]);
+      }
     } catch (error) {
       console.error("RPC call failed:", error);
       showToast({
@@ -466,8 +471,9 @@ function ClassSelector(props: {
   }
 
   createEffect(() => {
-    if (eventOpen() === true) {
+    if (status() === "Connected") {
       loadClasses();
+      setEventOpen(true);
     }
   });
 
@@ -488,8 +494,10 @@ function ClassSelector(props: {
 
 const LateEntries = () => {
   const { wsClient, status } = useWsClient();
-  const { currentStage } = useStage();
   const appConfig = useAppConfig();
+  const [eventConfig, setEventConfig] = createSignal(new EventConfig());
+  const [eventId, setEventId] = createSignal(0);
+  const [currentStage, setCurrentStage] = createSignal(0);
 
   const callRpcMethod = async (
     client: any,
@@ -534,7 +542,7 @@ const LateEntries = () => {
     setLoading(true);
 
     try {
-      const runs_result = await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(), "query", [
+      const runs_result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(eventId()), "query", [
         `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
                 competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
                 classes.name AS class_name
@@ -574,7 +582,7 @@ const LateEntries = () => {
       <h1 class="mt-7 mb-7 text-3xl font-bold">Late Entries</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
-          <ClassSelector className={className} setClassName={setClassName} />
+          <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
           <div class="flex gap-2">
             <Button onClick={addEntry}>Add entry</Button>
             <Button variant="outline" onClick={reloadTable} disabled={loading() || !className()}>
@@ -584,6 +592,9 @@ const LateEntries = () => {
         </div>
         <LateEntriesTable
           className={className}
+          eventConfig={() => eventConfig()}
+          eventId={eventId}
+          currentStage={currentStage}
           runs={runs}
           setRuns={setRuns}
           loading={loading}
