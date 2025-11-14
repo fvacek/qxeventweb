@@ -52,13 +52,14 @@ const RunSchema = object({
 
 type Run = InferOutput<typeof RunSchema>;
 
-function LateEntriesTable(props: { 
+function LateEntriesTable(props: {
   className: () => string;
   runs: () => Run[];
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
   setLoading: (loading: boolean) => void;
   onReload: () => void;
+  onAddEntry: () => void;
 }) {
   const { wsClient, status } = useWsClient();
   const { currentStage } = useStage();
@@ -169,19 +170,7 @@ function LateEntriesTable(props: {
     return `${hours}:${minutes}:${seconds}`;
   }
 
-  const addEntry = () => {
-    const newEntry: Run = {
-        runId: Math.max(...props.runs().map((u) => u.runId)) + 1,
-        firstName: `Fanda${props.runs().length + 1}`,
-        lastName: `Vacek${props.runs().length + 1}`,
-        className: "H55",
-        startTimeMs: undefined,
-        registration: "CHT7001",
-        siId: undefined,
-        competitorId: 1234
-    };
-    props.setRuns([...props.runs(), newEntry]);
-  };
+
 
   let firstNameRef!: HTMLInputElement;
   let lastNameRef!: HTMLInputElement;
@@ -345,11 +334,8 @@ function LateEntriesTable(props: {
 
   return (
     <div>
-      <div class="mb-4 flex items-center justify-between">
+      <div class="mb-4">
         <h2 class="text-2xl font-bold">Class {props.className()}</h2>
-        <div class="flex gap-2">
-          <Button onClick={addEntry}>Add entry</Button>
-        </div>
       </div>
 
       {/* Example 1: Auto-rendered table with sorting and global search */}
@@ -491,13 +477,14 @@ function ClassSelector(props: {
   });
 
   return (
-    <div>
+    <div class="w-full">
       {props.className() && (
         <FlexDropdown
           value={props.className()}
           options={classes()}
           onSelect={props.setClassName}
           variant="default"
+          class="[&>div]:w-[calc(100vw-2rem)]! md:[&>div]:w-[calc(100vw-4rem)]! lg:[&>div]:w-[calc(min(56rem,100vw-4rem))]! [&>div]:left-0! [&>div]:right-0! [&>div]:max-w-none! [&>div]:min-w-0!"
         />
       )}
     </div>
@@ -509,13 +496,46 @@ const LateEntries = () => {
   const { currentStage } = useStage();
   const appConfig = useAppConfig();
 
+  const callRpcMethod = async (
+    client: any,
+    shvPath: string,
+    method: string,
+    params?: RpcValue,
+  ): Promise<RpcValue> => {
+    if (!client) {
+      throw new Error("WebSocket client is not available");
+    }
+    const result = await client.callRpcMethod(shvPath, method, params);
+    if (result instanceof Error) {
+      console.error("RPC error:", result);
+      throw new Error(result.message);
+    }
+    return result;
+  };
+
   const [className, setClassName] = createSignal("");
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
 
+  const addEntry = () => {
+    const currentRuns = runs();
+    const maxId = currentRuns.length > 0 ? Math.max(...currentRuns.map((u) => u.runId)) : 0;
+    const newEntry: Run = {
+        runId: maxId + 1,
+        firstName: `Fanda${currentRuns.length + 1}`,
+        lastName: `Vacek${currentRuns.length + 1}`,
+        className: className() || "H55",
+        startTimeMs: undefined,
+        registration: "CHT7001",
+        siId: undefined,
+        competitorId: 1234 + currentRuns.length
+    };
+    setRuns([...currentRuns, newEntry]);
+  };
+
   const reloadTable = async () => {
     if (!className()) return;
-    
+
     setLoading(true);
 
     try {
@@ -560,17 +580,21 @@ const LateEntries = () => {
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} />
-          <Button variant="outline" onClick={reloadTable} disabled={loading()}>
-            {loading() ? "Loading..." : "Refresh"}
-          </Button>
+          <div class="flex gap-2">
+            <Button onClick={addEntry}>Add entry</Button>
+            <Button variant="outline" onClick={reloadTable} disabled={loading() || !className()}>
+              {loading() ? "Loading..." : "Refresh"}
+            </Button>
+          </div>
         </div>
-        <LateEntriesTable 
-          className={className} 
+        <LateEntriesTable
+          className={className}
           runs={runs}
           setRuns={setRuns}
           loading={loading}
           setLoading={setLoading}
           onReload={reloadTable}
+          onAddEntry={addEntry}
         />
       </div>
     </div>
