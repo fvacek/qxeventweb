@@ -484,7 +484,7 @@ function ClassSelector(props: {
           options={classes()}
           onSelect={props.setClassName}
           variant="default"
-          class="[&>div]:w-[calc(100vw-2rem)]! md:[&>div]:w-[calc(100vw-4rem)]! lg:[&>div]:w-[calc(min(56rem,100vw-4rem))]! [&>div]:left-0! [&>div]:right-0! [&>div]:max-w-none! [&>div]:min-w-0!"
+          fullWidth={true}
         />
       )}
     </div>

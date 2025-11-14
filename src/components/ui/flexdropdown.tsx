@@ -10,10 +10,15 @@ interface FlexDropdownProps {
   variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive";
   size?: "default" | "sm" | "lg" | "icon";
   class?: string;
+  fullWidth?: boolean;
 }
 
 export function FlexDropdown(props: FlexDropdownProps) {
   const [isOpen, setIsOpen] = createSignal(false);
+
+  const popupClasses = props.fullWidth 
+    ? "absolute top-full z-50 mt-1 bg-background border rounded-md shadow-lg p-2 max-w-none! min-w-0! left-0! right-0! w-[calc(100vw-2rem)]! md:w-[calc(100vw-4rem)]! lg:w-[calc(min(56rem,100vw-4rem))]!"
+    : "absolute top-full left-0 z-50 mt-1 min-w-full bg-background border rounded-md shadow-lg p-2";
 
   return (
     <div class={`relative ${props.class || ""}`}>
@@ -42,7 +47,7 @@ export function FlexDropdown(props: FlexDropdownProps) {
       </Button>
       
       {isOpen() && (
-        <div class="absolute top-full left-0 z-50 mt-1 min-w-full bg-background border rounded-md shadow-lg p-2">
+        <div class={popupClasses}>
           <div class="flex flex-wrap gap-2">
             <For each={props.options}>
               {(option) => (
