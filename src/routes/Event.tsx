@@ -158,10 +158,11 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
   return (
     <div class="flex w-full flex-col items-center justify-center p-4">
-      <div class="flex flex-row gap-4">
-        <h1 class="text-3xl font-bold">{eventConfig.name}</h1>
+      <div class="flex flex-row w-full mb-6 justify-between">
+        <p class="text-3xl font-bold">{eventConfig.name}</p>
         <StageControl currentStage={currentStage} />
       </div>
+
 
       {loading() && (
         <div class="text-blue-600 mb-4">Loading event configuration...</div>
@@ -175,34 +176,34 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <Tabs defaultValue="runs" class="w-full">
+          <Tabs defaultValue="event-config" class="w-full">
             <TabsList class="grid w-full grid-cols-2">
-              <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="event-config">Event</TabsTrigger>
               <TabsTrigger value="late-entries">Late Entries</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="runs" class="space-y-4">
-              <div class="bg-white shadow-lg rounded-lg p-6">
+            <TabsContent value="event-config" class="space-y-4">
+              <div class="shadow-lg rounded-lg p-6">
                 <h2 class="text-2xl font-semibold mb-4">Event Configuration</h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Name</label>
                     <p class="text-lg">{eventConfig.name || 'N/A'}</p>
                   </div>
 
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Place</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Place</label>
                     <p class="text-lg">{eventConfig.place || 'N/A'}</p>
                   </div>
 
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Date</label>
                     <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
                   </div>
 
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Stages</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Stages</label>
                     <p class="text-lg">{eventConfig.stageCount}</p>
                   </div>
                 </div>
@@ -212,7 +213,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
                     <h3 class="text-lg font-medium mb-3">Stage Information</h3>
                     <div class="space-y-2">
                       {eventConfig.stages.map((stage, index) => (
-                        <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                        <div class="flex justify-between items-center py-2 px-3 rounded">
                           <span class="font-medium">Stage {index + 1}</span>
                           <span>{stage.stageStart.toLocaleString()}</span>
                         </div>
@@ -220,11 +221,6 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div class="bg-white shadow-lg rounded-lg p-6">
-                <h3 class="text-xl font-semibold mb-4">Runs Information</h3>
-                <p class="text-gray-600">Runs data will be displayed here in future updates.</p>
               </div>
             </TabsContent>
 

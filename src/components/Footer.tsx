@@ -7,7 +7,7 @@ export const Footer = (): JSX.Element => {
     return (
         <footer class="flex w-full flex-col items-center gap-1 p-2">
             <span>
-                <ExternalLink to="https://github.com/fvacek/qxevent">
+                <ExternalLink to="https://github.com/fvacek/qxeventweb">
                     <img
                         src={githubIcon}
                         alt="GitHub"
