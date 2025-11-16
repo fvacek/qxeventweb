@@ -11,6 +11,7 @@
         "test:watch": "vitest --watch"
     },
     "dependencies": {
+        "@azure/msal-browser": "^4.26.1",
         "@kobalte/core": "^0.13.11",
         "@solidjs/router": "^0.15.3",
         "@types/qrcode": "^1.5.6",

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@azure/msal-browser':
+        specifier: ^4.26.1
+        version: 4.26.1
       '@kobalte/core':
         specifier: ^0.13.11
         version: 0.13.11(solid-js@1.9.9)
@@ -74,6 +77,14 @@ importers:
         version: 3.2.4(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)
 
 packages:
+
+  '@azure/msal-browser@4.26.1':
+    resolution: {integrity: sha512-GGCIsZXxyNm5QcQZ4maA9q+9UWmM+/87G+ybvPkrE32el1URSa9WYt0t67ks3/P0gspZX9RoEqyLqJ/X/JDnBQ==}
+    engines: {node: '>=0.8.0'}
+
+  '@azure/msal-common@15.13.1':
+    resolution: {integrity: sha512-vQYQcG4J43UWgo1lj7LcmdsGUKWYo28RfEvDQAEMmQIMjSFufvb+pS0FJ3KXmrPmnWlt1vHDl3oip6mIDUQ4uA==}
+    engines: {node: '>=0.8.0'}
 
   '@babel/code-frame@7.27.1':
     resolution: {integrity: sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg==}
@@ -1297,6 +1308,12 @@ packages:
     engines: {node: '>=8'}
 
 snapshots:
+
+  '@azure/msal-browser@4.26.1':
+    dependencies:
+      '@azure/msal-common': 15.13.1
+
+  '@azure/msal-common@15.13.1': {}
 
   '@babel/code-frame@7.27.1':
     dependencies:
