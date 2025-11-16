@@ -26,9 +26,7 @@ declare global {
 import { AuthProvider } from "./context/AuthContext"
 import Events from "./routes/Events"
 import Home from "./routes/Home"
-import About from "./routes/About"
 import TableDemo from "./routes/TableDemo"
-import LateEntries from "./components/LateEntries"
 import Event from "./routes/Event"
 import OidcLogin from "./auth/OidcLogin"
 import NotFound from "./routes/NotFound"
@@ -39,7 +37,6 @@ if (app) {
         () => (
             <Router root={App}>
                 <Route path="/" component={Home} />
-                <Route path="/about" component={About} />
                 <Route path="/table-demo" component={TableDemo} />
                 <Route path="/events" component={Events} />
                 <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id} />} />

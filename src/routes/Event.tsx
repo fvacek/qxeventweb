@@ -9,6 +9,7 @@ import { parse } from "valibot";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import LateEntries from "../components/LateEntries";
 import { StageControl } from "~/components/StageControl";
+import EventInfo from "~/components/EventInfo";
 
 export type StageConfig = {
   stageStart: Date;
@@ -176,52 +177,14 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <Tabs defaultValue="event-config" class="w-full">
+          <Tabs defaultValue="event-info" class="w-full">
             <TabsList class="grid w-full grid-cols-2">
-              <TabsTrigger value="event-config">Event</TabsTrigger>
+              <TabsTrigger value="event-info">Event</TabsTrigger>
               <TabsTrigger value="late-entries">Late Entries</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="event-config" class="space-y-4">
-              <div class="shadow-lg rounded-lg p-6">
-                <h2 class="text-2xl font-semibold mb-4">Event Configuration</h2>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-muted-foreground mb-1">Name</label>
-                    <p class="text-lg">{eventConfig.name || 'N/A'}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-muted-foreground mb-1">Place</label>
-                    <p class="text-lg">{eventConfig.place || 'N/A'}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-muted-foreground mb-1">Date</label>
-                    <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-muted-foreground mb-1">Stages</label>
-                    <p class="text-lg">{eventConfig.stageCount}</p>
-                  </div>
-                </div>
-
-                {eventConfig.stages.length > 0 && (
-                  <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3">Stage Information</h3>
-                    <div class="space-y-2">
-                      {eventConfig.stages.map((stage, index) => (
-                        <div class="flex justify-between items-center py-2 px-3 rounded">
-                          <span class="font-medium">Stage {index + 1}</span>
-                          <span>{stage.stageStart.toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+            <TabsContent value="event-info" class="space-y-4">
+              <EventInfo eventConfig={eventConfig} />
             </TabsContent>
 
             <TabsContent value="late-entries" class="space-y-4">
