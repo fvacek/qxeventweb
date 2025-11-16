@@ -53,7 +53,7 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
     try {
       if (props.clientId) {
         localMicrosoftAuthService.updateConfig(
-          props.clientId, 
+          props.clientId,
           props.tenantType || 'consumers',
           props.redirectUri
         );
@@ -63,7 +63,7 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
       setError(null);
     } catch (error) {
       console.error('Failed to initialize local MSAL service:', error);
-      
+
       if (error instanceof Error) {
         if (error.message.includes('unauthorized_client') || error.message.includes('not enabled for consumers')) {
           setError("Azure AD app not configured for personal accounts. Please check your app registration settings.");
@@ -140,11 +140,11 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
           <rect x="1" y="12" width="9" height="9" fill="#ffb900"/>
           <rect x="12" y="12" width="9" height="9" fill="#7fba00"/>
         </svg>
-        
-        {isLoading() 
-          ? "Signing in..." 
-          : !isInitialized() 
-            ? "Initializing..." 
+
+        {isLoading()
+          ? "Signing in..."
+          : !isInitialized()
+            ? "Initializing..."
             : (props.buttonText || "Sign in with Microsoft")
         }
       </button>
@@ -157,14 +157,14 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
         </div>
       )}
 
-      {isInitialized() && (
+      {/*{isInitialized() && (
         <div class="flex items-center justify-center text-sm text-green-600">
           <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
           </svg>
           Ready to sign in
         </div>
-      )}
+      )}*/}
 
       {/* Error Display */}
       {error() && (
@@ -180,7 +180,7 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
               <div class="mt-2">
                 <p class="text-sm text-red-700">{error()}</p>
               </div>
-              {error()?.includes("Client ID") && (
+              {/*{error()?.includes("Client ID") && (
                 <div class="mt-2">
                   <p class="text-xs text-red-600">
                     💡 Set your Azure AD client ID: <br/>
@@ -189,7 +189,7 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
                     </code>
                   </p>
                 </div>
-              )}
+              )}*/}
             </div>
           </div>
         </div>
