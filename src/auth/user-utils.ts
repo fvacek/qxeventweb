@@ -1,16 +1,4 @@
-import { User } from "oidc-client-ts";
 import type { AuthUser } from "~/context/AuthContext";
-
-/**
- * Converts OIDC User (from Microsoft auth) to simplified AuthUser
- */
-export function convertOidcUserToAuthUser(oidcUser: User): AuthUser {
-  return {
-    email: oidcUser.profile.email || '',
-    name: oidcUser.profile.name || oidcUser.profile.email || 'User',
-    avatar: oidcUser.profile.picture
-  };
-}
 
 /**
  * Gets the user's display name from AuthUser

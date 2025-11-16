@@ -21,14 +21,12 @@ declare global {
 // const TableDemo = lazy(() => import("./routes/TableDemo"))
 // const LateEntries = lazy(() => import("./routes/LateEntries"))
 // const NotFound = lazy(() => import("./routes/NotFound"))
-// const OidcLogin = lazy(() => import("./auth/OidcLogin"))
 
 import { AuthProvider } from "./context/AuthContext"
 import Events from "./routes/Events"
 import Home from "./routes/Home"
 import TableDemo from "./routes/TableDemo"
 import Event from "./routes/Event"
-import OidcLogin from "./auth/OidcLogin"
 import NotFound from "./routes/NotFound"
 
 const app = document.getElementById("app")
@@ -42,10 +40,7 @@ if (app) {
                 <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id} />} />
                 {/*<Route path="/late-entries" component={LateEntries} />*/}
                 {/* Google auth now uses Identity Services - no callback route needed */}
-                <Route
-                    path="/auth/callback/microsoft"
-                    component={() => <OidcLogin provider="microsoft" />}
-                />
+
                 <Route path="*" component={NotFound} />
             </Router>
         ),
