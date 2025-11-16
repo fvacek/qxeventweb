@@ -92,12 +92,12 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
       const response = await localMicrosoftAuthService.signInWithPopup();
       if (response.account) {
         const user: LocalMicrosoftUser = {
-          id: response.account.localAccountId || response.account.homeAccountId,
-          email: response.account.username || response.account.idTokenClaims?.email || '',
-          name: response.account.name || response.account.idTokenClaims?.name || '',
-          given_name: response.account.idTokenClaims?.given_name,
-          family_name: response.account.idTokenClaims?.family_name,
-          preferred_username: response.account.idTokenClaims?.preferred_username || response.account.username,
+          id: response.account.localAccountId || response.account.homeAccountId || '',
+          email: response.account.username || (response.account.idTokenClaims as any)?.email || '',
+          name: response.account.name || (response.account.idTokenClaims as any)?.name || '',
+          given_name: (response.account.idTokenClaims as any)?.given_name,
+          family_name: (response.account.idTokenClaims as any)?.family_name,
+          preferred_username: (response.account.idTokenClaims as any)?.preferred_username || response.account.username,
         };
         handleSignInSuccess(user);
       }
@@ -195,89 +195,12 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
         </div>
       )}
 
-      {/* Configuration Help */}
+      {/* Configuration Help - Minimal */}
       {!props.clientId && (
-        <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div class="flex">
-            <div class="shrink-0">
-              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-blue-800">Configuration Required</h3>
-              <div class="mt-2">
-                <p class="text-sm text-blue-700">
-                  Please set your Azure AD client ID and tenant type:
-                </p>
-                <pre class="mt-2 text-xs bg-blue-100 p-2 rounded overflow-x-auto">
-{`<LocalMicrosoftSignIn 
-  clientId="your-azure-ad-client-id"
-  tenantType="consumers" // or "organizations" or "common"
-  redirectUri="${window.location.origin}/" // Add this to Azure AD
-/>`}
-                </pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Redirect URI Help */}
-      {error() && error()?.includes('redirect_uri') && (
-        <div class="bg-orange-50 border border-orange-200 rounded-md p-4">
-          <div class="flex">
-            <div class="shrink-0">
-              <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-orange-800">Azure AD Redirect URI Setup</h3>
-              <div class="mt-2 text-sm text-orange-700">
-                <p class="mb-2">Add these redirect URIs to your Azure AD app registration:</p>
-                <ol class="list-decimal list-inside space-y-1">
-                  <li>Go to <a href="https://portal.azure.com" target="_blank" class="underline">Azure Portal</a></li>
-                  <li>Navigate to "Azure Active Directory" → "App registrations" → Your App</li>
-                  <li>Click "Authentication" in the sidebar</li>
-                  <li>Under "Single-page application", click "Add URI"</li>
-                  <li>Add: <code class="bg-orange-100 px-1 rounded">{window.location.origin}/</code></li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Consumer Account Error Help */}
-      {error() && (error()?.includes('unauthorized_client') || error()?.includes('not enabled for consumers') || error()?.includes('not configured for personal accounts')) && (
-        <div class="bg-red-50 border border-red-200 rounded-md p-4">
-          <div class="flex">
-            <div class="shrink-0">
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">App Not Configured for Personal Accounts</h3>
-              <div class="mt-2 text-sm text-red-700">
-                <p class="mb-2">Your Azure AD app registration needs to be configured for personal Microsoft accounts:</p>
-                <ol class="list-decimal list-inside space-y-1 mb-3">
-                  <li>Go to <a href="https://portal.azure.com" target="_blank" class="underline">Azure Portal</a></li>
-                  <li>Navigate to "Azure Active Directory" → "App registrations" → Your App</li>
-                  <li>On the Overview page, check "Supported account types"</li>
-                  <li>If it shows "Single tenant" or "Multitenant", click "Change"</li>
-                  <li>Select <strong>"Personal Microsoft accounts only"</strong> or <strong>"Accounts in any organizational directory and personal Microsoft accounts"</strong></li>
-                  <li>Click "Save"</li>
-                </ol>
-                <div class="bg-red-100 p-2 rounded">
-                  <strong>Alternative:</strong> Change tenantType to "organizations" if you only want work/school accounts:
-                  <br/>
-                  <code class="text-xs">tenantType="organizations"</code>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <p class="text-sm text-blue-800">
+            Please set your Azure AD client ID: <code class="bg-blue-100 px-1 rounded">clientId="your-client-id"</code>
+          </p>
         </div>
       )}
     </div>
