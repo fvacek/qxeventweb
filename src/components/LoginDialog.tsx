@@ -53,14 +53,13 @@ const LoginDialog: Component<LoginDialogProps> = (props) => {
             size="large"
           />
 
-
-
           <LocalMicrosoftSignIn
             onSuccess={handleMicrosoftSuccess}
             onError={handleMicrosoftError}
             buttonText="Sign in with Microsoft"
             clientId="91558390-82a8-4607-8a39-29046dbe3a14"
-            tenantType="consumers"
+            // tenantType="consumers" // MSAL only tenant
+            tenantType="common"
             redirectUri={typeof window !== 'undefined' ? `${window.location.origin}/` : undefined}
           />
 
