@@ -7,7 +7,7 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
-import LateEntries from "../components/LateEntries";
+import LateEntries from "../components/Entries";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 
@@ -180,14 +180,14 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
           <Tabs defaultValue="event-info" class="w-full">
             <TabsList class="grid w-full grid-cols-2">
               <TabsTrigger value="event-info">Event</TabsTrigger>
-              <TabsTrigger value="late-entries">Late Entries</TabsTrigger>
+              <TabsTrigger value="entries">Entries</TabsTrigger>
             </TabsList>
 
             <TabsContent value="event-info" class="space-y-4">
               <EventInfo eventConfig={eventConfig} />
             </TabsContent>
 
-            <TabsContent value="late-entries" class="space-y-4">
+            <TabsContent value="entries" class="space-y-4">
               <LateEntries eventId={eventId()} eventConfig={() => eventConfig} currentStage={currentStage()} />
             </TabsContent>
           </Tabs>

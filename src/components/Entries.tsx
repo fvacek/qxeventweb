@@ -53,7 +53,7 @@ const RunSchema = object({
 
 type Run = InferOutput<typeof RunSchema>;
 
-function LateEntriesTable(props: {
+function EntriesTable(props: {
   className: () => string;
   eventConfig: () => EventConfig;
   eventId: () => number;
@@ -307,7 +307,7 @@ function LateEntriesTable(props: {
     },
     {
       key: "registration",
-      header: "Registration",
+      header: "Reg",
       sortable: true,
       width: "100px",
     },
@@ -493,7 +493,7 @@ function ClassSelector(props: {
   );
 }
 
-const LateEntries = (props: {
+const Entries = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
   currentStage: number
@@ -595,7 +595,7 @@ const LateEntries = (props: {
             </Button>
           </div>
         </div>
-        <LateEntriesTable
+        <EntriesTable
           className={className}
           eventConfig={eventConfig}
           eventId={eventId}
@@ -612,4 +612,4 @@ const LateEntries = (props: {
   );
 };
 
-export default LateEntries;
+export default Entries;
