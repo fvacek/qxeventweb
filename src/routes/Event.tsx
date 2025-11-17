@@ -7,9 +7,9 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
-import LateEntries from "../components/Entries";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
+import Entries from "../components/Entries";
 
 export type StageConfig = {
   stageStart: Date;
@@ -149,9 +149,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       // Subscribe to event SQL path (used by LateEntries)
       console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
       client.subscribe("qxeventweb", appConfig.eventSqlApiPath(eid), "recchng", (path: string, method: string, param?: RpcValue) => {
-        console.log("Received signal:", path, method, param);
         const recchng: RecChng = parse(RecChngSchema, param);
-        console.log("recchng:", recchng);
         setRecchngReceived(recchng);
       });
     }
@@ -188,7 +186,12 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
             </TabsContent>
 
             <TabsContent value="entries" class="space-y-4">
-              <LateEntries eventId={eventId()} eventConfig={() => eventConfig} currentStage={currentStage()} />
+              <Entries
+                eventId={eventId()}
+                eventConfig={() => eventConfig}
+                currentStage={currentStage()}
+                recchngReceived={recchngReceived}
+              />
             </TabsContent>
           </Tabs>
         </div>

@@ -64,11 +64,10 @@ function EntriesTable(props: {
   setLoading: (loading: boolean) => void;
   onReload: () => void;
   onAddEntry: () => void;
+  recchngReceived: () => RecChng | null;
 }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
-  const { recchngReceived } = useSubscribe();
-
 
   const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
@@ -78,7 +77,7 @@ function EntriesTable(props: {
   let editingRunId: number | null = null;
 
   createEffect(() => {
-    const recchng = recchngReceived();
+    const recchng = props.recchngReceived();
     if (recchng) {
       untrack(() => {
         // setTableRecords() causes infinite reactive recursion without this untrack
@@ -90,15 +89,20 @@ function EntriesTable(props: {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
+    
     if (op === SqlOperation.Update) {
-      const originalRun = (table === "runs")
-        ? props.runs().find((run: Run) => run.runId === id)
-        : (table === "competitors")
-        ? props.runs().find((run: Run) => run.competitorId === id)
-        : undefined;
-      if (originalRun !== undefined) {
-        const updatedRun = { ...originalRun, ...record };
-        props.setRuns((prev: Run[]) => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+      if (table === "runs") {
+        const originalRun = props.runs().find((run: Run) => run.runId === id);
+        if (originalRun !== undefined) {
+          const updatedRun = { ...originalRun, ...record };
+          props.setRuns((prev: Run[]) => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+        }
+      } else if (table === "competitors") {
+        const originalRun = props.runs().find((run: Run) => run.competitorId === id);
+        if (originalRun !== undefined) {
+          const updatedRun = { ...originalRun, ...record };
+          props.setRuns((prev: Run[]) => prev.map(run => run.competitorId === id ? updatedRun : run));
+        }
       }
     } else if (op === SqlOperation.Insert) {
     } else if (op === SqlOperation.Delete) {
@@ -496,7 +500,8 @@ function ClassSelector(props: {
 const Entries = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
-  currentStage: number
+  currentStage: number,
+  recchngReceived: () => RecChng | null
 }) => {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -524,6 +529,8 @@ const Entries = (props: {
   const [className, setClassName] = createSignal("");
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
+
+
 
   const addEntry = () => {
     const currentRuns = runs();
@@ -606,6 +613,7 @@ const Entries = (props: {
           setLoading={setLoading}
           onReload={reloadTable}
           onAddEntry={addEntry}
+          recchngReceived={props.recchngReceived}
         />
       </div>
     </div>
