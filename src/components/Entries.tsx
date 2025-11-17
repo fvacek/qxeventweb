@@ -41,14 +41,14 @@ import { EventConfig } from "~/routes/Event";
 
 // Valibot schema for Run validation
 const RunSchema = object({
-  runId: number(),
-  competitorId: number(),
-  className: undefinedable(string()),
-  firstName: undefinedable(string()),
-  lastName: undefinedable(string()),
+  run_id: number(),
+  competitor_id: number(),
+  class_name: undefinedable(string()),
+  firstname: undefinedable(string()),
+  lastname: undefinedable(string()),
   registration: undefinedable(string()),
-  siId: undefinedable(number()),
-  startTimeMs: undefinedable(number()),
+  siid: undefinedable(number()),
+  starttimems: undefinedable(number()),
 });
 
 type Run = InferOutput<typeof RunSchema>;
@@ -69,7 +69,7 @@ function EntriesTable(props: {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
 
-  const [sortBy, setSortBy] = createSignal<keyof Run>("lastName");
+  const [sortBy, setSortBy] = createSignal<keyof Run>("lastname");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   // Edit dialog state
@@ -89,19 +89,19 @@ function EntriesTable(props: {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
-    
+    console.log("Entries: recchngReceived value:", recchng);
     if (op === SqlOperation.Update) {
       if (table === "runs") {
-        const originalRun = props.runs().find((run: Run) => run.runId === id);
+        const originalRun = props.runs().find((run: Run) => run.run_id === id);
         if (originalRun !== undefined) {
           const updatedRun = { ...originalRun, ...record };
-          props.setRuns((prev: Run[]) => prev.map(run => run.runId === updatedRun.runId ? updatedRun : run));
+          props.setRuns((prev: Run[]) => prev.map(run => run.run_id === updatedRun.run_id ? updatedRun : run));
         }
       } else if (table === "competitors") {
-        const originalRun = props.runs().find((run: Run) => run.competitorId === id);
+        const originalRun = props.runs().find((run: Run) => run.competitor_id === id);
         if (originalRun !== undefined) {
           const updatedRun = { ...originalRun, ...record };
-          props.setRuns((prev: Run[]) => prev.map(run => run.competitorId === id ? updatedRun : run));
+          props.setRuns((prev: Run[]) => prev.map(run => run.competitor_id === id ? updatedRun : run));
         }
       }
     } else if (op === SqlOperation.Insert) {
@@ -178,26 +178,26 @@ function EntriesTable(props: {
 
 
 
-  let firstNameRef!: HTMLInputElement;
-  let lastNameRef!: HTMLInputElement;
+  let firstnameRef!: HTMLInputElement;
+  let lastnameRef!: HTMLInputElement;
   let registrationRef!: HTMLInputElement;
   let siIdRef!: HTMLInputElement;
   let startTimeRef!: HTMLInputElement;
 
   const openRunEditDialog = (id: number) => {
     editingRunId = null;
-    const runToEdit = props.runs().find(run => run.runId === id);
+    const runToEdit = props.runs().find(run => run.run_id === id);
     if (runToEdit) {
       editingRunId = id;
       setRunEditDialogOpen(true);
 
       // Populate form fields directly using refs
       setTimeout(() => {
-        firstNameRef.value = runToEdit.firstName || "";
-        lastNameRef.value = runToEdit.lastName || "";
+        firstnameRef.value = runToEdit.firstname || "";
+        lastnameRef.value = runToEdit.lastname || "";
         registrationRef.value = runToEdit.registration || "";
-        siIdRef.value = runToEdit.siId?.toString() || "";
-        startTimeRef.value = formatStartTime(runToEdit.startTimeMs);
+        siIdRef.value = runToEdit.siid?.toString() || "";
+        startTimeRef.value = formatStartTime(runToEdit.starttimems);
       }, 0);
     }
   };
@@ -205,16 +205,16 @@ function EntriesTable(props: {
   const acceptRunEditDialog = () => {
     if (editingRunId === null) return;
 
-    const originalRun = props.runs().find(run => run.runId === editingRunId)!;
+    const originalRun = props.runs().find(run => run.run_id === editingRunId)!;
 
     // Collect form values from refs and create updated run
     const updatedRun: Run = {
       ...originalRun,
-      firstName: firstNameRef.value || undefined,
-      lastName: lastNameRef.value || undefined,
+      firstname: firstnameRef.value || undefined,
+      lastname: lastnameRef.value || undefined,
       registration: registrationRef.value || undefined,
-      siId: siIdRef.value ? parseInt(siIdRef.value) : undefined,
-      startTimeMs: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
+      siid: siIdRef.value ? parseInt(siIdRef.value) : undefined,
+      starttimems: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
     };
 
     setRunEditDialogOpen(false);
@@ -228,12 +228,12 @@ function EntriesTable(props: {
   };
 
   const deleteEntry = (id: number) => {
-    props.setRuns(props.runs().filter((user) => user.runId !== id));
+    props.setRuns(props.runs().filter((user) => user.run_id !== id));
   };
 
   const updateRunInDb = async (newRun: Run) => {
     try {
-      const origRun = props.runs().find(run => newRun.runId === run.runId)!;
+      const origRun = props.runs().find(run => newRun.run_id === run.run_id)!;
 
       const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue => {
         return makeMap({
@@ -243,13 +243,13 @@ function EntriesTable(props: {
           issuer: "fanda"
         });
       };
-      const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstName", "lastName", "registration"]);
+      const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstname", "lastname", "registration"]);
       if (!isRecordEmpty(competitors_record)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('competitors', origRun.competitorId, competitors_record));
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('competitors', origRun.competitor_id, competitors_record));
       }
-      const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "startTimeMs"]);
+      const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "starttimems"]);
       if (!isRecordEmpty(runs_record)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('runs', origRun.runId, runs_record));
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('runs', origRun.run_id, runs_record));
       }
       showToast({
         title: "Update run success",
@@ -277,16 +277,16 @@ function EntriesTable(props: {
   // Table columns configuration with sorting
   const columns: TableColumn<Run>[] = [
     {
-      key: "startTimeMs",
+      key: "starttimems",
       header: "Start Time",
       cell: (run: Run) => {
-        if (run.startTimeMs === undefined) {
+        if (run.starttimems === undefined) {
           return <span>—</span>;
         }
         const eventConfig = props.eventConfig();
         const stageStart = eventConfig.stages[props.currentStage()].stageStart;
         return (
-          <span>{formatStartTime(run.startTimeMs)}</span>
+          <span>{formatStartTime(run.starttimems)}</span>
         );
       },
       sortable: true,
@@ -296,15 +296,15 @@ function EntriesTable(props: {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
-        const fullName = [entry.firstName, entry.lastName]
+        const fullName = [entry.firstname, entry.lastname]
           .filter((name) => name !== undefined && name.trim() !== "")
           .join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => {
-        const aName = [a.firstName, a.lastName].filter((n) => n).join(" ");
-        const bName = [b.firstName, b.lastName].filter((n) => n).join(" ");
+        const aName = [a.firstname, a.lastname].filter((n) => n).join(" ");
+        const bName = [b.firstname, b.lastname].filter((n) => n).join(" ");
         return aName.localeCompare(bName);
       },
       width: "250px",
@@ -329,7 +329,7 @@ function EntriesTable(props: {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => openRunEditDialog(run.runId)}
+          onClick={() => openRunEditDialog(run.run_id)}
         >
           Edit
         </Button>
@@ -365,7 +365,7 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                ref={firstNameRef}
+                ref={firstnameRef}
                 type="text"
               />
             </TextField>
@@ -373,7 +373,7 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                ref={lastNameRef}
+                ref={lastnameRef}
                 type="text"
               />
             </TextField>
@@ -534,16 +534,16 @@ const Entries = (props: {
 
   const addEntry = () => {
     const currentRuns = runs();
-    const maxId = currentRuns.length > 0 ? Math.max(...currentRuns.map((u) => u.runId)) : 0;
+    const maxId = currentRuns.length > 0 ? Math.max(...currentRuns.map((u) => u.run_id)) : 0;
     const newEntry: Run = {
-        runId: maxId + 1,
-        firstName: `Fanda${currentRuns.length + 1}`,
-        lastName: `Vacek${currentRuns.length + 1}`,
-        className: className() || "H55",
-        startTimeMs: undefined,
+        run_id: maxId + 1,
+        firstname: `Fanda${currentRuns.length + 1}`,
+        lastname: `Vacek${currentRuns.length + 1}`,
+        class_name: className() || "H55",
+        starttimems: undefined,
         registration: "CHT7001",
-        siId: undefined,
-        competitorId: 1234 + currentRuns.length
+        siid: undefined,
+        competitor_id: 1234 + currentRuns.length
     };
     setRuns([...currentRuns, newEntry]);
   };
@@ -555,8 +555,8 @@ const Entries = (props: {
 
     try {
       const runs_result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(eventId()), "query", [
-        `SELECT runs.id as run_id, runs.siid as si_id, runs.starttimems as start_time_ms,
-                competitors.id as competitor_id, competitors.firstname as first_name, competitors.lastname as last_name, competitors.registration,
+        `SELECT runs.id as run_id, runs.siid, runs.starttimems,
+                competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                 classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
