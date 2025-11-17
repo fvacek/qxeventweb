@@ -64,6 +64,16 @@ export class LocalMicrosoftAuthService {
     });
   }
 
+  async signInWithPopupWithScopes(scopes: string[]) {
+    await this.initialize();
+    if (!this.msal) throw new Error('MSAL not initialized');
+
+    return await this.msal.loginPopup({
+      scopes: scopes,
+      prompt: "select_account",
+    });
+  }
+
   async signInWithRedirect() {
     await this.initialize();
     if (!this.msal) throw new Error('MSAL not initialized');
@@ -102,6 +112,24 @@ export class LocalMicrosoftAuthService {
       const response = await this.msal.acquireTokenPopup(silentRequest);
       return response.accessToken;
     }
+  }
+
+  async requestAdditionalConsent(scopes: string[]) {
+    await this.initialize();
+    if (!this.msal) throw new Error('MSAL not initialized');
+
+    const accounts = this.msal.getAllAccounts();
+    if (accounts.length === 0) {
+      throw new Error('No authenticated accounts found');
+    }
+
+    const request = {
+      scopes: scopes,
+      account: accounts[0],
+      prompt: "consent",
+    };
+
+    return await this.msal.acquireTokenPopup(request);
   }
 
   getCurrentUser() {

@@ -1,7 +1,51 @@
-import { Component, createSignal, onMount } from "solid-js";
+import { Component, createSignal, onMount, onCleanup } from "solid-js";
 import { useAuth, type AuthUser } from "~/context/AuthContext";
 import { localMicrosoftAuthService, type LocalMicrosoftUser } from "~/auth/msal-local";
 import { showToast } from "~/components/ui/toast";
+
+/**
+ * LocalMicrosoftSignIn Component
+ * 
+ * A comprehensive Microsoft authentication component with avatar support.
+ * Integrates with Microsoft Graph API to fetch user profile pictures.
+ * 
+ * Features:
+ * - Microsoft OAuth authentication via MSAL
+ * - Automatic avatar fetching from Microsoft Graph API
+ * - Proper memory management for blob URLs
+ * - Graceful fallback when avatar permissions are missing
+ * - Interactive consent for additional permissions
+ * - Toast notifications for user feedback
+ * 
+ * Avatar Support:
+ * - Automatically requests User.Read scope during sign-in when enabled
+ * - Falls back to interactive consent if initial auth lacks permissions
+ * - Handles users without profile photos gracefully
+ * - Cleans up object URLs to prevent memory leaks
+ * 
+ * @example
+ * // Basic usage with avatar (default)
+ * <LocalMicrosoftSignIn 
+ *   clientId="your-azure-ad-client-id"
+ *   onSuccess={(user) => console.log('Avatar URL:', user.avatar)}
+ * />
+ * 
+ * @example
+ * // Disable avatar fetching
+ * <LocalMicrosoftSignIn 
+ *   clientId="your-azure-ad-client-id"
+ *   enableAvatar={false}
+ * />
+ * 
+ * @example
+ * // With custom tenant and redirect
+ * <LocalMicrosoftSignIn 
+ *   clientId="your-azure-ad-client-id"
+ *   tenantType="organizations"
+ *   redirectUri="https://yourapp.com/auth/callback"
+ *   buttonText="Sign in with Work Account"
+ * />
+ */
 
 interface LocalMicrosoftSignInProps {
   onSuccess?: (user: AuthUser) => void
@@ -10,6 +54,12 @@ interface LocalMicrosoftSignInProps {
   clientId?: string
   tenantType?: 'consumers' | 'organizations' | 'common' | string
   redirectUri?: string
+  /** 
+   * Whether to fetch and include user avatar from Microsoft Graph API.
+   * Requires User.Read permission. Defaults to true.
+   * If consent fails, authentication continues without avatar.
+   */
+  enableAvatar?: boolean
 }
 
 const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
@@ -17,18 +67,100 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [isInitialized, setIsInitialized] = createSignal(false);
+  const [currentAvatarUrl, setCurrentAvatarUrl] = createSignal<string | null>(null);
 
-  const convertToAuthUser = (microsoftUser: LocalMicrosoftUser): AuthUser => {
+  const convertToAuthUser = (microsoftUser: LocalMicrosoftUser, avatar?: string): AuthUser => {
     return {
       email: microsoftUser.email,
       name: microsoftUser.name,
-      avatar: undefined // Microsoft Graph API would be needed for profile picture
+      avatar: avatar
     };
   };
 
-  const handleSignInSuccess = (microsoftUser: LocalMicrosoftUser) => {
+  const handleSignInSuccess = async (microsoftUser: LocalMicrosoftUser) => {
     console.log('Local Microsoft sign-in successful:', microsoftUser);
-    const authUser = convertToAuthUser(microsoftUser);
+
+    // Try to fetch avatar from Microsoft Graph API if enabled
+    let avatar: string | undefined = undefined;
+    if (props.enableAvatar !== false) {
+      try {
+        const accessToken = await localMicrosoftAuthService.getAccessToken(['User.Read']);
+        if (accessToken) {
+          const response = await fetch('https://graph.microsoft.com/v1.0/me/photo/$value', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            avatar = URL.createObjectURL(blob);
+
+            // Clean up previous avatar URL if it exists
+            const prevUrl = currentAvatarUrl();
+            if (prevUrl) {
+              URL.revokeObjectURL(prevUrl);
+            }
+            setCurrentAvatarUrl(avatar);
+          } else if (response.status === 404) {
+            // User doesn't have a profile photo - this is normal
+            console.log('User has no profile photo');
+          } else {
+            console.warn('Failed to fetch profile photo:', response.status, response.statusText);
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes('consent_required') || error.message.includes('invalid_grant')) {
+            console.log('User needs to consent to User.Read permission for avatar. Attempting to request consent...');
+            
+            // Try to request additional consent for User.Read
+            try {
+              await localMicrosoftAuthService.requestAdditionalConsent(['User.Read']);
+              // Retry avatar fetch after consent
+              const retryToken = await localMicrosoftAuthService.getAccessToken(['User.Read']);
+              if (retryToken) {
+                const retryResponse = await fetch('https://graph.microsoft.com/v1.0/me/photo/$value', {
+                  headers: {
+                    'Authorization': `Bearer ${retryToken}`
+                  }
+                });
+                
+                if (retryResponse.ok) {
+                  const blob = await retryResponse.blob();
+                  avatar = URL.createObjectURL(blob);
+                  
+                  // Clean up previous avatar URL if it exists
+                  const prevUrl = currentAvatarUrl();
+                  if (prevUrl) {
+                    URL.revokeObjectURL(prevUrl);
+                  }
+                  setCurrentAvatarUrl(avatar);
+                  
+                  showToast({
+                    title: "Avatar loaded",
+                    description: "Profile picture is now available",
+                    variant: "success"
+                  });
+                }
+              }
+            } catch (consentError) {
+              console.warn('Failed to get additional consent for avatar:', consentError);
+              showToast({
+                title: "Avatar unavailable",
+                description: "Additional permissions needed for profile picture",
+                variant: "warning"
+              });
+            }
+          } else {
+            console.warn('Failed to fetch user avatar:', error);
+          }
+        }
+        // Continue without avatar - not a critical error
+      }
+    }
+
+    const authUser = convertToAuthUser(microsoftUser, avatar);
     setUser(authUser);
     props.onSuccess?.(authUser);
     showToast({
@@ -89,7 +221,13 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
     setError(null);
 
     try {
-      const response = await localMicrosoftAuthService.signInWithPopup();
+      // Include User.Read scope if avatar is enabled
+      const scopes = ["openid", "profile", "email"];
+      if (props.enableAvatar !== false) {
+        scopes.push("User.Read");
+      }
+      
+      const response = await localMicrosoftAuthService.signInWithPopupWithScopes(scopes);
       if (response.account) {
         const user: LocalMicrosoftUser = {
           id: response.account.localAccountId || response.account.homeAccountId || '',
@@ -99,7 +237,7 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
           family_name: (response.account.idTokenClaims as any)?.family_name,
           preferred_username: (response.account.idTokenClaims as any)?.preferred_username || response.account.username,
         };
-        handleSignInSuccess(user);
+        await handleSignInSuccess(user);
       }
     } catch (error: any) {
       // Provide specific error messages for common issues
@@ -123,6 +261,14 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
 
   onMount(async () => {
     await initializeService();
+  });
+
+  onCleanup(() => {
+    // Clean up avatar object URL when component is unmounted
+    const avatarUrl = currentAvatarUrl();
+    if (avatarUrl) {
+      URL.revokeObjectURL(avatarUrl);
+    }
   });
 
   return (
@@ -157,15 +303,6 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
         </div>
       )}
 
-      {/*{isInitialized() && (
-        <div class="flex items-center justify-center text-sm text-green-600">
-          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-          Ready to sign in
-        </div>
-      )}*/}
-
       {/* Error Display */}
       {error() && (
         <div class="bg-red-50 border border-red-200 rounded-md p-4">
@@ -180,16 +317,6 @@ const LocalMicrosoftSignIn: Component<LocalMicrosoftSignInProps> = (props) => {
               <div class="mt-2">
                 <p class="text-sm text-red-700">{error()}</p>
               </div>
-              {/*{error()?.includes("Client ID") && (
-                <div class="mt-2">
-                  <p class="text-xs text-red-600">
-                    💡 Set your Azure AD client ID: <br/>
-                    <code class="bg-red-100 px-1 rounded">
-                      &lt;LocalMicrosoftSignIn clientId="your-client-id" /&gt;
-                    </code>
-                  </p>
-                </div>
-              )}*/}
             </div>
           </div>
         </div>
