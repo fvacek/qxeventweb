@@ -48,6 +48,7 @@ import {
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 
+
 const EventListItemSchema = object({
   id: number(),
   name: undefinedable(string()),
@@ -215,6 +216,7 @@ function EventsTable() {
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
   const [originalRecord, setOriginalRecord] = createSignal<Event | null>(null);
 
+
   const deleteRecord = (id: number) => {
     setTableRecords(tableRecords().filter((user) => user.id !== id));
   };
@@ -345,9 +347,7 @@ function EventsTable() {
     setOriginalRecord(null);
   };
 
-  const rejectEditRecordDialog = () => {
-    setEditRecordDialogOpen(false);
-    setOriginalRecord(null);
+  const clearFormData = () => {
     setFormData({
       id: 0,
       name: undefined,
@@ -355,6 +355,23 @@ function EventsTable() {
       api_token: undefined,
       owner: undefined,
     });
+  };
+
+  const rejectEditRecordDialog = () => {
+    setEditRecordDialogOpen(false);
+    setOriginalRecord(null);
+    clearFormData();
+  };
+
+  const deleteEditedRecord = async () => {
+    const record = originalRecord();
+    if (record) {
+      setEditRecordDialogOpen(false);
+      setOriginalRecord(null);
+      clearFormData();
+      await deleteRecordInDb(record.id);
+      reloadTable();
+    }
   };
 
   const createRecordInDb = async (newRecord: Event) => {
@@ -412,6 +429,32 @@ function EventsTable() {
       });
     }
   };
+
+  const deleteRecordInDb = async (id: number) => {
+    try {
+      if (await callRpcMethod(
+        wsClient(),
+        `${appConfig.qxeventdPath}/sql`,
+        "delete",
+        makeMap({ table: "events", id: id }),
+      )) {
+        showToast({
+          title: "Delete event success",
+        });
+      } else {
+        throw new Error("Failed to delete event");
+      }
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      showToast({
+        title: "Delete event error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+
+
 
   onMount(() => {
     // console.log("EVENTS MOUNTED");
@@ -595,9 +638,13 @@ function EventsTable() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={rejectEditRecordDialog}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={rejectEditRecordDialog}> Cancel </Button>
+            <Button variant="destructive" onClick={() => {
+              const record = originalRecord();
+              if (record && confirm(`Are you sure you want to delete the event "${record.name || 'this event'}"?\n\nThis action cannot be undone.`)) {
+                deleteEditedRecord();
+              }
+            }}> Delete </Button>
             <Button
               onClick={acceptEditRecordDialog}
               disabled={!isFormValid() || (!originalRecord() && !isFormDirty())}
@@ -607,6 +654,8 @@ function EventsTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }
