@@ -8,13 +8,7 @@ import QRCode from "qrcode";
 import { Button } from "~/components/ui/button";
 import {
   Table,
-  TableBody,
-  TableCell,
   TableColumn,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from "~/components/ui/table";
 import {
   Dialog,
@@ -78,6 +72,25 @@ function EventsTable() {
   const appConfig = useAppConfig();
   const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
+
+  // Generate random API token with vowel-consonant pattern
+  const generateApiToken = (): string => {
+    const vowels = ['a', 'e', 'i', 'o', 'u'];
+    const consonants = ['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    let token = '';
+
+    for (let i = 0; i < 10; i++) {
+      if (i % 2 === 0) {
+        // Even positions: vowels
+        token += vowels[Math.floor(Math.random() * vowels.length)];
+      } else {
+        // Odd positions: consonants
+        token += consonants[Math.floor(Math.random() * consonants.length)];
+      }
+    }
+
+    return token;
+  };
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
@@ -178,7 +191,7 @@ function EventsTable() {
     setLoading(false);
   };
 
-  const addEntry = () => {
+  const createEvent = () => {
     const newId = tableRecords().length > 0 ? Math.max(...tableRecords().map((u) => u.id)) + 1 : 1;
     const currentUser = user();
 
@@ -187,7 +200,7 @@ function EventsTable() {
       id: newId,
       name: "",
       date: new Date().toISOString().split('T')[0], // Today's date as default
-      api_token: "",
+      api_token: generateApiToken(),
       owner: currentUser?.email || "",
     });
 
@@ -472,7 +485,7 @@ function EventsTable() {
       <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 class="text-xl sm:text-2xl font-bold">Events</h2>
         <div class="flex gap-2 flex-wrap">
-          <Button onClick={addEntry} size="sm" class="text-xs">Create event</Button>
+          <Button onClick={createEvent} size="sm" class="text-xs">Create event</Button>
           <Button variant="outline" onClick={reloadTable} disabled={loading()} size="sm" class="text-xs">
             {loading() ? "Loading..." : "Refresh"}
           </Button>
@@ -544,16 +557,12 @@ function EventsTable() {
                 }}
               />
             </TextField>
-
             <TextField>
               <TextFieldLabel>API token</TextFieldLabel>
               <TextFieldInput
                 value={formData().api_token || ""}
                 type="text"
-                onInput={(e) => {
-                  const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => ({ ...prev, api_token: value || undefined }));
-                }}
+                readOnly={true}
               />
             </TextField>
 
