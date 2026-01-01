@@ -32,9 +32,6 @@ importers:
       libshv-js:
         specifier: ^5.0.0
         version: 5.0.1
-      oidc-client-ts:
-        specifier: ^3.3.0
-        version: 3.3.0
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
@@ -892,10 +889,6 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  jwt-decode@4.0.0:
-    resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
-    engines: {node: '>=18'}
-
   libshv-js@5.0.1:
     resolution: {integrity: sha512-e8pLle/QL1RzJbHivUd0M/UdsLoZFb6Q3hQ34WuwU1zb5f3QdZsFW8fJ0JRykA+T3Eqei1CfGmO48ZIDVJ67fQ==}
 
@@ -1000,10 +993,6 @@ packages:
   normalize-range@0.1.2:
     resolution: {integrity: sha512-bdok/XvKII3nUpklnV6P2hxtMNrCboOjAcyBuQnWEhO665FwrSNRxU+AqpsyvO6LgGYPspN+lu5CLtw4jPRKNA==}
     engines: {node: '>=0.10.0'}
-
-  oidc-client-ts@3.3.0:
-    resolution: {integrity: sha512-t13S540ZwFOEZKLYHJwSfITugupW4uYLwuQSSXyKH/wHwZ+7FvgHE7gnNJh1YQIZ1Yd1hKSRjqeXGSUtS0r9JA==}
-    engines: {node: '>=18'}
 
   p-limit@2.3.0:
     resolution: {integrity: sha512-//88mFWSJx8lxCzwdAABTJL2MyWB12+eIY7MDL2SqLmAkeKU9qxRvWuSyTjm3FUmpBEMuFfckAIqEaVGUDxb6w==}
@@ -2032,8 +2021,6 @@ snapshots:
 
   json5@2.2.3: {}
 
-  jwt-decode@4.0.0: {}
-
   libshv-js@5.0.1: {}
 
   lightningcss-android-arm64@1.30.2:
@@ -2110,10 +2097,6 @@ snapshots:
   node-releases@2.0.26: {}
 
   normalize-range@0.1.2: {}
-
-  oidc-client-ts@3.3.0:
-    dependencies:
-      jwt-decode: 4.0.0
 
   p-limit@2.3.0:
     dependencies:

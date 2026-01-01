@@ -39,6 +39,7 @@ import {
   undefinedable,
   safeParse,
   array,
+  boolean,
 } from "valibot";
 import {
   copyRecordChanges as copyValidFieldsToRpcMap,
@@ -47,11 +48,13 @@ import {
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
+import { Switch, SwitchControl, SwitchLabel, SwitchThumb } from "~/components/ui/switch";
 
 const EventDataSchema = object({
   name: undefinedable(string()),
   date: undefinedable(string()),
   owner: undefinedable(string()),
+  is_local: undefinedable(boolean()),
 });
 type EventData = InferOutput<typeof EventDataSchema>;
 
@@ -61,17 +64,108 @@ const FormDataSchema = object({
   date: undefinedable(string()),
   api_token: undefinedable(string()),
   owner: undefinedable(string()),
+  is_local: undefinedable(boolean()),
 });
 type FormData = InferOutput<typeof FormDataSchema>;
 
-const EventListItemSchema = object({
+const EventRecordSchema = object({
   id: number(),
   api_token: undefinedable(string()),
   data: undefinedable(string()),
 });
-type EventListItem = InferOutput<typeof EventListItemSchema>;
+type EventRecord = InferOutput<typeof EventRecordSchema>;
 
-const EventListSchema = array(EventListItemSchema);
+const EventRecordListSchema = array(EventRecordSchema);
+
+// Conversion functions between EventRecord and FormData
+function eventRecordToFormData(eventRecord: EventRecord): FormData {
+  let eventData: EventData = { name: undefined, date: undefined, owner: undefined, is_local: undefined };
+
+  // Parse the data field if it exists and is a valid JSON string
+  if (eventRecord.data) {
+    try {
+      const parsedData = typeof eventRecord.data === 'string' ? JSON.parse(eventRecord.data) : eventRecord.data;
+      eventData = parsedData as EventData;
+    } catch (error) {
+      console.warn("Failed to parse event data JSON:", error);
+    }
+  }
+
+  return {
+    id: eventRecord.id,
+    name: eventData.name,
+    date: eventData.date,
+    api_token: eventRecord.api_token,
+    owner: eventData.owner,
+    is_local: eventData.is_local,
+  };
+}
+
+function formDataToEventRecord(formData: FormData): EventRecord {
+  const eventData: EventData = {
+      name: formData.name,
+      date: formData.date,
+      owner: formData.owner,
+      is_local: formData.is_local,
+  };
+
+  return {
+    id: formData.id,
+    api_token: formData.api_token,
+    data: JSON.stringify(eventData),
+  };
+}
+
+// Helper function to convert FormData changes to database update format
+function formDataChangesToEventRecord(changes: Partial<FormData>, origRecord: FormData): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  if (changes.api_token !== undefined) {
+    result.api_token = changes.api_token;
+  }
+
+  // Handle data field - only include if name, date, or owner changed
+  const dataFields: EventData = {
+    name: origRecord.name,
+    date: origRecord.date,
+    owner: origRecord.owner,
+    is_local: origRecord.is_local
+  };
+  let hasDataChanges = false;
+
+  if (changes.name !== undefined) {
+    dataFields.name = changes.name;
+    hasDataChanges = true;
+  }
+  if (changes.date !== undefined) {
+    dataFields.date = changes.date;
+    hasDataChanges = true;
+  }
+  if (changes.owner !== undefined) {
+    dataFields.owner = changes.owner;
+    hasDataChanges = true;
+  }
+
+  if (hasDataChanges) {
+    result.data = JSON.stringify(dataFields);
+  }
+
+  return result;
+}
+
+// Helper function to convert FormData to create record format for new events
+// function formDataToCreateRecord(formData: FormData): Record<string, any> {
+//   const eventData: EventData = {
+//     name: formData.name,
+//     date: formData.date,
+//     owner: formData.owner,
+//   };
+
+//   return {
+//     api_token: formData.api_token,
+//     data: JSON.stringify(eventData),
+//   };
+// }
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
@@ -79,10 +173,10 @@ function EventsTable() {
   const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
 
-  const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
+  const [tableRecords, setTableRecords] = createSignal<FormData[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof EventListItem>("id");
+  const [sortBy, setSortBy] = createSignal<keyof FormData>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   createEffect(() => {
@@ -115,8 +209,8 @@ function EventsTable() {
   const sortedEntries = createMemo(() => {
     const data = [...tableRecords()];
     return data.sort((a, b) => {
-      const aVal = a.data?.[sortBy() as keyof EventData];
-      const bVal = b.data?.[sortBy() as keyof EventData];
+      const aVal = a?.[sortBy() as keyof FormData];
+      const bVal = b?.[sortBy() as keyof FormData];
 
       // Handle null values - put nulls at the beginnig
       if (
@@ -146,18 +240,12 @@ function EventsTable() {
         makeMap({"table": "events", "fields": ["id", "api_token", "data"]}),
 
       );
-      const table = parse(EventListSchema, sql_select_result);
+      const table = parse(EventRecordListSchema, sql_select_result);
 
-      const transformedRecords: EventListItem[] = [];
+      const transformedRecords: FormData[] = [];
       for (const record of table) {
         try {
-          // Convert JSON string data to object if needed
-          const recordWithParsedData = {
-            ...record,
-            data: typeof record.data === 'string' ? JSON.parse(record.data) : record.data
-          };
-          const validatedRecord = parse(EventListItemSchema, recordWithParsedData);
-          transformedRecords.push(validatedRecord);
+          transformedRecords.push(eventRecordToFormData(record));
         } catch (error) {
           console.warn(`Skipping invalid record ${record}:`, error);
         }
@@ -174,50 +262,44 @@ function EventsTable() {
     }
     setLoading(false);
 
-    // Update data with fresh timestamps and randomized data
-    const refreshedEntries = tableRecords().map((entry) => ({
-      ...entry,
-    }));
+    // // Update data with fresh timestamps and randomized data
+    // const refreshedEntries = tableRecords().map((entry) => ({
+    //   ...entry,
+    // }));
 
-    setTableRecords(refreshedEntries);
-    setLoading(false);
+    // setTableRecords(refreshedEntries);
+    // setLoading(false);
   };
 
   const createEvent = async () => {
     const currentUser = user();
-    const eventId = await callRpcMethod(
+    const result = await callRpcMethod(
       wsClient(),
       `${appConfig.qxeventdPath}/event`,
       "createEvent",
       currentUser?.email || "",
     );
-    if (typeof eventId === 'number') {
-      showToast({
-        title: `Create event ${eventId} success`,
-      });
-      // Reload table to show new record
-      reloadTable();
-      openEditRecordDialog(eventId);
+    if (Array.isArray(result)) {
+      if (typeof result[0] === 'number') {
+        const eventId = result[0];
+        showToast({
+          title: `Create event ${eventId} success`,
+        });
+        // Reload table to show new record
+        await reloadTable();
+        openEditRecordDialog(eventId);
+      }
     }
   };
 
   // Edit dialog state
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
   const [originalRecord, setOriginalRecord] = createSignal<FormData | null>(null);
-
+  const [formData, setFormData] = createSignal<FormData | null>(null);
 
   const deleteRecord = (id: number) => {
     setTableRecords(tableRecords().filter((user) => user.id !== id));
   };
-
-  // Form state signals
-  const [formData, setFormData] = createSignal<FormData>({
-    id: 0,
-    name: undefined,
-    date: undefined,
-    api_token: undefined,
-    owner: undefined,
-  });
 
   const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
 
@@ -246,19 +328,22 @@ function EventsTable() {
   // Reactive QR code generation
   createEffect(() => {
     if (editRecordDialogOpen()) {
-      generateQRCode(formData().api_token || "");
+      generateQRCode(formData()?.api_token || "");
     }
   });
 
   // Check if form has been modified
   const isFormDirty = createMemo(() => {
     const orig = originalRecord();
+    const current = formData();
+    if (!current) {
+      // For new entries, form is dirty if any field has content
+      return false;
+    }
     if (!orig) {
       // For new entries, form is dirty if any field has content
-      const current = formData();
-      return !!(current.name || current.date || current.api_token || current.owner);
+      return !!(current.name || current.date || current.api_token || current.owner || current.is_local);
     }
-    const current = formData();
 
     // Normalize undefined/empty values for comparison
     const normalize = (val: string | undefined) => val || "";
@@ -286,6 +371,9 @@ function EventsTable() {
   // Form validation
   const isFormValid = createMemo(() => {
     const current = formData();
+    if (!current) {
+      return false;
+    }
     const isValid = !!(current.name && current.name.trim().length > 0);
     console.log('Form validation:', { current, isValid });
     return isValid;
@@ -297,20 +385,13 @@ function EventsTable() {
     if (eventItem) {
       setEditRecordDialogOpen(true);
 
-      const result = await callRpcMethod(
-        wsClient(),
-        `${appConfig.qxeventdPath}/sql`,
-        "read",
-        makeMap({"table": "events", "id": id}),
-      );
-      const parsedRecord = parse(EventDataSchema, result);
-
       const formRecord: FormData = {
         id: id,
-        name: parsedRecord.name,
-        date: parsedRecord.date,
-        api_token: undefined, // api_token is not in parsedRecord
-        owner: parsedRecord.owner,
+        name: eventItem.name,
+        date: eventItem.date,
+        api_token: eventItem.api_token,
+        owner: eventItem.owner,
+        is_local: eventItem.is_local,
       };
 
       setOriginalRecord(formRecord);
@@ -323,30 +404,23 @@ function EventsTable() {
   const acceptEditRecordDialog = () => {
     if (!isFormValid()) return;
 
-    const updatedRecord: FormData = formData();
     const orig = originalRecord();
+    assert(!!orig)
 
+    const updatedRecord = formData();
+    if (!updatedRecord) {
+      return;
+    }
     setEditRecordDialogOpen(false);
 
-    if (orig) {
-      // Update existing record
-      updateRecordInDb(orig, updatedRecord);
-    } else {
-      // Create new record
-      // createRecordInDb(updatedRecord);
-    }
+    // Update existing record
+    updateRecordInDb(orig, updatedRecord);
 
     setOriginalRecord(null);
   };
 
   const clearFormData = () => {
-    setFormData({
-      id: 0,
-      name: undefined,
-      date: undefined,
-      api_token: undefined,
-      owner: undefined,
-    });
+    setFormData(null);
   };
 
   const rejectEditRecordDialog = () => {
@@ -366,47 +440,17 @@ function EventsTable() {
     }
   };
 
-  // const createRecordInDb = async (newRecord: EventData) => {
-  //   try {
-  //     const recordData = {
-  //       name: newRecord.name,
-  //       date: newRecord.date,
-  //       api_token: newRecord.api_token,
-  //       owner: newRecord.owner,
-  //     };
-
-  //     await callRpcMethod(
-  //       wsClient(),
-  //       `${appConfig.qxeventdPath}/sql`,
-  //       "create",
-  //       makeMap({table: "events", record: makeMap(recordData)}),
-  //     );
-
-  //     showToast({
-  //       title: "Create event success",
-  //     });
-
-  //     // Reload table to show new record
-  //     reloadTable();
-  //   } catch (error) {
-  //     console.error("Error creating event:", error);
-  //     showToast({
-  //       title: "Create event error",
-  //       description: (error as Error).message,
-  //       variant: "destructive",
-  //     });
-  //   }
-  // };
-
   const updateRecordInDb = async (origRecord: FormData, updatedRecord: FormData) => {
     try {
-      const changes = copyValidFieldsToRpcMap(origRecord, updatedRecord);
-      if (!isRecordEmpty(changes)) {
+      const formChanges = copyValidFieldsToRpcMap(origRecord, updatedRecord);
+      const dbChanges = formDataChangesToEventRecord(formChanges, origRecord);
+
+      if (!isRecordEmpty(dbChanges)) {
         await callRpcMethod(
           wsClient(),
           `${appConfig.qxeventdPath}/sql`,
           "update",
-          makeMap({table: "events", id: origRecord.id, record: makeMap(changes)}),
+          makeMap({table: "events", id: origRecord.id, record: makeMap(dbChanges)}),
         );
       }
       showToast({
@@ -459,11 +503,11 @@ function EventsTable() {
   });
 
   // Table columns configuration with sorting - optimized for mobile
-  const columns: TableColumn<EventListItem>[] = [
+  const columns: TableColumn<FormData>[] = [
     {
       key: "id",
       header: "ID",
-      cell: (rec: EventListItem) => {
+      cell: (rec: FormData) => {
         return <span class="text-sm">{rec.id}</span>;
       },
       sortable: true,
@@ -473,8 +517,8 @@ function EventsTable() {
     {
       key: "name",
       header: "Name",
-      cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[120px] block" title={rec.data?.name}><a href={`event/${rec.id}`}>{rec.data?.name}</a></span>;
+      cell: (rec: FormData) => {
+        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
       },
       sortable: true,
       width: "120px",
@@ -482,8 +526,8 @@ function EventsTable() {
     {
       key: "date",
       header: "Date",
-      cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.data?.date}>{rec.data?.date}</span>;
+      cell: (rec: FormData) => {
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.date}>{rec.date}</span>;
       },
       sortable: true,
       width: "100px",
@@ -491,8 +535,8 @@ function EventsTable() {
     {
       key: "owner",
       header: "Owner",
-      cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.data?.owner}>{rec.data?.owner}</span>;
+      cell: (rec: FormData) => {
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
       width: "100px",
@@ -500,12 +544,12 @@ function EventsTable() {
     {
       key: "actions",
       header: "Edit",
-      cell: (rec: EventListItem) => (
+      cell: (rec: FormData) => (
         <Button
           size="sm"
           variant="outline"
           onClick={() => openEditRecordDialog(rec.id)}
-          disabled={user()?.email != rec.data?.owner}
+          disabled={user()?.email != rec.owner}
           class="text-xs px-2 py-1 h-7"
         >
           Edit
@@ -559,7 +603,7 @@ function EventsTable() {
               <TextField>
                 <TextFieldLabel>ID</TextFieldLabel>
                 <TextFieldInput
-                  value={formData().id?.toString() || ""}
+                  value={formData()?.id.toString() || ""}
                   type="number"
                   readOnly={true}
                 />
@@ -569,11 +613,11 @@ function EventsTable() {
             <TextField>
               <TextFieldLabel>Name *</TextFieldLabel>
               <TextFieldInput
-                value={formData().name || ""}
+                value={formData()?.name || ""}
                 type="text"
                 onInput={(e) => {
                   const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => ({ ...prev, name: value || undefined }));
+                  setFormData(prev => prev ? { ...prev, name: value || undefined } : null);
                 }}
                 class={!isFormValid() ? "border-red-500" : ""}
               />
@@ -585,18 +629,18 @@ function EventsTable() {
             <TextField>
               <TextFieldLabel>Date</TextFieldLabel>
               <TextFieldInput
-                value={formData().date || ""}
+                value={formData()?.date || ""}
                 type="text"
                 onInput={(e) => {
                   const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => ({ ...prev, date: value || undefined }));
+                  setFormData(prev => prev ? { ...prev, date: value || undefined } : null);
                 }}
               />
             </TextField>
             <TextField>
               <TextFieldLabel>API token</TextFieldLabel>
               <TextFieldInput
-                value={formData().api_token || ""}
+                value={formData()?.api_token || ""}
                 type="text"
                 readOnly={true}
               />
@@ -611,7 +655,7 @@ function EventsTable() {
                   class="border rounded-lg shadow-sm"
                 />
                 <div class="text-xs text-gray-500 text-center max-w-xs break-all">
-                  {formData().api_token ? `https://qxqx.org/event?api_token=${formData().api_token}` : "Enter API token to generate QR code"}
+                  {formData()?.api_token ? `https://qxqx.org/event?api_token=${formData()?.api_token}` : "Enter API token to generate QR code"}
                 </div>
               </div>
             )}
@@ -619,15 +663,25 @@ function EventsTable() {
             <TextField>
               <TextFieldLabel>Owner</TextFieldLabel>
               <TextFieldInput
-                value={formData().owner || ""}
+                value={formData()?.owner || ""}
                 type="text"
                 onInput={(e) => {
                   const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => ({ ...prev, owner: value || undefined }));
+                  setFormData(prev => prev ? { ...prev, owner: value || undefined } : null);
                 }}
               />
             </TextField>
-
+            <Switch class="flex items-center space-x-2"
+              checked={formData()?.is_local || false}
+              onChange={(checked) => {
+                setFormData(prev => prev ? { ...prev, is_local: checked } : null);
+              }}
+            >
+              <SwitchLabel>Local Event DB</SwitchLabel>
+              <SwitchControl>
+                <SwitchThumb />
+              </SwitchControl>
+            </Switch>
           </div>
 
           <DialogFooter>
