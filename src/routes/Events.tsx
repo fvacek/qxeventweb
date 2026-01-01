@@ -59,39 +59,20 @@ type EventListItem = InferOutput<typeof EventListItemSchema>;
 
 const EventListSchema = array(EventListItemSchema);
 
-const EventSchema = object({
+const EventDataSchema = object({
   id: number(),
   name: undefinedable(string()),
   api_token: undefinedable(string()),
   date: undefinedable(string()),
   owner: undefinedable(string()),
 });
-type Event = InferOutput<typeof EventSchema>;
+type EventData = InferOutput<typeof EventDataSchema>;
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
   const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
-
-  // Generate random API token with vowel-consonant pattern
-  const generateApiToken = (): string => {
-    const vowels = ['a', 'e', 'i', 'o', 'u'];
-    const consonants = ['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    let token = '';
-
-    for (let i = 0; i < 10; i++) {
-      if (i % 2 === 0) {
-        // Even positions: vowels
-        token += vowels[Math.floor(Math.random() * vowels.length)];
-      } else {
-        // Odd positions: consonants
-        token += consonants[Math.floor(Math.random() * consonants.length)];
-      }
-    }
-
-    return token;
-  };
 
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
@@ -157,7 +138,7 @@ function EventsTable() {
         wsClient(),
         `${appConfig.qxeventdPath}/sql`,
         "list",
-        makeMap({"table": "events", "fields": ["id", "name", "date", "owner"]}),
+        makeMap({"table": "events", "fields": ["id", "data"]}),
 
       );
       const table = parse(EventListSchema, sql_select_result);
@@ -192,29 +173,27 @@ function EventsTable() {
     setLoading(false);
   };
 
-  const createEvent = () => {
-    const newId = tableRecords().length > 0 ? Math.max(...tableRecords().map((u) => u.id)) + 1 : 1;
+  const createEvent = async () => {
     const currentUser = user();
-
-    // Set up form with default values for new entry
-    setFormData({
-      id: newId,
-      name: "",
-      date: new Date().toISOString().split('T')[0], // Today's date as default
-      api_token: generateApiToken(),
-      owner: currentUser?.email || "",
-    });
-
-    // Clear original record to indicate this is a new entry
-    setOriginalRecord(null);
-
-    // Open the edit dialog
-    setEditRecordDialogOpen(true);
+    const eventId = await callRpcMethod(
+      wsClient(),
+      `${appConfig.qxeventdPath}/event`,
+      "createEvent",
+      currentUser?.email || "",
+    );
+    if (typeof eventId === 'number') {
+      showToast({
+        title: `Create event ${eventId} success`,
+      });
+      // Reload table to show new record
+      reloadTable();
+      openEditRecordDialog(eventId);
+    }
   };
 
   // Edit dialog state
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  const [originalRecord, setOriginalRecord] = createSignal<Event | null>(null);
+  const [originalRecord, setOriginalRecord] = createSignal<EventData | null>(null);
 
 
   const deleteRecord = (id: number) => {
@@ -222,7 +201,7 @@ function EventsTable() {
   };
 
   // Form state signals
-  const [formData, setFormData] = createSignal<Event>({
+  const [formData, setFormData] = createSignal<EventData>({
     id: 0,
     name: undefined,
     date: undefined,
@@ -314,7 +293,7 @@ function EventsTable() {
         "read",
         makeMap({"table": "events", "id": id}),
       );
-      const parsedRecord = parse(EventSchema, result);
+      const parsedRecord = parse(EventDataSchema, result);
       setOriginalRecord(parsedRecord);
 
       // Populate form data signal
@@ -331,7 +310,7 @@ function EventsTable() {
   const acceptEditRecordDialog = () => {
     if (!isFormValid()) return;
 
-    const updatedRecord: Event = formData();
+    const updatedRecord: EventData = formData();
     const orig = originalRecord();
 
     setEditRecordDialogOpen(false);
@@ -341,7 +320,7 @@ function EventsTable() {
       updateRecordInDb(orig, updatedRecord);
     } else {
       // Create new record
-      createRecordInDb(updatedRecord);
+      // createRecordInDb(updatedRecord);
     }
 
     setOriginalRecord(null);
@@ -374,39 +353,39 @@ function EventsTable() {
     }
   };
 
-  const createRecordInDb = async (newRecord: Event) => {
-    try {
-      const recordData = {
-        name: newRecord.name,
-        date: newRecord.date,
-        api_token: newRecord.api_token,
-        owner: newRecord.owner,
-      };
+  // const createRecordInDb = async (newRecord: EventData) => {
+  //   try {
+  //     const recordData = {
+  //       name: newRecord.name,
+  //       date: newRecord.date,
+  //       api_token: newRecord.api_token,
+  //       owner: newRecord.owner,
+  //     };
 
-      await callRpcMethod(
-        wsClient(),
-        `${appConfig.qxeventdPath}/sql`,
-        "create",
-        makeMap({table: "events", record: makeMap(recordData)}),
-      );
+  //     await callRpcMethod(
+  //       wsClient(),
+  //       `${appConfig.qxeventdPath}/sql`,
+  //       "create",
+  //       makeMap({table: "events", record: makeMap(recordData)}),
+  //     );
 
-      showToast({
-        title: "Create event success",
-      });
+  //     showToast({
+  //       title: "Create event success",
+  //     });
 
-      // Reload table to show new record
-      reloadTable();
-    } catch (error) {
-      console.error("Error creating event:", error);
-      showToast({
-        title: "Create event error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
-    }
-  };
+  //     // Reload table to show new record
+  //     reloadTable();
+  //   } catch (error) {
+  //     console.error("Error creating event:", error);
+  //     showToast({
+  //       title: "Create event error",
+  //       description: (error as Error).message,
+  //       variant: "destructive",
+  //     });
+  //   }
+  // };
 
-  const updateRecordInDb = async (origRecord: Event, newRecord: Event) => {
+  const updateRecordInDb = async (origRecord: EventData, newRecord: EventData) => {
     try {
       const changes = copyValidFieldsToRpcMap(origRecord, newRecord);
       if (!isRecordEmpty(changes)) {
@@ -482,7 +461,7 @@ function EventsTable() {
       key: "name",
       header: "Name",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href="event/1">{rec.name}</a></span>;
+        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
       },
       sortable: true,
       width: "120px",
@@ -513,6 +492,7 @@ function EventsTable() {
           size="sm"
           variant="outline"
           onClick={() => openEditRecordDialog(rec.id)}
+          disabled={user()?.email != rec.owner}
           class="text-xs px-2 py-1 h-7"
         >
           Edit
@@ -528,7 +508,7 @@ function EventsTable() {
       <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 class="text-xl sm:text-2xl font-bold">Events</h2>
         <div class="flex gap-2 flex-wrap">
-          <Button onClick={createEvent} size="sm" class="text-xs">Create event</Button>
+          <Button onClick={createEvent} size="sm" class="text-xs" disabled={!user()?.email}>Create event</Button>
           <Button variant="outline" onClick={reloadTable} disabled={loading()} size="sm" class="text-xs">
             {loading() ? "Loading..." : "Refresh"}
           </Button>
