@@ -48,25 +48,30 @@ import {
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 
-
-const EventListItemSchema = object({
-  id: number(),
-  name: undefinedable(string()),
-  date: undefinedable(string()),
-  owner: undefinedable(string()),
-});
-type EventListItem = InferOutput<typeof EventListItemSchema>;
-
-const EventListSchema = array(EventListItemSchema);
-
 const EventDataSchema = object({
-  id: number(),
   name: undefinedable(string()),
-  api_token: undefinedable(string()),
   date: undefinedable(string()),
   owner: undefinedable(string()),
 });
 type EventData = InferOutput<typeof EventDataSchema>;
+
+const FormDataSchema = object({
+  id: number(),
+  name: undefinedable(string()),
+  date: undefinedable(string()),
+  api_token: undefinedable(string()),
+  owner: undefinedable(string()),
+});
+type FormData = InferOutput<typeof FormDataSchema>;
+
+const EventListItemSchema = object({
+  id: number(),
+  api_token: undefinedable(string()),
+  data: undefinedable(string()),
+});
+type EventListItem = InferOutput<typeof EventListItemSchema>;
+
+const EventListSchema = array(EventListItemSchema);
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
@@ -77,7 +82,7 @@ function EventsTable() {
   const [tableRecords, setTableRecords] = createSignal<EventListItem[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof EventListItem>("name");
+  const [sortBy, setSortBy] = createSignal<keyof EventListItem>("id");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   createEffect(() => {
@@ -110,8 +115,8 @@ function EventsTable() {
   const sortedEntries = createMemo(() => {
     const data = [...tableRecords()];
     return data.sort((a, b) => {
-      const aVal = a[sortBy()];
-      const bVal = b[sortBy()];
+      const aVal = a.data?.[sortBy() as keyof EventData];
+      const bVal = b.data?.[sortBy() as keyof EventData];
 
       // Handle null values - put nulls at the beginnig
       if (
@@ -138,7 +143,7 @@ function EventsTable() {
         wsClient(),
         `${appConfig.qxeventdPath}/sql`,
         "list",
-        makeMap({"table": "events", "fields": ["id", "data"]}),
+        makeMap({"table": "events", "fields": ["id", "api_token", "data"]}),
 
       );
       const table = parse(EventListSchema, sql_select_result);
@@ -146,7 +151,12 @@ function EventsTable() {
       const transformedRecords: EventListItem[] = [];
       for (const record of table) {
         try {
-          const validatedRecord = parse(EventListItemSchema, record);
+          // Convert JSON string data to object if needed
+          const recordWithParsedData = {
+            ...record,
+            data: typeof record.data === 'string' ? JSON.parse(record.data) : record.data
+          };
+          const validatedRecord = parse(EventListItemSchema, recordWithParsedData);
           transformedRecords.push(validatedRecord);
         } catch (error) {
           console.warn(`Skipping invalid record ${record}:`, error);
@@ -193,7 +203,7 @@ function EventsTable() {
 
   // Edit dialog state
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  const [originalRecord, setOriginalRecord] = createSignal<EventData | null>(null);
+  const [originalRecord, setOriginalRecord] = createSignal<FormData | null>(null);
 
 
   const deleteRecord = (id: number) => {
@@ -201,7 +211,7 @@ function EventsTable() {
   };
 
   // Form state signals
-  const [formData, setFormData] = createSignal<EventData>({
+  const [formData, setFormData] = createSignal<FormData>({
     id: 0,
     name: undefined,
     date: undefined,
@@ -294,23 +304,26 @@ function EventsTable() {
         makeMap({"table": "events", "id": id}),
       );
       const parsedRecord = parse(EventDataSchema, result);
-      setOriginalRecord(parsedRecord);
 
-      // Populate form data signal
-      setFormData({
-        id: parsedRecord.id,
+      const formRecord: FormData = {
+        id: id,
         name: parsedRecord.name,
         date: parsedRecord.date,
-        api_token: parsedRecord.api_token,
+        api_token: undefined, // api_token is not in parsedRecord
         owner: parsedRecord.owner,
-      });
+      };
+
+      setOriginalRecord(formRecord);
+
+      // Populate form data signal
+      setFormData(formRecord);
     }
   };
 
   const acceptEditRecordDialog = () => {
     if (!isFormValid()) return;
 
-    const updatedRecord: EventData = formData();
+    const updatedRecord: FormData = formData();
     const orig = originalRecord();
 
     setEditRecordDialogOpen(false);
@@ -385,9 +398,9 @@ function EventsTable() {
   //   }
   // };
 
-  const updateRecordInDb = async (origRecord: EventData, newRecord: EventData) => {
+  const updateRecordInDb = async (origRecord: FormData, updatedRecord: FormData) => {
     try {
-      const changes = copyValidFieldsToRpcMap(origRecord, newRecord);
+      const changes = copyValidFieldsToRpcMap(origRecord, updatedRecord);
       if (!isRecordEmpty(changes)) {
         await callRpcMethod(
           wsClient(),
@@ -461,7 +474,7 @@ function EventsTable() {
       key: "name",
       header: "Name",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
+        return <span class="text-sm truncate max-w-[120px] block" title={rec.data?.name}><a href={`event/${rec.id}`}>{rec.data?.name}</a></span>;
       },
       sortable: true,
       width: "120px",
@@ -470,7 +483,7 @@ function EventsTable() {
       key: "date",
       header: "Date",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.date}>{rec.date}</span>;
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.data?.date}>{rec.data?.date}</span>;
       },
       sortable: true,
       width: "100px",
@@ -479,7 +492,7 @@ function EventsTable() {
       key: "owner",
       header: "Owner",
       cell: (rec: EventListItem) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.owner}>{rec.owner}</span>;
+        return <span class="text-sm truncate max-w-[100px] block" title={rec.data?.owner}>{rec.data?.owner}</span>;
       },
       sortable: true,
       width: "100px",
@@ -492,7 +505,7 @@ function EventsTable() {
           size="sm"
           variant="outline"
           onClick={() => openEditRecordDialog(rec.id)}
-          disabled={user()?.email != rec.owner}
+          disabled={user()?.email != rec.data?.owner}
           class="text-xs px-2 py-1 h-7"
         >
           Edit

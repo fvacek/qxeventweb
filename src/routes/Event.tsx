@@ -1,11 +1,11 @@
 import { createSignal, createEffect, createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue } from "libshv-js";
+import { RpcValue, makeMap } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
-import { parse } from "valibot";
+import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
@@ -14,6 +14,14 @@ import Entries from "../components/Entries";
 export type StageConfig = {
   stageStart: Date;
 }
+
+const EventDataSchema = object({
+  name: undefinedable(string()),
+  date: undefinedable(string()),
+  owner: undefinedable(string()),
+  is_local: undefinedable(boolean()),
+});
+type EventData = InferOutput<typeof EventDataSchema>;
 
 export class EventConfig {
   name?: string;
@@ -54,7 +62,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     return result;
   };
 
-  function parseEventConfig(event_config: RpcValue, stages_config: RpcValue): EventConfig {
+  function parseEventConfig(event_config: RpcValue, stages_config: RpcValue, eventData?: any): EventConfig {
     const data = createSqlTable(event_config);
 
     // Helper to find a config value by key
@@ -63,10 +71,10 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       return row && row[2] ? String(row[2]).replace(/['"]/g, "") : "";
     };
 
-    // Get config values
-    const name = getValue("event.name");
+    // Use event data from events table if provided, otherwise fall back to config table
+    const name = eventData?.name || getValue("event.name");
     const place = getValue("event.place");
-    const dateStr = getValue("event.date");
+    const dateStr = eventData?.date || getValue("event.date");
     const stageCountStr = getValue("event.stageCount") || "1";
 
     // Parse date safely
@@ -120,13 +128,56 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     setError("");
 
     try {
+      // First get basic event info from events table with new data column structure
+      let eventData: any = null;
+      try {
+        const event_info_result = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read", 
+          makeMap({"table": "events", "id": event_id})
+        );
+        
+        if (appConfig.debug) {
+          console.log("Raw event info from events table:", event_info_result);
+        }
+        
+        // Handle case where result is a JSON string instead of an object
+        let parsedResult = event_info_result;
+        if (typeof event_info_result === 'string') {
+          try {
+            parsedResult = JSON.parse(event_info_result);
+            if (appConfig.debug) {
+              console.log("Parsed JSON from string:", parsedResult);
+            }
+          } catch (parseError) {
+            console.error("Failed to parse JSON string:", parseError);
+            throw new Error(`Invalid JSON response: ${event_info_result}`);
+          }
+        }
+        
+        try {
+          eventData = parse(EventDataSchema, parsedResult);
+          if (appConfig.debug) {
+            console.log("Successfully validated event data:", eventData);
+          }
+        } catch (validationError) {
+          console.error("Validation failed for event data:", validationError);
+          console.error("Raw data that failed validation:", parsedResult);
+          throw new Error(`Event data validation failed: ${validationError instanceof Error ? validationError.message : 'Unknown validation error'}`);
+        }
+      } catch (error) {
+        console.warn("Failed to load event info from events table, falling back to config table:", error);
+        if (appConfig.debug) {
+          console.error("Events table error details:", error);
+        }
+      }
+
+      // Then get detailed config and stages
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
         "SELECT * FROM config",
       ]);
       const stages_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
         "SELECT startdateTime FROM stages",
       ]);
-      const event_config = parseEventConfig(event_config_result, stages_result);
+      const event_config = parseEventConfig(event_config_result, stages_result, eventData);
       if (appConfig.debug) {
         console.log("Loaded event config:", event_config);
       }
