@@ -6,22 +6,15 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
+import { EventRecordSchema } from "./Events";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 import Entries from "../components/Entries";
 
 export type StageConfig = {
-  stageStart: Date;
+  stageStart?: Date;
 }
-
-const EventDataSchema = object({
-  name: undefinedable(string()),
-  date: undefinedable(string()),
-  owner: undefinedable(string()),
-  is_local: undefinedable(boolean()),
-});
-type EventData = InferOutput<typeof EventDataSchema>;
 
 export class EventConfig {
   name?: string;
@@ -66,22 +59,23 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     const data = createSqlTable(event_config);
 
     // Helper to find a config value by key
-    const getValue = (key: string): string => {
+    const getValue = (key: string): string | undefined => {
       const row = data.rows.find((r: any[]) => r && r[0] === key);
-      return row && row[2] ? String(row[2]).replace(/['"]/g, "") : "";
+      return row && row[2] ? String(row[2]).replace(/['"]/g, "") : undefined;
     };
 
     // Use event data from events table if provided, otherwise fall back to config table
-    const name = eventData?.name || getValue("event.name");
+    const name = getValue("event.name") || eventData?.name;
     const place = getValue("event.place");
-    const dateStr = eventData?.date || getValue("event.date");
+    const dateStr = getValue("event.date") || eventData?.date;
     const stageCountStr = getValue("event.stageCount") || "1";
 
     // Parse date safely
-    const parseDate = (dateStr: string): Date => {
+    const parseDate = (dateStr: string): Date | undefined => {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date string: ${dateStr}`);
+        //throw new Error(`Invalid date string: ${dateStr}`);
+        return undefined
       }
       return date;
     };
@@ -128,47 +122,32 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     setError("");
 
     try {
-      // First get basic event info from events table with new data column structure
-      let eventData: any = null;
-      try {
-        const event_info_result = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read", 
-          makeMap({"table": "events", "id": event_id})
-        );
-        
-        if (appConfig.debug) {
-          console.log("Raw event info from events table:", event_info_result);
-        }
-        
-        // Handle case where result is a JSON string instead of an object
-        let parsedResult = event_info_result;
-        if (typeof event_info_result === 'string') {
-          try {
-            parsedResult = JSON.parse(event_info_result);
-            if (appConfig.debug) {
-              console.log("Parsed JSON from string:", parsedResult);
-            }
-          } catch (parseError) {
-            console.error("Failed to parse JSON string:", parseError);
-            throw new Error(`Invalid JSON response: ${event_info_result}`);
-          }
-        }
-        
+      // open event
+      let event_mount_point = await callRpcMethod(`${appConfig.qxeventdPath}/event`, "openEvent", event_id );
+      if (typeof event_mount_point !== 'string') {
+        throw new Error(`Cannot open event: ${event_mount_point}`);
+      }
+      // wait for event service to be ready
+      for (let i = 0; i < 10; i++) {
         try {
-          eventData = parse(EventDataSchema, parsedResult);
-          if (appConfig.debug) {
-            console.log("Successfully validated event data:", eventData);
+          await callRpcMethod(`${event_mount_point}/.app`, "ping");
+          break;
+        } catch (error) {
+          if (i === 9) {
+            throw "Event data service not ready";
           }
-        } catch (validationError) {
-          console.error("Validation failed for event data:", validationError);
-          console.error("Raw data that failed validation:", parsedResult);
-          throw new Error(`Event data validation failed: ${validationError instanceof Error ? validationError.message : 'Unknown validation error'}`);
-        }
-      } catch (error) {
-        console.warn("Failed to load event info from events table, falling back to config table:", error);
-        if (appConfig.debug) {
-          console.error("Events table error details:", error);
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
+      let eventRecord = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read",
+        makeMap({"table": "events", "id": event_id})
+      );
+
+      if (appConfig.debug) {
+        console.log("Raw event info from events table:", eventRecord);
+      }
+
+      let eventData = parse(EventRecordSchema, eventRecord);
 
       // Then get detailed config and stages
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [

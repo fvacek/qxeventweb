@@ -49,7 +49,7 @@ const BooleanFromSqlite = v.pipe(
   v.transform((val) => val !== 0 && val !== false) // map 0/false → false, everything else → true
 );
 
-const EventRecordSchema = v.object({
+export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.undefinedable(v.string()),
   date: v.undefinedable(v.string()),
