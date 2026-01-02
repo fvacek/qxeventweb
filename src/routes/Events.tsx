@@ -30,16 +30,8 @@ import { useAuth } from "~/context/AuthContext";
 import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
 import {
-  object,
-  number,
-  string,
-  nullable,
   parse,
   type InferOutput,
-  undefinedable,
-  safeParse,
-  array,
-  boolean,
 } from "valibot";
 import {
   copyRecordChanges as copyValidFieldsToRpcMap,
@@ -49,123 +41,25 @@ import {
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { Switch, SwitchControl, SwitchLabel, SwitchThumb } from "~/components/ui/switch";
+import * as v from "valibot";
 
-const EventDataSchema = object({
-  name: undefinedable(string()),
-  date: undefinedable(string()),
-  owner: undefinedable(string()),
-  is_local: undefinedable(boolean()),
-});
-type EventData = InferOutput<typeof EventDataSchema>;
+// Accept numbers and booleans, transform into a boolean
+const BooleanFromSqlite = v.pipe(
+  v.union([v.number(), v.boolean()]), // input must be number or boolean
+  v.transform((val) => val !== 0 && val !== false) // map 0/false → false, everything else → true
+);
 
-const FormDataSchema = object({
-  id: number(),
-  name: undefinedable(string()),
-  date: undefinedable(string()),
-  api_token: undefinedable(string()),
-  owner: undefinedable(string()),
-  is_local: undefinedable(boolean()),
+const EventRecordSchema = v.object({
+  id: v.number(),
+  name: v.undefinedable(v.string()),
+  date: v.undefinedable(v.string()),
+  api_token: v.undefinedable(v.string()),
+  owner: v.undefinedable(v.string()),
+  is_local: v.undefinedable(BooleanFromSqlite),
 });
-type FormData = InferOutput<typeof FormDataSchema>;
 
-const EventRecordSchema = object({
-  id: number(),
-  api_token: undefinedable(string()),
-  data: undefinedable(string()),
-});
 type EventRecord = InferOutput<typeof EventRecordSchema>;
-
-const EventRecordListSchema = array(EventRecordSchema);
-
-// Conversion functions between EventRecord and FormData
-function eventRecordToFormData(eventRecord: EventRecord): FormData {
-  let eventData: EventData = { name: undefined, date: undefined, owner: undefined, is_local: undefined };
-
-  // Parse the data field if it exists and is a valid JSON string
-  if (eventRecord.data) {
-    try {
-      const parsedData = typeof eventRecord.data === 'string' ? JSON.parse(eventRecord.data) : eventRecord.data;
-      eventData = parsedData as EventData;
-    } catch (error) {
-      console.warn("Failed to parse event data JSON:", error);
-    }
-  }
-
-  return {
-    id: eventRecord.id,
-    name: eventData.name,
-    date: eventData.date,
-    api_token: eventRecord.api_token,
-    owner: eventData.owner,
-    is_local: eventData.is_local,
-  };
-}
-
-function formDataToEventRecord(formData: FormData): EventRecord {
-  const eventData: EventData = {
-      name: formData.name,
-      date: formData.date,
-      owner: formData.owner,
-      is_local: formData.is_local,
-  };
-
-  return {
-    id: formData.id,
-    api_token: formData.api_token,
-    data: JSON.stringify(eventData),
-  };
-}
-
-// Helper function to convert FormData changes to database update format
-function formDataChangesToEventRecord(changes: Partial<FormData>, origRecord: FormData): Record<string, any> {
-  const result: Record<string, any> = {};
-
-  if (changes.api_token !== undefined) {
-    result.api_token = changes.api_token;
-  }
-
-  // Handle data field - only include if name, date, or owner changed
-  const dataFields: EventData = {
-    name: origRecord.name,
-    date: origRecord.date,
-    owner: origRecord.owner,
-    is_local: origRecord.is_local
-  };
-  let hasDataChanges = false;
-
-  if (changes.name !== undefined) {
-    dataFields.name = changes.name;
-    hasDataChanges = true;
-  }
-  if (changes.date !== undefined) {
-    dataFields.date = changes.date;
-    hasDataChanges = true;
-  }
-  if (changes.owner !== undefined) {
-    dataFields.owner = changes.owner;
-    hasDataChanges = true;
-  }
-
-  if (hasDataChanges) {
-    result.data = JSON.stringify(dataFields);
-  }
-
-  return result;
-}
-
-// Helper function to convert FormData to create record format for new events
-// function formDataToCreateRecord(formData: FormData): Record<string, any> {
-//   const eventData: EventData = {
-//     name: formData.name,
-//     date: formData.date,
-//     owner: formData.owner,
-//   };
-
-//   return {
-//     api_token: formData.api_token,
-//     data: JSON.stringify(eventData),
-//   };
-// }
+const EventRecordListSchema = v.array(EventRecordSchema);
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
@@ -173,10 +67,10 @@ function EventsTable() {
   const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
 
-  const [tableRecords, setTableRecords] = createSignal<FormData[]>([]);
+  const [tableRecords, setTableRecords] = createSignal<EventRecord[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof FormData>("name");
+  const [sortBy, setSortBy] = createSignal<keyof EventRecord>("name");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   createEffect(() => {
@@ -209,8 +103,8 @@ function EventsTable() {
   const sortedEntries = createMemo(() => {
     const data = [...tableRecords()];
     return data.sort((a, b) => {
-      const aVal = a?.[sortBy() as keyof FormData];
-      const bVal = b?.[sortBy() as keyof FormData];
+      const aVal = a?.[sortBy() as keyof EventRecord];
+      const bVal = b?.[sortBy() as keyof EventRecord];
 
       // Handle null values - put nulls at the beginnig
       if (
@@ -237,21 +131,11 @@ function EventsTable() {
         wsClient(),
         `${appConfig.qxeventdPath}/sql`,
         "list",
-        makeMap({"table": "events", "fields": ["id", "api_token", "data"]}),
+        makeMap({"table": "events"}),
 
       );
-      const table = parse(EventRecordListSchema, sql_select_result);
-
-      const transformedRecords: FormData[] = [];
-      for (const record of table) {
-        try {
-          transformedRecords.push(eventRecordToFormData(record));
-        } catch (error) {
-          console.warn(`Skipping invalid record ${record}:`, error);
-        }
-      }
-
-      setTableRecords(transformedRecords);
+      const record_list = parse(EventRecordListSchema, sql_select_result);
+      setTableRecords(record_list);
     } catch (error) {
       console.error("RPC call failed:", error);
       showToast({
@@ -273,29 +157,37 @@ function EventsTable() {
 
   const createEvent = async () => {
     const currentUser = user();
-    const result = await callRpcMethod(
-      wsClient(),
-      `${appConfig.qxeventdPath}/event`,
-      "createEvent",
-      currentUser?.email || "",
-    );
-    if (Array.isArray(result)) {
-      if (typeof result[0] === 'number') {
-        const eventId = result[0];
-        showToast({
-          title: `Create event ${eventId} success`,
-        });
-        // Reload table to show new record
-        await reloadTable();
-        openEditRecordDialog(eventId);
+    try {
+      const result = await callRpcMethod(
+        wsClient(),
+        `${appConfig.qxeventdPath}/event`,
+        "createEvent",
+        currentUser?.email || "",
+      );
+      if (Array.isArray(result)) {
+        if (typeof result[0] === 'number') {
+          const eventId = result[0];
+          showToast({
+            title: `Create event ${eventId} success`,
+          });
+          // Reload table to show new record
+          await reloadTable();
+          openEditRecordDialog(eventId);
+        }
       }
+    } catch (error) {
+      showToast({
+        title: "Create event error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
   // Edit dialog state
   const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  const [originalRecord, setOriginalRecord] = createSignal<FormData | null>(null);
-  const [formData, setFormData] = createSignal<FormData | null>(null);
+  const [originalRecord, setOriginalRecord] = createSignal<EventRecord | null>(null);
+  const [formData, setFormData] = createSignal<EventRecord | null>(null);
 
   const deleteRecord = (id: number) => {
     setTableRecords(tableRecords().filter((user) => user.id !== id));
@@ -385,7 +277,7 @@ function EventsTable() {
     if (eventItem) {
       setEditRecordDialogOpen(true);
 
-      const formRecord: FormData = {
+      const formRecord: EventRecord = {
         id: id,
         name: eventItem.name,
         date: eventItem.date,
@@ -405,7 +297,10 @@ function EventsTable() {
     if (!isFormValid()) return;
 
     const orig = originalRecord();
-    assert(!!orig)
+    if (!orig) {
+      console.error('Original record not found');
+      return;
+    }
 
     const updatedRecord = formData();
     if (!updatedRecord) {
@@ -435,27 +330,26 @@ function EventsTable() {
       setEditRecordDialogOpen(false);
       setOriginalRecord(null);
       clearFormData();
-      await deleteRecordInDb(record.id);
+      await deleteRecordInDb(record.api_token);
       reloadTable();
     }
   };
 
-  const updateRecordInDb = async (origRecord: FormData, updatedRecord: FormData) => {
+  const updateRecordInDb = async (origRecord: EventRecord, updatedRecord: EventRecord) => {
     try {
-      const formChanges = copyValidFieldsToRpcMap(origRecord, updatedRecord);
-      const dbChanges = formDataChangesToEventRecord(formChanges, origRecord);
+      const recChanges = copyValidFieldsToRpcMap(origRecord, updatedRecord);
 
-      if (!isRecordEmpty(dbChanges)) {
+      if (!isRecordEmpty(recChanges)) {
         await callRpcMethod(
           wsClient(),
           `${appConfig.qxeventdPath}/sql`,
           "update",
-          makeMap({table: "events", id: origRecord.id, record: makeMap(dbChanges)}),
+          makeMap({table: "events", id: origRecord.id, record: makeMap(recChanges)}),
         );
+        showToast({
+          title: "Update event success",
+        });
       }
-      showToast({
-        title: "Update event success",
-      });
     } catch (error) {
       console.error("Error updating event:", error);
       showToast({
@@ -466,14 +360,15 @@ function EventsTable() {
     }
   };
 
-  const deleteRecordInDb = async (id: number) => {
+  const deleteRecordInDb = async (api_token: string) => {
     try {
-      if (await callRpcMethod(
+      let res = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxeventdPath}/sql`,
-        "delete",
-        makeMap({ table: "events", id: id }),
-      )) {
+        `${appConfig.qxeventdPath}/event`,
+        "deleteEvent",
+        api_token,
+      );
+      if (res) {
         showToast({
           title: "Delete event success",
         });
@@ -503,11 +398,11 @@ function EventsTable() {
   });
 
   // Table columns configuration with sorting - optimized for mobile
-  const columns: TableColumn<FormData>[] = [
+  const columns: TableColumn<EventRecord>[] = [
     {
       key: "id",
       header: "ID",
-      cell: (rec: FormData) => {
+      cell: (rec: EventRecord) => {
         return <span class="text-sm">{rec.id}</span>;
       },
       sortable: true,
@@ -517,7 +412,7 @@ function EventsTable() {
     {
       key: "name",
       header: "Name",
-      cell: (rec: FormData) => {
+      cell: (rec: EventRecord) => {
         return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
       },
       sortable: true,
@@ -526,7 +421,7 @@ function EventsTable() {
     {
       key: "date",
       header: "Date",
-      cell: (rec: FormData) => {
+      cell: (rec: EventRecord) => {
         return <span class="text-sm truncate max-w-[100px] block" title={rec.date}>{rec.date}</span>;
       },
       sortable: true,
@@ -535,7 +430,7 @@ function EventsTable() {
     {
       key: "owner",
       header: "Owner",
-      cell: (rec: FormData) => {
+      cell: (rec: EventRecord) => {
         return <span class="text-sm truncate max-w-[100px] block" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
@@ -544,7 +439,7 @@ function EventsTable() {
     {
       key: "actions",
       header: "Edit",
-      cell: (rec: FormData) => (
+      cell: (rec: EventRecord) => (
         <Button
           size="sm"
           variant="outline"
