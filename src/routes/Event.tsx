@@ -6,7 +6,7 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
-import { EventRecordSchema } from "./Events";
+import { EventRecord, EventRecordSchema } from "./Events";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
@@ -55,59 +55,6 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     return result;
   };
 
-  function parseEventConfig(event_config: RpcValue, stages_config: RpcValue, eventData?: any): EventConfig {
-    const data = createSqlTable(event_config);
-
-    // Helper to find a config value by key
-    const getValue = (key: string): string | undefined => {
-      const row = data.rows.find((r: any[]) => r && r[0] === key);
-      return row && row[2] ? String(row[2]).replace(/['"]/g, "") : undefined;
-    };
-
-    // Use event data from events table if provided, otherwise fall back to config table
-    const name = getValue("event.name") || eventData?.name;
-    const place = getValue("event.place");
-    const dateStr = getValue("event.date") || eventData?.date;
-    const stageCountStr = getValue("event.stageCount") || "1";
-
-    // Parse date safely
-    const parseDate = (dateStr: string): Date | undefined => {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        //throw new Error(`Invalid date string: ${dateStr}`);
-        return undefined
-      }
-      return date;
-    };
-
-    // Parse stage count safely
-    const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
-
-    const stages_table = createSqlTable(stages_config);
-
-    let stages: StageConfig[] = [];
-    for (let i = 0; i < stageCount; i++) {
-      if (i < stages_table.rowCount()) {
-        const s = stages_table.get(i, "startdatetime");
-        stages.push({
-          stageStart: parseDate(s?.toString() || ""),
-        });
-      } else {
-        stages.push({
-          stageStart: new Date(),
-        });
-      }
-    }
-
-    return {
-      name,
-      place,
-      date: parseDate(dateStr),
-      stageCount,
-      stages,
-    };
-  }
-
   const loadEventConfig = async (event_id: number) => {
     if (event_id === 0) {
       setEventConfig(new EventConfig());
@@ -139,15 +86,11 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      let eventRecord = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read",
+      let recordResult = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read",
         makeMap({"table": "events", "id": event_id})
       );
 
-      if (appConfig.debug) {
-        console.log("Raw event info from events table:", eventRecord);
-      }
-
-      let eventData = parse(EventRecordSchema, eventRecord);
+      let eventRecord = parse(EventRecordSchema, recordResult);
 
       // Then get detailed config and stages
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
@@ -156,11 +99,9 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       const stages_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
         "SELECT startdateTime FROM stages",
       ]);
-      const event_config = parseEventConfig(event_config_result, stages_result, eventData);
-      if (appConfig.debug) {
-        console.log("Loaded event config:", event_config);
-      }
-      setEventConfig(event_config);
+      const eventConfig = parseEventConfig(event_config_result, stages_result, eventRecord);
+      await syncEventConfig(eventConfig, eventRecord);
+      setEventConfig(eventConfig);
     } catch (error) {
       console.error("Failed to load event config:", error);
       setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -168,6 +109,72 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       setLoading(false);
     }
   };
+
+  function parseEventConfig(event_config: RpcValue, stagesResult: RpcValue, eventData?: any): EventConfig {
+    const data = createSqlTable(event_config);
+
+    // Helper to find a config value by key
+    const getValue = (key: string): string | undefined => {
+      const row = data.rows.find((r: any[]) => r && r[0] === key);
+      return row && row[2] ? String(row[2]).replace(/['"]/g, "") : undefined;
+    };
+
+    // Use event data from events table if provided, otherwise fall back to config table
+    const name = getValue("event.name") || eventData?.name;
+    const place = getValue("event.place");
+    const dateStr = getValue("event.date") || eventData?.date;
+    const stageCountStr = getValue("event.stageCount") || "1";
+
+    // Parse date safely
+    const parseDate = (dateStr: string): Date | undefined => {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        //throw new Error(`Invalid date string: ${dateStr}`);
+        return undefined
+      }
+      return date;
+    };
+
+    // Parse stage count safely
+    const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
+
+    const stages_table = createSqlTable(stagesResult);
+
+    let stages: StageConfig[] = [];
+    for (let i = 0; i < stageCount; i++) {
+      if (i < stages_table.rowCount()) {
+        const s = stages_table.get(i, "startdatetime");
+        stages.push({
+          stageStart: parseDate(s?.toString() || ""),
+        });
+      } else {
+        stages.push({
+          stageStart: new Date(),
+        });
+      }
+    }
+
+    return {
+      name,
+      place,
+      date: parseDate(dateStr),
+      stageCount,
+      stages,
+    };
+  }
+
+  async function syncEventConfig(eventConfig: EventConfig, eventRecord: EventRecord) {
+    // Find undefined fields in event_config and set their value from event_record
+    const changes: Partial<EventConfig> = {};
+    if (eventConfig.name !== undefined && eventRecord.name === undefined) changes.name = eventConfig.name;
+    if (Object.keys(changes).length > 0) {
+      const params: Record<string, any> = {};
+      params.table = "events";
+      params.id = eventRecord.id;
+      params.record = changes;
+      await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "update", makeMap(params));
+    }
+  }
 
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {

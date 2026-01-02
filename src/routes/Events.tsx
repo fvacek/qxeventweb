@@ -53,12 +53,12 @@ export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.undefinedable(v.string()),
   date: v.undefinedable(v.string()),
-  api_token: v.undefinedable(v.string()),
-  owner: v.undefinedable(v.string()),
+  api_token: v.string(),
+  owner: v.string(),
   is_local: v.undefinedable(BooleanFromSqlite),
 });
 
-type EventRecord = InferOutput<typeof EventRecordSchema>;
+export type EventRecord = InferOutput<typeof EventRecordSchema>;
 const EventRecordListSchema = v.array(EventRecordSchema);
 
 function EventsTable() {
@@ -562,7 +562,7 @@ function EventsTable() {
                 type="text"
                 onInput={(e) => {
                   const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => prev ? { ...prev, owner: value || undefined } : null);
+                  setFormData(prev => prev ? { ...prev, owner: value } : null);
                 }}
               />
             </TextField>
