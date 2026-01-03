@@ -17,9 +17,9 @@ export const SqlValueSchema = union([
 export const RecChngSchema = object({
   table: string(),
   id: number(),
-  record: record(string(), SqlValueSchema),
+  record: undefinedable(record(string(), SqlValueSchema)),
   op: enum_(SqlOperation),
-  issuer: optional(string()),
+  issuer: undefinedable(string()),
 });
 
 export type RecChng = InferOutput<typeof RecChngSchema>;

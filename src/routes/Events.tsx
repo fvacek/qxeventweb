@@ -94,7 +94,18 @@ function EventsTable() {
           setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
         }
       } else if (op === SqlOperation.Insert) {
+        const originalEvent: EventRecord = {
+            id: id,
+            name: undefined,
+            date: undefined,
+            api_token: "",
+            owner: "",
+            is_local: undefined
+        };
+        const updatedEvent = { ...originalEvent, ...record };
+        setTableRecords(prev => [...prev, updatedEvent]);
       } else if (op === SqlOperation.Delete) {
+        setTableRecords(prev => prev.filter(event => event.id !== id));
       }
     }
   };
@@ -171,7 +182,7 @@ function EventsTable() {
             title: `Create event ${eventId} success`,
           });
           // Reload table to show new record
-          await reloadTable();
+          // await reloadTable(); recchng will do this
           openEditRecordDialog(eventId);
         }
       }
@@ -273,24 +284,12 @@ function EventsTable() {
 
   const openEditRecordDialog = async (id: number) => {
     setOriginalRecord(null);
-    const eventItem = tableRecords().find((record) => record.id === id);
-    if (eventItem) {
-      setEditRecordDialogOpen(true);
-
-      const formRecord: EventRecord = {
-        id: id,
-        name: eventItem.name,
-        date: eventItem.date,
-        api_token: eventItem.api_token,
-        owner: eventItem.owner,
-        is_local: eventItem.is_local,
-      };
-
-      setOriginalRecord(formRecord);
-
-      // Populate form data signal
-      setFormData(formRecord);
-    }
+    const eventData = await callRpcMethod(wsClient()!, appConfig.qxeventdSqlApiPath(), "read", makeMap({table: 'events', id: id}));
+    const formRecord = parse(EventRecordSchema, eventData);
+    setOriginalRecord(formRecord);
+    setEditRecordDialogOpen(true);
+    // Populate form data signal
+    setFormData(formRecord);
   };
 
   const acceptEditRecordDialog = () => {
@@ -331,7 +330,7 @@ function EventsTable() {
       setOriginalRecord(null);
       clearFormData();
       await deleteRecordInDb(record.api_token);
-      reloadTable();
+      // reloadTable(); recchng will do this
     }
   };
 

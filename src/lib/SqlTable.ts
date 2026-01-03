@@ -30,7 +30,7 @@ export class SqlTable {
     this.fields = data.fields;
     this.rows = data.rows;
     this.fieldIndexMap = new Map(
-      this.fields.map((field, index) => [field.name, index]),
+      this.fields.map((field, index) => [field.name.toLowerCase(), index]),
     );
   }
 
@@ -52,7 +52,7 @@ export class SqlTable {
   }
 
   fieldIndex(fieldName: string): number {
-    const index = this.fieldIndexMap.get(fieldName);
+    const index = this.fieldIndexMap.get(fieldName.toLowerCase());
     if (index === undefined) {
       throw new Error(`Field "${fieldName}" not found`);
     }
