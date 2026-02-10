@@ -71,21 +71,11 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     try {
       // open event
       let event_mount_point = await callRpcMethod(`${appConfig.qxeventdPath}/event`, "openEvent", event_id );
+      console.log("Loading event_mount_point:", event_mount_point);
       if (typeof event_mount_point !== 'string') {
         throw new Error(`Cannot open event: ${event_mount_point}`);
       }
-      // wait for event service to be ready
-      for (let i = 0; i < 10; i++) {
-        try {
-          await callRpcMethod(`${event_mount_point}/.app`, "ping");
-          break;
-        } catch (error) {
-          if (i === 9) {
-            throw "Event data service not ready";
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+
       let recordResult = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read",
         makeMap({"table": "events", "id": event_id})
       );

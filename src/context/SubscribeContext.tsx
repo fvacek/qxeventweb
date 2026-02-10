@@ -30,12 +30,21 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
 
       // Subscribe to qxEvent SQL path (used by Events)
       console.log("Subscribing SQL recchng", appConfig.qxeventdPath);
-      client.subscribe("qxeventweb", appConfig.qxeventdPath, "recchng", (path: string, method: string, param?: RpcValue) => {
-        console.log("Received signal:", path, method, param);
-        const recchng: RecChng = parse(RecChngSchema, param);
-        console.log("recchng:", recchng);
-        setRecchngReceived(recchng);
-      });
+      
+      try {
+        client.subscribe("qxeventweb", appConfig.qxeventdPath, "recchng", (path: string, method: string, param?: RpcValue) => {
+          console.log("Received signal:", path, method, param);
+          try {
+            const recchng: RecChng = parse(RecChngSchema, param);
+            console.log("recchng:", recchng);
+            setRecchngReceived(recchng);
+          } catch (error) {
+            console.error("Error parsing recchng:", error);
+          }
+        });
+      } catch (error) {
+        console.error("Error subscribing to recchng:", error);
+      }
     }
   });
 

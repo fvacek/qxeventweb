@@ -6,6 +6,8 @@ import {
   type GoogleCredentialResponse,
 } from "~/auth/google-auth";
 import { showToast } from "~/components/ui/toast";
+import { useWsClient } from "~/context/WsClient";
+import { useAppConfig } from "~/context/AppConfig";
 
 interface GoogleSignInProps {
   onSuccess?: (user: AuthUser) => void
@@ -17,6 +19,8 @@ interface GoogleSignInProps {
 
 const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
   const { setUser } = useAuth();
+  const wsClient = useWsClient();
+  const appConfig = useAppConfig();
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   let buttonRef: HTMLDivElement | undefined;
@@ -85,9 +89,17 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
         buttonRef.addEventListener(
           "googleSignIn",
           ((event: CustomEvent<GoogleCredentialResponse>) => {
-            const user = googleAuthService.parseCredentialResponse(
-              event.detail,
-            );
+            const token = event.detail;
+
+            const broker_url = URL.parse(appConfig.brokerUrl);
+            if (broker_url) {
+              broker_url.searchParams.delete("user");
+              broker_url.searchParams.delete("password");
+              broker_url.searchParams.set("token", "oauth2-google:" + token.credential);
+              wsClient.reconnectWithNewUrl(broker_url.toString());
+            }
+
+            const user = googleAuthService.parseCredentialResponse(token);
             if (user) {
               handleSignInSuccess(user);
             } else {
@@ -124,7 +136,7 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
       {error() && (
         <div>
           <div class="flex">
-            <div class="flex-shrink-0">
+            <div class="shrink-0">
               <svg
                 class="h-5 w-5 text-red-400"
                 viewBox="0 0 20 20"

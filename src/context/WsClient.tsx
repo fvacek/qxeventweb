@@ -8,6 +8,7 @@ import {
   createEffect,
   createMemo,
   untrack,
+  batch,
 } from "solid-js";
 import { RpcValue, WsClient } from "libshv-js";
 import { useAppConfig } from "./AppConfig";
@@ -42,6 +43,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
   //     issuer: ""
   // });
   let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  let currentClientId = 0; // Track which client is current to ignore old callbacks
 
   const appConfig = useAppConfig();
   let currentBrokerUrl = appConfig.brokerUrl;
@@ -64,14 +66,21 @@ export function WsClientProvider(props: { children: JSX.Element }) {
       clearTimeout(connectionTimeout);
     }
 
+    // Increment client ID to invalidate callbacks from old connection
+    currentClientId++;
+    const thisClientId = currentClientId;
+
     // Close existing connection if it exists
     const existingSocket = wsClient();
     if (existingSocket) {
       existingSocket.close();
-      setWsClient(null);
     }
 
-    setStatus("Connecting");
+    // Batch the state updates to prevent race conditions
+    batch(() => {
+      setWsClient(null);
+      setStatus("Connecting");
+    });
 
     // Set timeout to prevent infinite connecting state
     connectionTimeout = setTimeout(() => {
@@ -89,15 +98,26 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         throw new Error("Invalid broker URL");
       }
 
+      const token = broker_url.searchParams.get("token") || ""
       const ws = new WsClient({
         logDebug: appConfig.debug ? console.debug : () => {},
         wsUri: currentBrokerUrl.toString(),
-        login: {
-          type: "PLAIN",
+        login: token ? {
+          type: "TOKEN" as const,
+          token: token,
+        } : {
+          type: "PLAIN" as const,
           user: broker_url.searchParams.get("user") || "",
           password: broker_url.searchParams.get("password") || "",
         },
         onConnected: () => {
+          // Ignore callbacks from old connections
+          if (thisClientId !== currentClientId) {
+            if (appConfig.debug) {
+              console.log("Ignoring onConnected from old connection");
+            }
+            return;
+          }
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
@@ -106,6 +126,13 @@ export function WsClientProvider(props: { children: JSX.Element }) {
           setStatus("Connected");
         },
         onDisconnected: () => {
+          // Ignore callbacks from old connections
+          if (thisClientId !== currentClientId) {
+            if (appConfig.debug) {
+              console.log("Ignoring onDisconnected from old connection");
+            }
+            return;
+          }
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
@@ -113,6 +140,13 @@ export function WsClientProvider(props: { children: JSX.Element }) {
           setStatus("Disconnected");
         },
         onConnectionFailure: (error: Error) => {
+          // Ignore callbacks from old connections
+          if (thisClientId !== currentClientId) {
+            if (appConfig.debug) {
+              console.log("Ignoring onConnectionFailure from old connection");
+            }
+            return;
+          }
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
