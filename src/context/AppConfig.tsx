@@ -12,9 +12,9 @@ export type AppConfig = {
 
 // Non-reactive config object
 export const config: AppConfig = {
-    brokerUrl: import.meta.env.QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
-    qxeventdPath: import.meta.env.QXEVENTD_PATH || "test/qx/qxeventd",
-    eventsPath: import.meta.env.QXEVENTD_PATH || "test/qx/events",
+    brokerUrl: import.meta.env.VITE_QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
+    qxeventdPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/qxeventd",
+    eventsPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/events",
     theme: "dark",
     debug: import.meta.env.DEV || false,
     eventSqlApiPath: function (event_id: number) { return `${this.eventsPath}/${event_id}/sql`; },
