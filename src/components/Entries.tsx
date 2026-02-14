@@ -154,7 +154,10 @@ function EntriesTable(props: {
       return undefined;
     }
     const [hours, minutes, secs] = hms;
-    const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
+    const stageStart = props.eventConfig().stages[props.currentStage()]?.stageStart;
+    if (!stageStart) {
+      return undefined;
+    }
     const runStart = new Date(stageStart.getTime());
     runStart.setHours(hours, minutes, secs, 0);
     return runStart.getTime() - stageStart.getTime();
@@ -164,7 +167,10 @@ function EntriesTable(props: {
     if (msec === undefined) {
       return "";
     }
-    const stageStart = props.eventConfig().stages[props.currentStage()].stageStart;
+    const stageStart = props.eventConfig().stages[props.currentStage()]?.stageStart;
+    if (!stageStart) {
+      return "";
+    }
     const date = new Date(stageStart.getTime() + msec);
     return formatDateToTimeString(date);
   }

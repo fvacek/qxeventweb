@@ -10,7 +10,7 @@ import { SubscribeProvider } from "./context/SubscribeContext"
 
 const AppContent = (props: ParentProps) => {
     return (
-        <div class="mx-auto flex min-h-full w-full max-w-[1200px] flex-col bg-(--background) text-(--secondary) transition">
+        <div class="mx-auto flex min-h-full w-full max-w-300 flex-col bg-(--background) text-(--secondary) transition">
             <NavHeader />
             <main class="flex w-full flex-1 flex-col">{props.children}</main>
             <Footer />

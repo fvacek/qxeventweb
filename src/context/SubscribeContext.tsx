@@ -7,7 +7,7 @@ import {
   Accessor,
   untrack,
 } from "solid-js";
-import { RpcValue } from "libshv-js";
+import { RpcValue, ShvRI } from "libshv-js";
 import { parse } from "valibot";
 import { useWsClient } from "./WsClient";
 import { useAppConfig } from "./AppConfig";
@@ -30,9 +30,9 @@ export function SubscribeProvider(props: { children: JSX.Element }) {
 
       // Subscribe to qxEvent SQL path (used by Events)
       console.log("Subscribing SQL recchng", appConfig.qxeventdPath);
-      
+
       try {
-        client.subscribe("qxeventweb", appConfig.qxeventdPath, "recchng", (path: string, method: string, param?: RpcValue) => {
+        client.subscribe("qxeventweb", new ShvRI(`${appConfig.qxeventdPath}/sql:*:recchng`), (path: string, method: string, param?: RpcValue) => {
           console.log("Received signal:", path, method, param);
           try {
             const recchng: RecChng = parse(RecChngSchema, param);

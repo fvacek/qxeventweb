@@ -412,7 +412,7 @@ function EventsTable() {
       key: "name",
       header: "Name",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-[120px] block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
+        return <span class="text-sm truncate max-w-30 block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
       },
       sortable: true,
       width: "120px",
@@ -421,7 +421,7 @@ function EventsTable() {
       key: "date",
       header: "Date",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.date}>{rec.date}</span>;
+        return <span class="text-sm truncate max-w-25 block" title={rec.date}>{rec.date}</span>;
       },
       sortable: true,
       width: "100px",
@@ -430,7 +430,7 @@ function EventsTable() {
       key: "owner",
       header: "Owner",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-[100px] block" title={rec.owner}>{rec.owner}</span>;
+        return <span class="text-sm truncate max-w-25 block" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
       width: "100px",
@@ -468,7 +468,7 @@ function EventsTable() {
 
       {/* Mobile-optimized table with compact styling */}
       <div class="rounded-md border overflow-x-auto min-w-0">
-        <div class="min-w-[420px]">
+        <div class="min-w-105">
           <Table
             data={tableRecords()}
             columns={columns}

@@ -6,6 +6,7 @@ export type AppConfig = {
   eventsPath: string,
   theme: "light" | "dark",
   debug: boolean,
+  eventApiPath: (event_id: number) => string,
   eventSqlApiPath: (event_id: number) => string,
   qxeventdSqlApiPath: () => string,
 };
@@ -17,7 +18,8 @@ export const config: AppConfig = {
     eventsPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/events",
     theme: "dark",
     debug: import.meta.env.DEV || false,
-    eventSqlApiPath: function (event_id: number) { return `${this.eventsPath}/${event_id}/sql`; },
+    eventApiPath: function (event_id: number) { return `${this.eventsPath}/${event_id}`; },
+    eventSqlApiPath: function (event_id: number) { return `${this.eventApiPath(event_id)}/sql`; },
     qxeventdSqlApiPath: function () { return `${this.qxeventdPath}/sql`; },
 };
 
