@@ -9,18 +9,20 @@ export type AppConfig = {
   eventApiPath: (event_id: number) => string,
   eventSqlApiPath: (event_id: number) => string,
   qxeventdSqlApiPath: () => string,
+  eventCtlApiPath: () => string,
 };
 
 // Non-reactive config object
 export const config: AppConfig = {
     brokerUrl: import.meta.env.VITE_QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
     qxeventdPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/qxeventd",
-    eventsPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/events",
+    eventsPath: import.meta.env.VITE_QXEVENT_DB_PATH || "test/qx/eventdb",
     theme: "dark",
     debug: import.meta.env.DEV || false,
     eventApiPath: function (event_id: number) { return `${this.eventsPath}/${event_id}`; },
     eventSqlApiPath: function (event_id: number) { return `${this.eventApiPath(event_id)}/sql`; },
     qxeventdSqlApiPath: function () { return `${this.qxeventdPath}/sql`; },
+    eventCtlApiPath: function () { return `${this.qxeventdPath}/eventctl`; },
 };
 
 const AppConfigContext = createContext(config);
@@ -28,7 +30,7 @@ const AppConfigContext = createContext(config);
 export const useAppConfig = () => {
   const context = useContext(AppConfigContext);
   if (!context) {
-    throw new Error("useAppConfig must be used within an AppConfigContext.Provider");
+    throw new Error("useAppConfig must be used within an AppConfigContext provider");
   }
   return context;
 };

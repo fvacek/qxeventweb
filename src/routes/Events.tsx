@@ -53,10 +53,11 @@ export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.undefinedable(v.string()),
   date: v.undefinedable(v.string()),
-  api_token: v.string(),
+  api_token: v.optional(v.string()),
   owner: v.string(),
   is_local: v.undefinedable(BooleanFromSqlite),
 });
+
 
 export type EventRecord = InferOutput<typeof EventRecordSchema>;
 const EventRecordListSchema = v.array(EventRecordSchema);
@@ -140,10 +141,8 @@ function EventsTable() {
     try {
       const sql_select_result = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxeventdPath}/sql`,
-        "list",
-        makeMap({"table": "events"}),
-
+        `${appConfig.eventCtlApiPath()}`,
+        "listEvents",
       );
       const record_list = parse(EventRecordListSchema, sql_select_result);
       setTableRecords(record_list);
@@ -171,7 +170,7 @@ function EventsTable() {
     try {
       const result = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxeventdPath}/event`,
+        `${appConfig.eventCtlApiPath()}`,
         "createEvent",
         currentUser?.email || "",
       );
@@ -325,7 +324,7 @@ function EventsTable() {
 
   const deleteEditedRecord = async () => {
     const record = originalRecord();
-    if (record) {
+    if (record && record.api_token) {
       setEditRecordDialogOpen(false);
       setOriginalRecord(null);
       clearFormData();
