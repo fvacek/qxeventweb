@@ -283,7 +283,7 @@ function EventsTable() {
 
   const openEditRecordDialog = async (id: number) => {
     setOriginalRecord(null);
-    const eventData = await callRpcMethod(wsClient()!, appConfig.qxeventdSqlApiPath(), "read", makeMap({table: 'events', id: id}));
+    const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlEventApiPath(id), "readRecord");
     const formRecord = parse(EventRecordSchema, eventData);
     setOriginalRecord(formRecord);
     setEditRecordDialogOpen(true);
@@ -433,6 +433,17 @@ function EventsTable() {
       },
       sortable: true,
       width: "100px",
+      hidden: "hidden sm:table-cell",
+    },
+    {
+      key: "is_local",
+      header: "Local",
+      cell: (rec: EventRecord) => {
+        return <span class="text-sm truncate max-w-25 block">{rec.is_local ? "local" : "remote"}</span>;
+      },
+      sortable: true,
+      width: "100px",
+      hidden: "hidden sm:table-cell",
     },
     {
       key: "actions",

@@ -10,6 +10,7 @@ export type AppConfig = {
   eventSqlApiPath: (event_id: number) => string,
   qxeventdSqlApiPath: () => string,
   eventCtlApiPath: () => string,
+  eventCtlEventApiPath: (event_id: number) => string,
 };
 
 // Non-reactive config object
@@ -23,6 +24,7 @@ export const config: AppConfig = {
     eventSqlApiPath: function (event_id: number) { return `${this.eventApiPath(event_id)}/sql`; },
     qxeventdSqlApiPath: function () { return `${this.qxeventdPath}/sql`; },
     eventCtlApiPath: function () { return `${this.qxeventdPath}/eventctl`; },
+    eventCtlEventApiPath: function (event_id: number) { return `${this.eventCtlApiPath()}/${event_id}`; },
 };
 
 const AppConfigContext = createContext(config);

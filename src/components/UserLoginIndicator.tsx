@@ -1,22 +1,17 @@
 import { Component, createSignal, createMemo } from "solid-js";
 import { useAuth } from "~/context/AuthContext";
-import LoginDialog from "./LoginDialog";
+import GoogleSignIn from "~/components/GoogleSignIn";
 import UserInfoDialog from "./UserInfoDialog";
 import "./UserLoginIndicator.css";
 
 const UserLoginIndicator: Component = () => {
   const { user } = useAuth();
-  const [loginDialogIsOpen, setLoginDialogIsOpen] = createSignal(false);
   const [userInfoDialogIsOpen, setUserInfoDialogIsOpen] = createSignal(false);
   const [avatarError, setAvatarError] = createSignal(false);
 
   const handleButtonClick = () => {
     if (user()) {
-      // If logged in, show user info dialog
       setUserInfoDialogIsOpen(true);
-    } else {
-      // If not logged in, show login dialog
-      setLoginDialogIsOpen(true);
     }
   };
 
@@ -38,14 +33,13 @@ const UserLoginIndicator: Component = () => {
 
   return (
     <div class="user-login-indicator">
-      <button 
-        onClick={handleButtonClick}
-        class={`login-button ${user() ? 'logged-in' : 'logged-out'}`}
-        aria-label={user() ? `Account info for ${user()!.name}` : "Log in"}
-      >
-        {user() ? (
-          <>
-            {/* Avatar with fallback */}
+      {user() ? (
+        <>
+          <button
+            onClick={handleButtonClick}
+            class="login-button logged-in"
+            aria-label={`Account info for ${user()!.name}`}
+          >
             {user()!.avatar && !avatarError() ? (
               <img
                 src={user()!.avatar}
@@ -60,20 +54,18 @@ const UserLoginIndicator: Component = () => {
               </div>
             )}
             <span class="user-name">{user()!.name}</span>
-          </>
-        ) : (
-          <span class="login-text">Log in</span>
-        )}
-      </button>
-      <LoginDialog
-        isOpen={loginDialogIsOpen()}
-        onClose={() => setLoginDialogIsOpen(false)}
-      />
-      {user() && (
-        <UserInfoDialog
-          isOpen={userInfoDialogIsOpen()}
-          onClose={() => setUserInfoDialogIsOpen(false)}
-          user={user()!}
+          </button>
+          <UserInfoDialog
+            isOpen={userInfoDialogIsOpen()}
+            onClose={() => setUserInfoDialogIsOpen(false)}
+            user={user()!}
+          />
+        </>
+      ) : (
+        <GoogleSignIn
+          buttonText="signin_with"
+          theme="outline"
+          size="large"
         />
       )}
     </div>
