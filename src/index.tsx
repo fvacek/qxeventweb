@@ -1,3 +1,4 @@
+import "virtual:uno.css"
 import "./index.css"
 
 import { App } from "./App"
@@ -37,7 +38,7 @@ if (app) {
                 <Route path="/" component={Home} />
                 <Route path="/table-demo" component={TableDemo} />
                 <Route path="/events" component={Events} />
-                <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id} />} />
+                <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id!} />} />
                 {/*<Route path="/late-entries" component={LateEntries} />*/}
                 {/* Google auth now uses Identity Services - no callback route needed */}
 

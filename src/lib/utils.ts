@@ -1,9 +1,8 @@
 import { type ClassValue, clsx } from "clsx"
 import { RpcValue } from "libshv-js";
-import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return clsx(inputs)
 }
 
 export function toRpcValue(value: unknown): RpcValue {

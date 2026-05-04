@@ -1,6 +1,6 @@
 import { createSignal, createEffect, createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue, makeMap } from "libshv-js";
+import { RpcValue, makeMap, ShvRI } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -175,7 +175,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       const client = wsClient()!;
       // Subscribe to event SQL path (used by LateEntries)
       console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
-      client.subscribe("qxeventweb", appConfig.eventSqlApiPath(eid), "recchng", (path: string, method: string, param?: RpcValue) => {
+      client.subscribe("qxeventweb", ShvRI.fromPathMethodSignal(appConfig.eventSqlApiPath(eid), "", "recchng"), (path: string, signal: string, param?: RpcValue) => {
         const recchng: RecChng = parse(RecChngSchema, param);
         setRecchngReceived(recchng);
       });

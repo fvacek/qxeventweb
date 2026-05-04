@@ -1,5 +1,5 @@
 import path from "path"
-import tailwindcss from '@tailwindcss/vite';
+import UnoCSS from 'unocss/vite';
 import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 
@@ -8,8 +8,8 @@ import solidPlugin from 'vite-plugin-solid';
 export default defineConfig({
   plugins: [
     // devtools(),
+    UnoCSS(),
     solidPlugin(),
-    tailwindcss()
   ],
   server: {
     port: 3000,
@@ -30,9 +30,7 @@ export default defineConfig({
             if (id.includes('zod')) return 'zod';
             if (id.includes('js-pkce')) return 'auth-utils';
             if (id.includes('class-variance-authority') || 
-                id.includes('clsx') || 
-                id.includes('tailwind-merge') || 
-                id.includes('tailwindcss-animate')) {
+                id.includes('clsx')) {
               return 'utils';
             }
             // Group remaining smaller vendor libraries

@@ -38,7 +38,7 @@ const EventInfo = ({ eventConfig }: EventInfoProps) => {
             {eventConfig.stages.map((stage, index) => (
               <div class="flex justify-between items-center py-2 px-3 rounded">
                 <span class="font-medium">Stage {index + 1}</span>
-                <span>start: {stage.stageStart.toLocaleString()}</span>
+                <span>start: {stage.stageStart?.toLocaleString() ?? 'N/A'}</span>
               </div>
             ))}
           </div>

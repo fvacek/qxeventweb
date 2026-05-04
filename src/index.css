@@ -1,39 +1,4 @@
-@import "tailwindcss";
-
-@theme {
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-destructive: var(--destructive);
-    --color-destructive-foreground: var(--destructive-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-
-    --color-ok: var(--ok);
-    --color-warn: var(--warn);
-    --color-error: var(--error);
-    --color-ok-foreground: var(--ok-foreground);
-    --color-warn-foreground: var(--warn-foreground);
-    --color-error-foreground: var(--error-foreground);
-
-    --color-white: white;
-    --color-black: black;
-
-    --radius: 0.5rem;
-
-}
+/* UnoCSS base import is handled via virtual:uno.css in index.tsx */
 
 [data-theme="light"] {
     --primary: green;
@@ -72,6 +37,8 @@
     --destructive-foreground: #fafafa;
 
     --ring: #18181b;
+
+    --radius: 0.5rem;
 }
 
 [data-theme="dark"] {
@@ -111,12 +78,13 @@
     --destructive-foreground: #fafafa;
 
     --ring: #f0a20c; /* edit control focus ring color */
+
+    --radius: 0.5rem;
 }
 
-@layer base {
-  body {
-      @apply bg-background text-foreground;
-  }
+body {
+    background-color: var(--background);
+    color: var(--foreground);
 }
 
 html,
