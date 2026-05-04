@@ -10,7 +10,7 @@ export const callRpcMethod = async (
   if (!client) {
     throw new Error("WebSocket client is not available");
   }
-  const result = await client.callRpcMethod(shvPath, method, params);
+  const result = await client.callRpcMethod(shvPath, method, params, { requestUserId: true });
   if (result instanceof Error) {
     console.error("RPC error:", result);
     throw new Error(result.message);

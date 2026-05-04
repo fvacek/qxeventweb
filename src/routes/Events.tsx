@@ -1,6 +1,5 @@
 import {
   makeMap,
-  RpcValue,
 } from "libshv-js";
 import { createMemo, createSignal, createEffect, For, onMount, untrack } from "solid-js";
 import QRCode from "qrcode";
@@ -23,12 +22,11 @@ import {
   TextFieldLabel,
 } from "~/components/ui/text-field";
 import { useWsClient } from "~/context/WsClient";
-import { showToast, Toast } from "~/components/ui/toast";
+import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { useAuth } from "~/context/AuthContext";
 
 import { useSubscribe } from "~/context/SubscribeContext";
-import { createSqlTable } from "~/lib/SqlTable";
 import {
   parse,
   type InferOutput,
@@ -36,7 +34,6 @@ import {
 import {
   copyRecordChanges as copyValidFieldsToRpcMap,
   isRecordEmpty,
-  toRpcValue,
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
@@ -282,13 +279,22 @@ function EventsTable() {
   });
 
   const openEditRecordDialog = async (id: number) => {
-    setOriginalRecord(null);
-    const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlEventApiPath(id), "readRecord");
-    const formRecord = parse(EventRecordSchema, eventData);
-    setOriginalRecord(formRecord);
-    setEditRecordDialogOpen(true);
-    // Populate form data signal
-    setFormData(formRecord);
+    try {
+      setOriginalRecord(null);
+      const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
+      const formRecord = parse(EventRecordSchema, eventData);
+      setOriginalRecord(formRecord);
+      setEditRecordDialogOpen(true);
+      // Populate form data signal
+      setFormData(formRecord);
+    } catch (error) {
+      console.error("Error opening edit dialog:", error);
+      showToast({
+        title: "Open event error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const acceptEditRecordDialog = () => {
@@ -338,11 +344,10 @@ function EventsTable() {
       const recChanges = copyValidFieldsToRpcMap(origRecord, updatedRecord);
 
       if (!isRecordEmpty(recChanges)) {
-        await callRpcMethod(
-          wsClient(),
-          `${appConfig.qxeventdPath}/sql`,
-          "update",
-          makeMap({table: "events", id: origRecord.id, record: makeMap(recChanges)}),
+        await callRpcMethod(wsClient()!,
+          appConfig.eventCtlApiPath(),
+          "updateEventRecord",
+          [origRecord.id, makeMap(recChanges)],
         );
         showToast({
           title: "Update event success",
