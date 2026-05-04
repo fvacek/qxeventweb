@@ -56,13 +56,15 @@ export default defineConfig({
         foreground: 'var(--error-foreground)',
       },
     },
-    borderRadius: {
+
+    radius: {
       DEFAULT: 'var(--radius)',
       lg: 'var(--radius)',
       md: 'calc(var(--radius) - 2px)',
       sm: 'calc(var(--radius) - 4px)',
       full: '9999px',
     },
+
   },
   // Safelist any dynamic classes that might not be detected statically
   safelist: [

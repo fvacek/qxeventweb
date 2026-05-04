@@ -16,8 +16,8 @@ const ExternalLink = ({
     return (
         <a
             class={
-                "font-bold transition hover:text-[var(--highlight)]" +
-                (underline ? " border-b-2 border-b-[var(--highlight)]" : "")
+                "font-bold transition hover:text-(--highlight)" +
+                (underline ? " border-b-2 border-b-(--highlight)" : "")
             }
             href={to}
             rel="noopener noreferrer"

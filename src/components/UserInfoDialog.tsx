@@ -86,7 +86,7 @@ const UserInfoDialog: Component<UserInfoDialogProps> = (props) => {
 
             {/* Fallback avatar */}
             <div
-              class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg"
+              class="w-20 h-20 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg"
               style={{ display: props.user.avatar ? 'none' : 'flex' }}
             >
               {getUserInitials(props.user.name)}
