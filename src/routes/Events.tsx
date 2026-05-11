@@ -580,17 +580,27 @@ function EventsTable() {
                 }}
               />
             </TextField>
-            <Switch class="flex items-center space-x-2"
-              checked={formData()?.is_local || false}
-              onChange={(checked) => {
-                setFormData(prev => prev ? { ...prev, is_local: checked } : null);
-              }}
-            >
-              <SwitchLabel>Local Event DB</SwitchLabel>
-              <SwitchControl>
-                <SwitchThumb />
-              </SwitchControl>
-            </Switch>
+            {/*<TextField>
+              <TextFieldLabel>is local</TextFieldLabel>
+              <TextFieldInput
+              value={formData()?.is_local === undefined ? "NULL" : String(formData()?.is_local)}
+              type="text"
+              />
+            </TextField>*/}
+            <label class="flex items-center gap-3 cursor-pointer select-none">
+              <div
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-input transition-colors"
+                classList={{ "bg-primary": Boolean(formData()?.is_local) }}
+                onClick={() => setFormData(prev => prev ? { ...prev, is_local: !prev.is_local } : null)}
+              >
+                <span
+                  class="pointer-events-none block size-5 rounded-full bg-background shadow-lg transition-transform"
+                  classList={{ "translate-x-5": Boolean(formData()?.is_local), "translate-x-0": !formData()?.is_local }}
+                />
+              </div>
+              <span class="text-sm font-medium leading-none">Local Event DB</span>
+            </label>
+
           </div>
 
           <DialogFooter>
