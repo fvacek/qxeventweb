@@ -376,14 +376,11 @@ function EventsTable() {
               {!isFormValid() && <div class="text-sm text-red-500 mt-1">Name is required</div>}
             </TextField>
 
-            <TextField>
-              <TextFieldLabel>Date</TextFieldLabel>
-              <TextFieldInput
-                value={formData()?.date || ""}
-                type="text"
-                onInput={(e) => setFormData(prev => prev ? { ...prev, date: e.currentTarget.value || undefined } : null)}
-              />
-            </TextField>
+            <DateTimeField
+              label="Date"
+              value={formData()?.date}
+              onChange={(date) => setFormData(prev => prev ? { ...prev, date } : null)}
+            />
 
             <TextField>
               <TextFieldLabel>API token</TextFieldLabel>
