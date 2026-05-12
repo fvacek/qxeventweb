@@ -38,6 +38,7 @@ import {
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { SwitchField } from "~/components/ui/switch";
+import { DateTimeField } from "~/components/ui/date-time-field";
 import * as v from "valibot";
 
 // Accept numbers and booleans, transform into a boolean
@@ -48,16 +49,33 @@ const BooleanFromSqlite = v.pipe(
 
 export const EventRecordSchema = v.object({
   id: v.number(),
-  name: v.undefinedable(v.string()),
-  date: v.undefinedable(v.string()),
-  api_token: v.optional(v.string()),
+  name: v.optional(v.string()),
+  date: v.optional(v.string()),
+  stage: v.number(),
+  api_token: v.string(),
   owner: v.string(),
-  is_local: v.undefinedable(BooleanFromSqlite),
+  is_local: BooleanFromSqlite,
 });
 
+export const EventRecordChangeSchema = v.object({
+  name: v.optional(v.string()),
+  date: v.optional(v.string()),
+  stage: v.optional(v.number()),
+  api_token: v.optional(v.string()),
+  is_local: v.optional(v.boolean()),
+});
+
+export const EventTableRecordSchema = v.object({
+  id: v.number(),
+  name: v.optional(v.string()),
+  date: v.optional(v.string()),
+  owner: v.string(),
+  is_local: BooleanFromSqlite,
+});
 
 export type EventRecord = InferOutput<typeof EventRecordSchema>;
-const EventRecordListSchema = v.array(EventRecordSchema);
+export type EventTableRecord = InferOutput<typeof EventTableRecordSchema>;
+const EventRecordTableSchema = v.array(EventTableRecordSchema);
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();
@@ -65,7 +83,7 @@ function EventsTable() {
   const { user } = useAuth();
   const { recchngReceived } = useSubscribe();
 
-  const [tableRecords, setTableRecords] = createSignal<EventRecord[]>([]);
+  const [tableRecords, setTableRecords] = createSignal<EventTableRecord[]>([]);
 
   const [loading, setLoading] = createSignal(false);
 
@@ -90,13 +108,12 @@ function EventsTable() {
           setTableRecords(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
         }
       } else if (op === SqlOperation.Insert) {
-        const originalEvent: EventRecord = {
+        const originalEvent: EventTableRecord = {
             id: id,
             name: undefined,
             date: undefined,
-            api_token: "",
             owner: "",
-            is_local: undefined
+            is_local: true,
         };
         const updatedEvent = { ...originalEvent, ...record };
         setTableRecords(prev => [...prev, updatedEvent]);
@@ -115,7 +132,7 @@ function EventsTable() {
         `${appConfig.eventCtlApiPath()}`,
         "listEvents",
       );
-      const record_list = parse(EventRecordListSchema, sql_select_result);
+      const record_list = parse(EventRecordTableSchema, sql_select_result);
       setTableRecords(record_list);
     } catch (error) {
       console.error("RPC call failed:", error);
