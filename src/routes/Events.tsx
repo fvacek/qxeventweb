@@ -1,7 +1,7 @@
 import {
   makeMap,
 } from "libshv-js";
-import { createMemo, createSignal, createEffect, For, onMount, untrack } from "solid-js";
+import { createMemo, createSignal, createEffect, untrack } from "solid-js";
 import QRCode from "qrcode";
 
 import { Button } from "~/components/ui/button";
@@ -37,7 +37,7 @@ import {
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
-import { Switch, SwitchControl, SwitchLabel, SwitchThumb } from "~/components/ui/switch";
+import { SwitchField } from "~/components/ui/switch";
 import * as v from "valibot";
 
 // Accept numbers and booleans, transform into a boolean
@@ -68,8 +68,6 @@ function EventsTable() {
   const [tableRecords, setTableRecords] = createSignal<EventRecord[]>([]);
 
   const [loading, setLoading] = createSignal(false);
-  const [sortBy, setSortBy] = createSignal<keyof EventRecord>("name");
-  const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   createEffect(() => {
     const recchng = recchngReceived();
@@ -107,30 +105,6 @@ function EventsTable() {
       }
     }
   };
-
-  // Reactive sorted data
-  const sortedEntries = createMemo(() => {
-    const data = [...tableRecords()];
-    return data.sort((a, b) => {
-      const aVal = a?.[sortBy() as keyof EventRecord];
-      const bVal = b?.[sortBy() as keyof EventRecord];
-
-      // Handle null values - put nulls at the beginnig
-      if (
-        (aVal === null || aVal === undefined) &&
-        (bVal === null || bVal === undefined)
-      )
-        return 0;
-      if (aVal === null || aVal === undefined)
-        return sortOrder() === "asc" ? -1 : 1;
-      if (bVal === null || bVal === undefined)
-        return sortOrder() === "asc" ? 1 : -1;
-
-      if (aVal < bVal) return sortOrder() === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortOrder() === "asc" ? 1 : -1;
-      return 0;
-    });
-  });
 
   const reloadTable = async () => {
     setLoading(true);
@@ -191,175 +165,60 @@ function EventsTable() {
     }
   };
 
-  // Edit dialog state
-  const [editRecordDialogOpen, setEditRecordDialogOpen] = createSignal(false);
-  const [originalRecord, setOriginalRecord] = createSignal<EventRecord | null>(null);
+  // Edit dialog state — single signal holds the record being edited (null = closed)
   const [formData, setFormData] = createSignal<EventRecord | null>(null);
 
-  const deleteRecord = (id: number) => {
-    setTableRecords(tableRecords().filter((user) => user.id !== id));
-  };
+  const isFormValid = () => !!(formData()?.name?.trim());
 
   const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
 
-  const generateQRCode = async (apiToken: string) => {
-    if (apiToken && apiToken.trim()) {
-      try {
-        const url = `https://qxqx.org/event?api_token=${apiToken.trim()}`;
-        const dataURL = await QRCode.toDataURL(url, {
-          width: 200,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
-          }
-        });
-        setQrCodeDataURL(dataURL);
-      } catch (error) {
-        console.error('Error generating QR code:', error);
-        setQrCodeDataURL("");
-      }
-    } else {
-      setQrCodeDataURL("");
-    }
-  };
-
-  // Reactive QR code generation
+  // Regenerate QR code only when api_token changes
   createEffect(() => {
-    if (editRecordDialogOpen()) {
-      generateQRCode(formData()?.api_token || "");
-    }
-  });
-
-  // Check if form has been modified
-  const isFormDirty = createMemo(() => {
-    const orig = originalRecord();
-    const current = formData();
-    if (!current) {
-      // For new entries, form is dirty if any field has content
-      return false;
-    }
-    if (!orig) {
-      // For new entries, form is dirty if any field has content
-      return !!(current.name || current.date || current.api_token || current.owner || current.is_local);
-    }
-
-    // Normalize undefined/empty values for comparison
-    const normalize = (val: string | undefined) => val || "";
-
-    const isDirty = (
-      normalize(orig.name) !== normalize(current.name) ||
-      normalize(orig.date) !== normalize(current.date) ||
-      normalize(orig.api_token) !== normalize(current.api_token) ||
-      normalize(orig.owner) !== normalize(current.owner)
-    );
-
-    console.log('Dirty check:', {
-      originalRecord: orig,
-      current,
-      isDirty,
-      nameChanged: normalize(orig.name) !== normalize(current.name),
-      dateChanged: normalize(orig.date) !== normalize(current.date),
-      tokenChanged: normalize(orig.api_token) !== normalize(current.api_token),
-      ownerChanged: normalize(orig.owner) !== normalize(current.owner)
-    });
-
-    return isDirty;
-  });
-
-  // Form validation
-  const isFormValid = createMemo(() => {
-    const current = formData();
-    if (!current) {
-      return false;
-    }
-    const isValid = !!(current.name && current.name.trim().length > 0);
-    console.log('Form validation:', { current, isValid });
-    return isValid;
+    const token = formData()?.api_token;
+    if (!token) { setQrCodeDataURL(""); return; }
+    QRCode.toDataURL(`https://qxqx.org/event?api_token=${token}`, {
+      width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' }
+    }).then(setQrCodeDataURL).catch(() => setQrCodeDataURL(""));
   });
 
   const openEditRecordDialog = async (id: number) => {
     try {
-      setOriginalRecord(null);
       const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
-      const formRecord = parse(EventRecordSchema, eventData);
-      setOriginalRecord(formRecord);
-      setEditRecordDialogOpen(true);
-      // Populate form data signal
-      setFormData(formRecord);
+      setFormData(parse(EventRecordSchema, eventData));
     } catch (error) {
-      console.error("Error opening edit dialog:", error);
-      showToast({
-        title: "Open event error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      showToast({ title: "Open event error", description: (error as Error).message, variant: "destructive" });
     }
   };
+
+  const closeDialog = () => setFormData(null);
 
   const acceptEditRecordDialog = () => {
-    if (!isFormValid()) return;
-
-    const orig = originalRecord();
-    if (!orig) {
-      console.error('Original record not found');
-      return;
-    }
-
-    const updatedRecord = formData();
-    if (!updatedRecord) {
-      return;
-    }
-    setEditRecordDialogOpen(false);
-
-    // Update existing record
-    updateRecordInDb(orig, updatedRecord);
-
-    setOriginalRecord(null);
-  };
-
-  const clearFormData = () => {
-    setFormData(null);
-  };
-
-  const rejectEditRecordDialog = () => {
-    setEditRecordDialogOpen(false);
-    setOriginalRecord(null);
-    clearFormData();
+    const record = formData();
+    if (!record || !isFormValid()) return;
+    closeDialog();
+    updateRecordInDb(record);
   };
 
   const deleteEditedRecord = async () => {
-    const record = originalRecord();
-    if (record && record.api_token) {
-      setEditRecordDialogOpen(false);
-      setOriginalRecord(null);
-      clearFormData();
+    const record = formData();
+    if (record?.api_token) {
+      closeDialog();
       await deleteRecordInDb(record.api_token);
-      // reloadTable(); recchng will do this
     }
   };
 
-  const updateRecordInDb = async (origRecord: EventRecord, updatedRecord: EventRecord) => {
+  const updateRecordInDb = async (record: EventRecord) => {
+    // Find the current version in the table to diff against
+    const original = tableRecords().find(r => r.id === record.id);
+    if (!original) return;
     try {
-      const recChanges = copyValidFieldsToRpcMap(origRecord, updatedRecord);
-
+      const recChanges = copyValidFieldsToRpcMap(original, record);
       if (!isRecordEmpty(recChanges)) {
-        await callRpcMethod(wsClient()!,
-          appConfig.eventCtlApiPath(),
-          "updateEventRecord",
-          [origRecord.id, makeMap(recChanges)],
-        );
-        showToast({
-          title: "Update event success",
-        });
+        await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "updateEventRecord", [record.id, makeMap(recChanges)]);
+        showToast({ title: "Update event success" });
       }
     } catch (error) {
-      console.error("Error updating event:", error);
-      showToast({
-        title: "Update event error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      showToast({ title: "Update event error", description: (error as Error).message, variant: "destructive" });
     }
   };
 
@@ -389,10 +248,6 @@ function EventsTable() {
   };
 
 
-
-  onMount(() => {
-    // console.log("EVENTS MOUNTED");
-  });
 
   createEffect(() => {
     if (status() === "Connected") {
@@ -498,41 +353,27 @@ function EventsTable() {
         </div>
       </div>
 
-      <Dialog
-        open={editRecordDialogOpen()}
-        onOpenChange={setEditRecordDialogOpen}
-      >
+      <Dialog open={!!formData()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent class="max-w-md">
           <DialogHeader>
-            <DialogTitle>{originalRecord() ? "Edit Event" : "Create New Event"}</DialogTitle>
+            <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
 
           <div class="space-y-4">
-            {originalRecord() && (
-              <TextField>
-                <TextFieldLabel>ID</TextFieldLabel>
-                <TextFieldInput
-                  value={formData()?.id.toString() || ""}
-                  type="number"
-                  readOnly={true}
-                />
-              </TextField>
-            )}
+            <TextField>
+              <TextFieldLabel>ID</TextFieldLabel>
+              <TextFieldInput value={formData()?.id.toString() ?? ""} type="number" readOnly />
+            </TextField>
 
             <TextField>
               <TextFieldLabel>Name *</TextFieldLabel>
               <TextFieldInput
                 value={formData()?.name || ""}
                 type="text"
-                onInput={(e) => {
-                  const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => prev ? { ...prev, name: value || undefined } : null);
-                }}
+                onInput={(e) => setFormData(prev => prev ? { ...prev, name: e.currentTarget.value || undefined } : null)}
                 class={!isFormValid() ? "border-red-500" : ""}
               />
-              {!isFormValid() && (
-                <div class="text-sm text-red-500 mt-1">Name is required</div>
-              )}
+              {!isFormValid() && <div class="text-sm text-red-500 mt-1">Name is required</div>}
             </TextField>
 
             <TextField>
@@ -540,31 +381,20 @@ function EventsTable() {
               <TextFieldInput
                 value={formData()?.date || ""}
                 type="text"
-                onInput={(e) => {
-                  const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => prev ? { ...prev, date: value || undefined } : null);
-                }}
+                onInput={(e) => setFormData(prev => prev ? { ...prev, date: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
+
             <TextField>
               <TextFieldLabel>API token</TextFieldLabel>
-              <TextFieldInput
-                value={formData()?.api_token || ""}
-                type="text"
-                readOnly={true}
-              />
+              <TextFieldInput value={formData()?.api_token || ""} type="text" readOnly />
             </TextField>
 
             {qrCodeDataURL() && (
               <div class="flex flex-col items-center space-y-2">
-                <div class="text-sm font-medium text-gray-700">Event URL QR Code</div>
-                <img
-                  src={qrCodeDataURL()}
-                  alt="Event QR Code"
-                  class="border rounded-lg shadow-sm"
-                />
+                <img src={qrCodeDataURL()} alt="Event QR Code" class="border rounded-lg shadow-sm" />
                 <div class="text-xs text-gray-500 text-center max-w-xs break-all">
-                  {formData()?.api_token ? `https://qxqx.org/event?api_token=${formData()?.api_token}` : "Enter API token to generate QR code"}
+                  {`https://qxqx.org/event?api_token=${formData()?.api_token}`}
                 </div>
               </div>
             )}
@@ -574,10 +404,7 @@ function EventsTable() {
               <TextFieldInput
                 value={formData()?.owner || ""}
                 type="text"
-                onInput={(e) => {
-                  const value = (e.target as HTMLInputElement).value;
-                  setFormData(prev => prev ? { ...prev, owner: value } : null);
-                }}
+                onInput={(e) => setFormData(prev => prev ? { ...prev, owner: e.currentTarget.value } : null)}
               />
             </TextField>
             {/*<TextField>
@@ -587,35 +414,22 @@ function EventsTable() {
               type="text"
               />
             </TextField>*/}
-            <label class="flex items-center gap-3 cursor-pointer select-none">
-              <div
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-input transition-colors"
-                classList={{ "bg-primary": Boolean(formData()?.is_local) }}
-                onClick={() => setFormData(prev => prev ? { ...prev, is_local: !prev.is_local } : null)}
-              >
-                <span
-                  class="pointer-events-none block size-5 rounded-full bg-background shadow-lg transition-transform"
-                  classList={{ "translate-x-5": Boolean(formData()?.is_local), "translate-x-0": !formData()?.is_local }}
-                />
-              </div>
-              <span class="text-sm font-medium leading-none">Local Event DB</span>
-            </label>
-
+            <SwitchField
+              label="Local Event DB"
+              checked={Boolean(formData()?.is_local)}
+              onChange={(checked) => setFormData(prev => prev ? { ...prev, is_local: checked } : null)}
+            />
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={rejectEditRecordDialog}> Cancel </Button>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button variant="destructive" onClick={() => {
-              const record = originalRecord();
-              if (record && confirm(`Are you sure you want to delete the event "${record.name || 'this event'}"?\n\nThis action cannot be undone.`)) {
+              const name = formData()?.name;
+              if (confirm(`Are you sure you want to delete the event "${name || 'this event'}"?\n\nThis action cannot be undone.`))
                 deleteEditedRecord();
-              }
-            }}> Delete </Button>
-            <Button
-              onClick={acceptEditRecordDialog}
-              disabled={!isFormValid() || (!originalRecord() && !isFormDirty())}
-            >
-              {!isFormValid() ? "Invalid data" : (!originalRecord() && !isFormDirty()) ? "Enter data" : originalRecord() ? "Save Changes" : "Create Event"}
+            }}>Delete</Button>
+            <Button onClick={acceptEditRecordDialog} disabled={!isFormValid()}>
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
