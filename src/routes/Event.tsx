@@ -1,6 +1,6 @@
 import { createSignal, createEffect, createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue, makeMap, ShvRI } from "libshv-js";
+import { RpcValue, makeMap, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -39,12 +39,13 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
   const [currentStage, setCurrentStage] = createSignal(1);
 
-  const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue) => {
+  const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue, requestUserId?: boolean) => {
     const client = wsClient();
     if (!client) {
       throw new Error("WebSocket client not initialized");
     }
-    let result = await client.callRpcMethod(shvPath, method, params);
+    const opts: CallRpcMethodOptions = { requestUserId };
+    let result = await client.callRpcMethod(shvPath, method, params, opts);
     if (result instanceof Error) {
       console.error("RPC error:", result);
       throw new Error(result.message);
@@ -70,15 +71,14 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
     try {
       // open event
-      let event_mount_point = await callRpcMethod(`${appConfig.qxeventdPath}/event`, "openEvent", event_id );
-      console.log("Loading event_mount_point:", event_mount_point);
-      if (typeof event_mount_point !== 'string') {
-        throw new Error(`Cannot open event: ${event_mount_point}`);
+      let event_api_shv_path = await callRpcMethod(`${appConfig.eventCtlApiPath()}`, "openEvent", event_id );
+      console.log("Loading event_mount_point:", event_api_shv_path);
+      if (typeof event_api_shv_path !== 'string') {
+        throw new Error(`Cannot open event: ${event_api_shv_path}`);
       }
 
-      let recordResult = await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "read",
-        makeMap({"table": "events", "id": event_id})
-      );
+      const eventApiPath = appConfig.eventApiPath(event_id);
+      let recordResult = await callRpcMethod(eventApiPath, "data", );
 
       let eventRecord = parse(EventRecordSchema, recordResult);
 
