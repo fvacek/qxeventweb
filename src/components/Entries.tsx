@@ -72,9 +72,8 @@ function EntriesTable(props: {
   const [sortBy, setSortBy] = createSignal<keyof Run>("lastname");
   const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
-  // Edit dialog state
-  const [runEditDialogOpen, setRunEditDialogOpen] = createSignal(false);
-  let editingRunId: number | null = null;
+  // Edit dialog state — null means closed
+  const [formRun, setFormRun] = createSignal<Run | null>(null);
 
   createEffect(() => {
     const recchng = props.recchngReceived();
@@ -193,53 +192,18 @@ function EntriesTable(props: {
 
 
 
-  let firstnameRef!: HTMLInputElement;
-  let lastnameRef!: HTMLInputElement;
-  let registrationRef!: HTMLInputElement;
-  let siIdRef!: HTMLInputElement;
-  let startTimeRef!: HTMLInputElement;
-
   const openRunEditDialog = (id: number) => {
-    editingRunId = null;
-    const runToEdit = props.runs().find(run => run.run_id === id);
-    if (runToEdit) {
-      editingRunId = id;
-      setRunEditDialogOpen(true);
-
-      // Populate form fields directly using refs
-      setTimeout(() => {
-        firstnameRef.value = runToEdit.firstname || "";
-        lastnameRef.value = runToEdit.lastname || "";
-        registrationRef.value = runToEdit.registration || "";
-        siIdRef.value = runToEdit.siid?.toString() || "";
-        startTimeRef.value = formatStartTime(runToEdit.starttimems, stageStart());
-      }, 0);
-    }
+    const run = props.runs().find(r => r.run_id === id);
+    if (run) setFormRun(run);
   };
+
+  const closeDialog = () => setFormRun(null);
 
   const acceptRunEditDialog = () => {
-    if (editingRunId === null) return;
-
-    const originalRun = props.runs().find(run => run.run_id === editingRunId)!;
-
-    // Collect form values from refs and create updated run
-    const updatedRun: Run = {
-      ...originalRun,
-      firstname: firstnameRef.value || undefined,
-      lastname: lastnameRef.value || undefined,
-      registration: registrationRef.value || undefined,
-      siid: siIdRef.value ? parseInt(siIdRef.value) : undefined,
-      starttimems: startTimeRef.value ? parseStartTime(startTimeRef.value) : undefined,
-    };
-
-    setRunEditDialogOpen(false);
-    updateRunInDb(updatedRun);
-    editingRunId = null;
-  };
-
-  const rejectRunEditDialog = () => {
-    setRunEditDialogOpen(false);
-    editingRunId = null;
+    const run = formRun();
+    if (!run) return;
+    closeDialog();
+    updateRunInDb(run);
   };
 
   const deleteEntry = (id: number) => {
@@ -368,7 +332,7 @@ function EntriesTable(props: {
       </div>
 
       {/* Edit Run Dialog */}
-      <Dialog open={runEditDialogOpen()} onOpenChange={setRunEditDialogOpen}>
+      <Dialog open={!!formRun()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent class="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Run</DialogTitle>
@@ -378,52 +342,53 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                ref={firstnameRef}
+                value={formRun()?.firstname || ""}
                 type="text"
+                onInput={(e) => setFormRun(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                ref={lastnameRef}
+                value={formRun()?.lastname || ""}
                 type="text"
+                onInput={(e) => setFormRun(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
-                ref={registrationRef}
+                value={formRun()?.registration || ""}
                 type="text"
+                onInput={(e) => setFormRun(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
-                ref={siIdRef}
+                value={formRun()?.siid?.toString() || ""}
                 type="number"
+                onInput={(e) => setFormRun(prev => prev ? { ...prev, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Start Time</TextFieldLabel>
               <TextFieldInput
-                ref={startTimeRef}
+                value={formatStartTime(formRun()?.starttimems, stageStart())}
                 type="text"
                 placeholder="HH:MM"
+                onInput={(e) => setFormRun(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : null)}
               />
             </TextField>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={rejectRunEditDialog}>
-              Cancel
-            </Button>
-            <Button onClick={acceptRunEditDialog}>
-              Save Changes
-            </Button>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button onClick={acceptRunEditDialog}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
