@@ -1,17 +1,8 @@
 import { makeMap, RpcValue } from "libshv-js";
-import { createMemo, createSignal, createEffect, For, untrack } from "solid-js";
+import { createSignal, createEffect, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
+import { Table, TableColumn } from "~/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -27,13 +18,11 @@ import {
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 
 import { useWsClient } from "~/context/WsClient";
-import { showToast, Toast } from "~/components/ui/toast";
-
+import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
-import { useSubscribe } from "~/context/SubscribeContext";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, nullable, parse, type InferOutput, undefinedable, safeParse } from "valibot";
-import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty, toRpcValue } from "~/lib/utils";
+import { object, number, string, parse, type InferOutput, undefinedable } from "valibot";
+import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/Event";
@@ -61,16 +50,11 @@ function EntriesTable(props: {
   runs: () => Run[];
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
-  setLoading: (loading: boolean) => void;
   onReload: () => void;
-  onAddEntry: () => void;
   recchngReceived: () => RecChng | null;
 }) {
-  const { wsClient, status } = useWsClient();
+  const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
-
-  const [sortBy, setSortBy] = createSignal<keyof Run>("lastname");
-  const [sortOrder, setSortOrder] = createSignal<"asc" | "desc">("asc");
 
   // Edit dialog state — null means closed
   const [formRun, setFormRun] = createSignal<Run | null>(null);
@@ -79,8 +63,6 @@ function EntriesTable(props: {
     const recchng = props.recchngReceived();
     if (recchng) {
       untrack(() => {
-        // setTableRecords() causes infinite reactive recursion without this untrack
-        // nobody knows why
         processRecChng(recchng);
       });
     }
@@ -88,109 +70,57 @@ function EntriesTable(props: {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
-    console.log("Entries: recchngReceived value:", recchng);
     if (op === SqlOperation.Update) {
       if (table === "runs") {
-        const originalRun = props.runs().find((run: Run) => run.run_id === id);
-        if (originalRun !== undefined) {
-          const updatedRun = { ...originalRun, ...record };
-          props.setRuns((prev: Run[]) => prev.map(run => run.run_id === updatedRun.run_id ? updatedRun : run));
+        const orig = props.runs().find((run: Run) => run.run_id === id);
+        if (orig) {
+          const updated = { ...orig, ...record };
+          props.setRuns((prev: Run[]) => prev.map(r => r.run_id === updated.run_id ? updated : r));
         }
       } else if (table === "competitors") {
-        const originalRun = props.runs().find((run: Run) => run.competitor_id === id);
-        if (originalRun !== undefined) {
-          const updatedRun = { ...originalRun, ...record };
-          props.setRuns((prev: Run[]) => prev.map(run => run.competitor_id === id ? updatedRun : run));
+        const orig = props.runs().find((run: Run) => run.competitor_id === id);
+        if (orig) {
+          const updated = { ...orig, ...record };
+          props.setRuns((prev: Run[]) => prev.map(r => r.competitor_id === id ? updated : r));
         }
       }
-    } else if (op === SqlOperation.Insert) {
-    } else if (op === SqlOperation.Delete) {
     }
   };
 
-  // Reactive sorted data
-  const sortedEntries = createMemo(() => {
-    const data = [...props.runs()];
-    return data.sort((a, b) => {
-      const aVal = a[sortBy()];
-      const bVal = b[sortBy()];
-
-      // Handle null values - put nulls at the beginnig
-      if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
-      if (aVal === null || aVal === undefined) return sortOrder() === "asc" ? -1 : 1;
-      if (bVal === null || bVal === undefined) return sortOrder() === "asc" ? 1 : -1;
-
-      if (aVal < bVal) return sortOrder() === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortOrder() === "asc" ? 1 : -1;
-      return 0;
-    });
-  });
-
-  function stageStart(): Date {
-    const eventConfig = props.eventConfig();
-    const stage = props.currentStage() - 1;
-    const stageStart = eventConfig.stages[stage]?.stageStart;
-    if (!stageStart) {
-      throw new Error(`Stage start is not defined for stage ${props.currentStage()}`);
-    }
-    return stageStart;
+  // Returns undefined instead of throwing so cell renderers degrade gracefully
+  function stageStart(): Date | undefined {
+    return props.eventConfig().stages[props.currentStage() - 1]?.stageStart;
   }
 
   function parseHH_MM_SS(hhmmss: string): [number, number, number] | undefined {
-
-    const timeSegments = hhmmss.split(':').map(Number);
-
-    if (timeSegments.length === 1) {
-      // Just minutes
-      const min = timeSegments[0];
-      return [0, min, 0];
-    } else if (timeSegments.length === 2) {
-      // Format: HH:MM
-      const [hours, minutes] = timeSegments;
-      return [hours, minutes, 0];
-    } else if (timeSegments.length === 3) {
-      // Format: HH:MM:SS
-      const [hours, minutes, secs] = timeSegments;
-      return [hours, minutes, secs];
-    }
-    // throw new Error(`Invalid time format: ${hhmmss}`);
+    const segments = hhmmss.split(':').map(Number);
+    if (segments.some(isNaN)) return undefined;
+    if (segments.length === 1) return [0, segments[0], 0];
+    if (segments.length === 2) return [segments[0], segments[1], 0];
+    if (segments.length === 3) return [segments[0], segments[1], segments[2]];
     return undefined;
   }
 
   function parseStartTime(s: string): number | undefined {
     const hms = parseHH_MM_SS(s);
-    if (!hms) {
-      return undefined;
-    }
+    if (!hms) return undefined;
     const [hours, minutes, secs] = hms;
-    const stageStart = props.eventConfig().stages[props.currentStage()]?.stageStart;
-    if (!stageStart) {
-      return undefined;
-    }
-    const runStart = new Date(stageStart.getTime());
+    // Fix #4: was stages[currentStage()] — off by one since stages are 0-indexed
+    const start = props.eventConfig().stages[props.currentStage() - 1]?.stageStart;
+    if (!start) return undefined;
+    const runStart = new Date(start.getTime());
     runStart.setHours(hours, minutes, secs, 0);
-    return runStart.getTime() - stageStart.getTime();
+    return runStart.getTime() - start.getTime();
   }
 
-  function formatStartTime(msec: number | undefined, stageStart: Date | undefined): string {
-    if (msec === undefined) {
-      return "";
-    }
-    if (!stageStart) {
-      return "";
-    }
-    const date = new Date(stageStart.getTime() + msec);
-    return formatDateToTimeString(date);
+  function formatStartTime(msec: number | undefined, start: Date | undefined): string {
+    if (msec === undefined || !start) return "";
+    const date = new Date(start.getTime() + msec);
+    const hh = date.getHours().toString().padStart(2, "0");
+    const mm = date.getMinutes().toString().padStart(2, "0");
+    const ss = date.getSeconds().toString().padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
   }
-
-  function formatDateToTimeString(date: Date): string {
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const seconds = date.getSeconds().toString().padStart(2, "0");
-    return `${hours}:${minutes}:${seconds}`;
-  }
-
-
 
   const openRunEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
@@ -206,85 +136,59 @@ function EntriesTable(props: {
     updateRunInDb(run);
   };
 
-  const deleteEntry = (id: number) => {
-    props.setRuns(props.runs().filter((user) => user.run_id !== id));
-  };
-
   const updateRunInDb = async (newRun: Run) => {
+    const origRun = props.runs().find(r => r.run_id === newRun.run_id);
+    if (!origRun) return;
     try {
-      const origRun = props.runs().find(run => newRun.run_id === run.run_id)!;
+      const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue =>
+        makeMap({ table, id, record: makeMap(record), issuer: "fanda" });
 
-      const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue => {
-        return makeMap({
-          table,
-          id,
-          record: makeMap(record),
-          issuer: "fanda"
-        });
-      };
-      const competitors_record = copyValidFieldsToRpcMap(origRun, newRun, ["firstname", "lastname", "registration"]);
-      if (!isRecordEmpty(competitors_record)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('competitors', origRun.competitor_id, competitors_record));
+      const competitorChanges = copyValidFieldsToRpcMap(origRun, newRun, ["firstname", "lastname", "registration"]);
+      if (!isRecordEmpty(competitorChanges)) {
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
+          createParam('competitors', origRun.competitor_id, competitorChanges));
       }
-      const runs_record = copyValidFieldsToRpcMap(origRun, newRun, ["siId", "starttimems"]);
-      if (!isRecordEmpty(runs_record)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update", createParam('runs', origRun.run_id, runs_record));
+      const runChanges = copyValidFieldsToRpcMap(origRun, newRun, ["siid", "starttimems"]);
+      if (!isRecordEmpty(runChanges)) {
+        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
+          createParam('runs', origRun.run_id, runChanges));
       }
-      showToast({
-        title: "Update run success",
-      });
+      showToast({ title: "Update run success" });
     } catch (error) {
-      console.error("Error updating run:", error);
-      showToast({
-        title: "Update run error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      showToast({ title: "Update run error", description: (error as Error).message, variant: "destructive" });
     }
   };
 
-
-
-  // Watch for WebSocket status changes and reload data when connected
   createEffect(() => {
-    if (!!props.className()) {
-      console.log("Class name changed - reloading late entries data");
+    if (props.className()) {
       props.onReload();
     }
   });
 
-  // Table columns configuration with sorting
   const columns: TableColumn<Run>[] = [
     {
       key: "starttimems",
       header: "Start Time",
-      cell: (run: Run) => {
-        if (run.starttimems === undefined) {
-          return <span>—</span>;
-        }
-        return (
-          <span>{formatStartTime(run.starttimems, stageStart())}</span>
-        );
-      },
+      cell: (run: Run) => <span>{formatStartTime(run.starttimems, stageStart()) || "—"}</span>,
       sortable: true,
-      width: "250px",
+      width: "120px",
     },
     {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
         const fullName = [entry.firstname, entry.lastname]
-          .filter((name) => name !== undefined && name.trim() !== "")
+          .filter((n) => n?.trim())
           .join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => {
-        const aName = [a.firstname, a.lastname].filter((n) => n).join(" ");
-        const bName = [b.firstname, b.lastname].filter((n) => n).join(" ");
+        const aName = [a.firstname, a.lastname].filter(Boolean).join(" ");
+        const bName = [b.firstname, b.lastname].filter(Boolean).join(" ");
         return aName.localeCompare(bName);
       },
-      width: "250px",
+      width: "200px",
     },
     {
       key: "registration",
@@ -296,23 +200,18 @@ function EntriesTable(props: {
       key: "siid",
       header: "SI",
       sortable: true,
-      width: "250px",
-      // align: "right",
+      width: "100px",
     },
     {
       key: "actions",
       header: "Actions",
       cell: (run: Run) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => openRunEditDialog(run.run_id)}
-        >
+        <Button size="sm" variant="outline" onClick={() => openRunEditDialog(run.run_id)}>
           Edit
         </Button>
       ),
       sortable: false,
-      width: "100px",
+      width: "80px",
     },
   ];
 
@@ -323,15 +222,13 @@ function EntriesTable(props: {
           data={props.runs()}
           columns={columns}
           loading={props.loading()}
-          emptyMessage="No users found"
+          emptyMessage="No entries found"
           variant="striped"
           sortable={true}
           globalFilter={true}
-          onSortChange={(sort: any) => console.log("Sort changed:", sort)}
         />
       </div>
 
-      {/* Edit Run Dialog */}
       <Dialog open={!!formRun()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent class="max-w-md">
           <DialogHeader>
@@ -404,60 +301,28 @@ function ClassSelector(props: {
 }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
-  const [eventOpen, setEventOpen] = createSignal(false);
-
   const [classes, setClasses] = createSignal<string[]>([]);
-
-  const callRpcMethod = async (
-    shvPath: string,
-    method: string,
-    params?: RpcValue,
-  ): Promise<RpcValue> => {
-    const client = wsClient();
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    const result = await client.callRpcMethod(shvPath, method, params);
-    if (result instanceof Error) {
-      console.error("RPC error:", result);
-      throw new Error(result.message);
-    }
-    return result;
-  };
 
   async function loadClasses() {
     try {
-      const classes_result = await callRpcMethod(
+      const result = await callRpcMethod(
+        wsClient()!,
         appConfig.eventSqlApiPath(props.eventId()),
         "query",
-        [
-          `SELECT classes.name AS class_name FROM classes, classdefs
-                  WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
-                  ORDER BY classes.name`,
-        ],
+        [`SELECT classes.name AS class_name FROM classes, classdefs
+          WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
+          ORDER BY classes.name`],
       );
-      const classNames: string[] = (classes_result as any).rows.map(
-        (row: any[], rowIndex: number) => row[0],
-      );
+      const classNames: string[] = (result as any).rows.map((row: any[]) => row[0]);
       setClasses(classNames);
-      if (classNames.length > 0) {
-        props.setClassName(classNames[0]);
-      }
+      if (classNames.length > 0) props.setClassName(classNames[0]);
     } catch (error) {
-      console.error("RPC call failed:", error);
-      showToast({
-        title: "Load classes error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      showToast({ title: "Load classes error", description: (error as Error).message, variant: "destructive" });
     }
   }
 
   createEffect(() => {
-    if (status() === "Connected") {
-      loadClasses();
-      setEventOpen(true);
-    }
+    if (status() === "Connected") loadClasses();
   });
 
   return (
@@ -481,88 +346,43 @@ const Entries = (props: {
   currentStage: number,
   recchngReceived: () => RecChng | null
 }) => {
-  const { wsClient, status } = useWsClient();
+  const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
-  const eventConfig = props.eventConfig;
-  const [eventId, setEventId] = createSignal(props.eventId);
-  const [currentStage, setCurrentStage] = createSignal(props.currentStage);
-
-  const callRpcMethod = async (
-    client: any,
-    shvPath: string,
-    method: string,
-    params?: RpcValue,
-  ): Promise<RpcValue> => {
-    if (!client) {
-      throw new Error("WebSocket client is not available");
-    }
-    const result = await client.callRpcMethod(shvPath, method, params);
-    if (result instanceof Error) {
-      console.error("RPC error:", result);
-      throw new Error(result.message);
-    }
-    return result;
-  };
 
   const [className, setClassName] = createSignal("");
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
 
-
-
-  const addEntry = () => {
-    const currentRuns = runs();
-    const maxId = currentRuns.length > 0 ? Math.max(...currentRuns.map((u) => u.run_id)) : 0;
-    const newEntry: Run = {
-        run_id: maxId + 1,
-        firstname: `Fanda${currentRuns.length + 1}`,
-        lastname: `Vacek${currentRuns.length + 1}`,
-        class_name: className() || "H55",
-        starttimems: undefined,
-        registration: "CHT7001",
-        siid: undefined,
-        competitor_id: 1234 + currentRuns.length
-    };
-    setRuns([...currentRuns, newEntry]);
-  };
+  // Wrap static props as accessors so child components get stable getter signatures
+  const eventId = () => props.eventId;
+  const currentStage = () => props.currentStage;
 
   const reloadTable = async () => {
     if (!className()) return;
-
     setLoading(true);
-
     try {
-      const runs_result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(eventId()), "query", [
+      const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
         `SELECT runs.id as run_id, runs.siid, runs.starttimems,
                 competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                 classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
-                WHERE runs.stageid = ${currentStage()}
+                WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`,
       ]);
-      const table = createSqlTable(runs_result);
-
+      const table = createSqlTable(result);
       const transformedRuns: Run[] = [];
       for (let i = 0; i < table.rowCount(); i++) {
-        const record = table.recordAt(i);
         try {
-          const validatedRun = parse(RunSchema, record);
-          transformedRuns.push(validatedRun);
+          transformedRuns.push(parse(RunSchema, table.recordAt(i)));
         } catch (error) {
           console.warn(`Skipping invalid row ${i}:`, error);
         }
       }
-
       setRuns(transformedRuns);
     } catch (error) {
-      console.error("RPC call failed:", error);
-      showToast({
-        title: "Reload table error",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      showToast({ title: "Reload table error", description: (error as Error).message, variant: "destructive" });
     }
     setLoading(false);
   };
@@ -574,7 +394,6 @@ const Entries = (props: {
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
           <div class="flex gap-2">
-            <Button onClick={addEntry}>Add entry</Button>
             <Button variant="outline" onClick={reloadTable} disabled={loading() || !className()}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
@@ -582,15 +401,13 @@ const Entries = (props: {
         </div>
         <EntriesTable
           className={className}
-          eventConfig={eventConfig}
+          eventConfig={props.eventConfig}
           eventId={eventId}
           currentStage={currentStage}
           runs={runs}
           setRuns={setRuns}
           loading={loading}
-          setLoading={setLoading}
           onReload={reloadTable}
-          onAddEntry={addEntry}
           recchngReceived={props.recchngReceived}
         />
       </div>
