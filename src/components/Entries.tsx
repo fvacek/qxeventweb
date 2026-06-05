@@ -1,5 +1,5 @@
 import { makeMap, RpcValue } from "libshv-js";
-import { createSignal, createEffect, untrack } from "solid-js";
+import { createSignal, createEffect, onMount, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
@@ -51,20 +51,53 @@ function EntriesTable(props: {
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
   onReload: () => void;
+  onAddEntry: (open: () => void) => void;
   recchngReceived: () => RecChng | null;
 }) {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
 
-  // Edit dialog state — null means closed
+  // null = dialog closed; run_id === 0 = new entry, run_id > 0 = editing existing
   const [formRun, setFormRun] = createSignal<Run | null>(null);
+
+  const isNew = () => formRun()?.run_id === 0;
+
+  const openNewEntryDialog = () => setFormRun({
+    run_id: 0,
+    competitor_id: 0,
+    class_name: props.className(),
+    firstname: undefined,
+    lastname: undefined,
+    registration: undefined,
+    siid: undefined,
+    starttimems: undefined,
+  });
+
+  // Register the opener with the parent once on mount
+  onMount(() => props.onAddEntry(openNewEntryDialog));
+
+  const openRunEditDialog = (id: number) => {
+    const run = props.runs().find(r => r.run_id === id);
+    if (run) setFormRun(run);
+  };
+
+  const closeDialog = () => setFormRun(null);
+
+  const acceptDialog = () => {
+    const run = formRun();
+    if (!run) return;
+    closeDialog();
+    if (isNew()) {
+      insertRunInDb(run);
+    } else {
+      updateRunInDb(run);
+    }
+  };
 
   createEffect(() => {
     const recchng = props.recchngReceived();
     if (recchng) {
-      untrack(() => {
-        processRecChng(recchng);
-      });
+      untrack(() => processRecChng(recchng));
     }
   });
 
@@ -72,22 +105,21 @@ function EntriesTable(props: {
     const { table, id, record, op } = recchng;
     if (op === SqlOperation.Update) {
       if (table === "runs") {
-        const orig = props.runs().find((run: Run) => run.run_id === id);
+        const orig = props.runs().find(r => r.run_id === id);
         if (orig) {
           const updated = { ...orig, ...record };
-          props.setRuns((prev: Run[]) => prev.map(r => r.run_id === updated.run_id ? updated : r));
+          props.setRuns(prev => prev.map(r => r.run_id === updated.run_id ? updated : r));
         }
       } else if (table === "competitors") {
-        const orig = props.runs().find((run: Run) => run.competitor_id === id);
+        const orig = props.runs().find(r => r.competitor_id === id);
         if (orig) {
           const updated = { ...orig, ...record };
-          props.setRuns((prev: Run[]) => prev.map(r => r.competitor_id === id ? updated : r));
+          props.setRuns(prev => prev.map(r => r.competitor_id === id ? updated : r));
         }
       }
     }
   };
 
-  // Returns undefined instead of throwing so cell renderers degrade gracefully
   function stageStart(): Date | undefined {
     return props.eventConfig().stages[props.currentStage() - 1]?.stageStart;
   }
@@ -105,7 +137,6 @@ function EntriesTable(props: {
     const hms = parseHH_MM_SS(s);
     if (!hms) return undefined;
     const [hours, minutes, secs] = hms;
-    // Fix #4: was stages[currentStage()] — off by one since stages are 0-indexed
     const start = props.eventConfig().stages[props.currentStage() - 1]?.stageStart;
     if (!start) return undefined;
     const runStart = new Date(start.getTime());
@@ -122,36 +153,66 @@ function EntriesTable(props: {
     return `${hh}:${mm}:${ss}`;
   }
 
-  const openRunEditDialog = (id: number) => {
-    const run = props.runs().find(r => r.run_id === id);
-    if (run) setFormRun(run);
-  };
+  const makeParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue =>
+    makeMap({ table, id, record: makeMap(record), issuer: "fanda" });
 
-  const closeDialog = () => setFormRun(null);
+  const insertRunInDb = async (newRun: Run) => {
+    try {
+      const sqlPath = appConfig.eventSqlApiPath(props.eventId());
 
-  const acceptRunEditDialog = () => {
-    const run = formRun();
-    if (!run) return;
-    closeDialog();
-    updateRunInDb(run);
+      // Resolve classid
+      const classResult = await callRpcMethod(wsClient()!, sqlPath, "query",
+        [`SELECT id FROM classes WHERE name = '${props.className()}'`]);
+      const classId: number = (classResult as any).rows?.[0]?.[0];
+      if (!classId) throw new Error(`Class '${props.className()}' not found`);
+
+      // Insert competitor — server returns new id
+      const competitorRecord: Record<string, RpcValue> = {
+        ...(newRun.firstname    !== undefined && { firstname:    newRun.firstname }),
+        ...(newRun.lastname     !== undefined && { lastname:     newRun.lastname }),
+        ...(newRun.registration !== undefined && { registration: newRun.registration }),
+        classid: classId,
+      };
+      const competitorId = await callRpcMethod(wsClient()!, sqlPath, "insert",
+        makeMap({ table: "competitors", record: makeMap(competitorRecord), issuer: "fanda" })) as number;
+      if (typeof competitorId !== "number") throw new Error("Insert competitor did not return an id");
+
+      // Resolve stageid
+      const stageResult = await callRpcMethod(wsClient()!, sqlPath, "query",
+        [`SELECT id FROM stages WHERE stageno = ${props.currentStage()}`]);
+      const stageId: number = (stageResult as any).rows?.[0]?.[0];
+      if (!stageId) throw new Error(`Stage ${props.currentStage()} not found`);
+
+      // Insert run
+      const runRecord: Record<string, RpcValue> = {
+        competitorid: competitorId,
+        stageid: stageId,
+        ...(newRun.siid        !== undefined && { siid:        newRun.siid }),
+        ...(newRun.starttimems !== undefined && { starttimems: newRun.starttimems }),
+      };
+      await callRpcMethod(wsClient()!, sqlPath, "insert",
+        makeMap({ table: "runs", record: makeMap(runRecord), issuer: "fanda" }));
+
+      showToast({ title: "New entry added" });
+      props.onReload();
+    } catch (error) {
+      showToast({ title: "Add entry error", description: (error as Error).message, variant: "destructive" });
+    }
   };
 
   const updateRunInDb = async (newRun: Run) => {
     const origRun = props.runs().find(r => r.run_id === newRun.run_id);
     if (!origRun) return;
     try {
-      const createParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue =>
-        makeMap({ table, id, record: makeMap(record), issuer: "fanda" });
-
       const competitorChanges = copyValidFieldsToRpcMap(origRun, newRun, ["firstname", "lastname", "registration"]);
       if (!isRecordEmpty(competitorChanges)) {
         await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
-          createParam('competitors', origRun.competitor_id, competitorChanges));
+          makeParam('competitors', origRun.competitor_id, competitorChanges));
       }
       const runChanges = copyValidFieldsToRpcMap(origRun, newRun, ["siid", "starttimems"]);
       if (!isRecordEmpty(runChanges)) {
         await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
-          createParam('runs', origRun.run_id, runChanges));
+          makeParam('runs', origRun.run_id, runChanges));
       }
       showToast({ title: "Update run success" });
     } catch (error) {
@@ -160,9 +221,7 @@ function EntriesTable(props: {
   };
 
   createEffect(() => {
-    if (props.className()) {
-      props.onReload();
-    }
+    if (props.className()) props.onReload();
   });
 
   const columns: TableColumn<Run>[] = [
@@ -177,17 +236,13 @@ function EntriesTable(props: {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
-        const fullName = [entry.firstname, entry.lastname]
-          .filter((n) => n?.trim())
-          .join(" ");
+        const fullName = [entry.firstname, entry.lastname].filter(n => n?.trim()).join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
-      sortFn: (a: Run, b: Run) => {
-        const aName = [a.firstname, a.lastname].filter(Boolean).join(" ");
-        const bName = [b.firstname, b.lastname].filter(Boolean).join(" ");
-        return aName.localeCompare(bName);
-      },
+      sortFn: (a: Run, b: Run) =>
+        [a.firstname, a.lastname].filter(Boolean).join(" ")
+          .localeCompare([b.firstname, b.lastname].filter(Boolean).join(" ")),
       width: "200px",
     },
     {
@@ -232,7 +287,7 @@ function EntriesTable(props: {
       <Dialog open={!!formRun()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent class="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Run</DialogTitle>
+            <DialogTitle>{isNew() ? "New Entry" : "Edit Run"}</DialogTitle>
           </DialogHeader>
 
           <div class="space-y-4">
@@ -285,7 +340,7 @@ function EntriesTable(props: {
 
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={acceptRunEditDialog}>Save Changes</Button>
+            <Button onClick={acceptDialog}>{isNew() ? "Add Entry" : "Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -352,8 +407,8 @@ const Entries = (props: {
   const [className, setClassName] = createSignal("");
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
+  const [addEntry, setAddEntry] = createSignal<(() => void) | null>(null);
 
-  // Wrap static props as accessors so child components get stable getter signatures
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
 
@@ -394,6 +449,7 @@ const Entries = (props: {
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
           <div class="flex gap-2">
+            <Button onClick={() => addEntry()?.()} disabled={!className()}>Add entry</Button>
             <Button variant="outline" onClick={reloadTable} disabled={loading() || !className()}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
@@ -408,6 +464,7 @@ const Entries = (props: {
           setRuns={setRuns}
           loading={loading}
           onReload={reloadTable}
+          onAddEntry={(fn) => setAddEntry(() => fn)}
           recchngReceived={props.recchngReceived}
         />
       </div>
