@@ -127,6 +127,16 @@ function EntriesTable(props: {
     });
   });
 
+  function stageStart(): Date {
+    const eventConfig = props.eventConfig();
+    const stage = props.currentStage() - 1;
+    const stageStart = eventConfig.stages[stage]?.stageStart;
+    if (!stageStart) {
+      throw new Error(`Stage start is not defined for stage ${props.currentStage()}`);
+    }
+    return stageStart;
+  }
+
   function parseHH_MM_SS(hhmmss: string): [number, number, number] | undefined {
 
     const timeSegments = hhmmss.split(':').map(Number);
@@ -163,11 +173,10 @@ function EntriesTable(props: {
     return runStart.getTime() - stageStart.getTime();
   }
 
-  function formatStartTime(msec: number | undefined): string {
+  function formatStartTime(msec: number | undefined, stageStart: Date | undefined): string {
     if (msec === undefined) {
       return "";
     }
-    const stageStart = props.eventConfig().stages[props.currentStage()]?.stageStart;
     if (!stageStart) {
       return "";
     }
@@ -203,7 +212,7 @@ function EntriesTable(props: {
         lastnameRef.value = runToEdit.lastname || "";
         registrationRef.value = runToEdit.registration || "";
         siIdRef.value = runToEdit.siid?.toString() || "";
-        startTimeRef.value = formatStartTime(runToEdit.starttimems);
+        startTimeRef.value = formatStartTime(runToEdit.starttimems, stageStart());
       }, 0);
     }
   };
@@ -289,10 +298,8 @@ function EntriesTable(props: {
         if (run.starttimems === undefined) {
           return <span>—</span>;
         }
-        const eventConfig = props.eventConfig();
-        const stageStart = eventConfig.stages[props.currentStage()].stageStart;
         return (
-          <span>{formatStartTime(run.starttimems)}</span>
+          <span>{formatStartTime(run.starttimems, stageStart())}</span>
         );
       },
       sortable: true,
@@ -322,7 +329,7 @@ function EntriesTable(props: {
       width: "100px",
     },
     {
-      key: "siId",
+      key: "siid",
       header: "SI",
       sortable: true,
       width: "250px",

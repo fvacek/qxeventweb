@@ -77,8 +77,8 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
         throw new Error(`Cannot open event: ${event_api_shv_path}`);
       }
 
-      const eventApiPath = appConfig.eventApiPath(event_id);
-      let recordResult = await callRpcMethod(eventApiPath, "data", );
+      const eventApiPath = appConfig.eventCtlApiPath();
+      let recordResult = await callRpcMethod(eventApiPath, "eventData", [event_id]);
 
       let eventRecord = parse(EventRecordSchema, recordResult);
 
