@@ -27,10 +27,7 @@ import { useAppConfig } from "~/context/AppConfig";
 import { useAuth } from "~/context/AuthContext";
 
 import { useSubscribe } from "~/context/SubscribeContext";
-import {
-  parse,
-  type InferOutput,
-} from "valibot";
+import { parse } from "valibot";
 import {
   copyRecordChanges as copyValidFieldsToRpcMap,
   isRecordEmpty,
@@ -39,43 +36,12 @@ import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { SwitchField } from "~/components/ui/switch";
 import { DateTimeField } from "~/components/ui/date-time-field";
-import * as v from "valibot";
-
-// Accept numbers and booleans, transform into a boolean
-const BooleanFromSqlite = v.pipe(
-  v.union([v.number(), v.boolean()]), // input must be number or boolean
-  v.transform((val) => val !== 0 && val !== false) // map 0/false → false, everything else → true
-);
-
-export const EventRecordSchema = v.object({
-  id: v.number(),
-  name: v.optional(v.string()),
-  date: v.optional(v.string()),
-  stage: v.number(),
-  api_token: v.string(),
-  owner: v.string(),
-  is_local: BooleanFromSqlite,
-});
-
-export const EventRecordChangeSchema = v.object({
-  name: v.optional(v.string()),
-  date: v.optional(v.string()),
-  stage: v.optional(v.number()),
-  api_token: v.optional(v.string()),
-  is_local: v.optional(v.boolean()),
-});
-
-export const EventTableRecordSchema = v.object({
-  id: v.number(),
-  name: v.optional(v.string()),
-  date: v.optional(v.string()),
-  owner: v.string(),
-  is_local: BooleanFromSqlite,
-});
-
-export type EventRecord = InferOutput<typeof EventRecordSchema>;
-export type EventTableRecord = InferOutput<typeof EventTableRecordSchema>;
-const EventRecordTableSchema = v.array(EventTableRecordSchema);
+import {
+  EventRecordSchema,
+  EventRecordTableSchema,
+  type EventRecord,
+  type EventTableRecord,
+} from "~/schema/event-record-schema";
 
 function EventsTable() {
   const { wsClient, status } = useWsClient();

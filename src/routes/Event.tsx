@@ -6,7 +6,7 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
-import { EventRecord, EventRecordSchema } from "./Events";
+import { EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";

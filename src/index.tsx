@@ -17,18 +17,11 @@ declare global {
     }
 }
 
-// const Home = lazy(() => import("./routes/Home"))
-// const About = lazy(() => import("./routes/About"))
-// const TableDemo = lazy(() => import("./routes/TableDemo"))
-// const LateEntries = lazy(() => import("./routes/LateEntries"))
-// const NotFound = lazy(() => import("./routes/NotFound"))
-
-import { AuthProvider } from "./context/AuthContext"
-import Events from "./routes/Events"
-import Home from "./routes/Home"
-import TableDemo from "./routes/TableDemo"
-import Event from "./routes/Event"
-import NotFound from "./routes/NotFound"
+const Home = lazy(() => import("./routes/Home"))
+const TableDemo = lazy(() => import("./routes/TableDemo"))
+const Events = lazy(() => import("./routes/Events"))
+const Event = lazy(() => import("./routes/Event"))
+const NotFound = lazy(() => import("./routes/NotFound"))
 
 const app = document.getElementById("app")
 if (app) {

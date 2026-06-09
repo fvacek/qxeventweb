@@ -18,6 +18,7 @@ import {
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 
 import { useWsClient } from "~/context/WsClient";
+import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -38,9 +39,26 @@ const RunSchema = object({
   registration: undefinedable(string()),
   siid: undefinedable(number()),
   starttimems: undefinedable(number()),
+  qxchange_id: undefinedable(number()),
+  qxchange_user_id: undefinedable(number()),
+  qxchange_data: undefinedable(string()),
 });
 
 type Run = InferOutput<typeof RunSchema>;
+
+const LateEntryDataSchema = object({
+  class_name: undefinedable(string()),
+  firstname: undefinedable(string()),
+  lastname: undefinedable(string()),
+  registration: undefinedable(string()),
+  siid: undefinedable(number()),
+});
+type LateEntryData = InferOutput<typeof LateEntryDataSchema>;
+
+type LateEntry = {
+  run_id: number;
+  data: LateEntryData;
+};
 
 function EntriesTable(props: {
   className: () => string;
@@ -56,41 +74,52 @@ function EntriesTable(props: {
 }) {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
+  const { user } = useAuth();
 
   // null = dialog closed; run_id === 0 = new entry, run_id > 0 = editing existing
-  const [formRun, setFormRun] = createSignal<Run | null>(null);
+  const [formLateEntry, setFormLateEntry] = createSignal<LateEntry | null>(null);
 
-  const isNew = () => formRun()?.run_id === 0;
-
-  const openNewEntryDialog = () => setFormRun({
+  const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
-    competitor_id: 0,
-    class_name: props.className(),
-    firstname: undefined,
-    lastname: undefined,
-    registration: undefined,
-    siid: undefined,
-    starttimems: undefined,
+    data: {
+      firstname: undefined,
+      lastname: undefined,
+      registration: undefined,
+      siid: undefined,
+      class_name: props.className(),
+    },
   });
 
   // Register the opener with the parent once on mount
   onMount(() => props.onAddEntry(openNewEntryDialog));
 
-  const openRunEditDialog = (id: number) => {
+  const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
-    if (run) setFormRun(run);
+    if (run) setFormLateEntry({
+      run_id: id,
+      data: {
+        firstname: run.firstname,
+        lastname: run.lastname,
+        registration: run.registration,
+        siid: run.siid,
+        class_name: props.className(),
+      },
+    });
   };
 
-  const closeDialog = () => setFormRun(null);
+  const closeDialog = () => setFormLateEntry(null);
 
   const acceptDialog = () => {
-    const run = formRun();
-    if (!run) return;
+    const entry = formLateEntry();
+    if (!entry) return;
+    const run = props.runs().find(r => r.run_id === entry.run_id);
     closeDialog();
-    if (isNew()) {
-      insertRunInDb(run);
-    } else {
-      updateRunInDb(run);
+    if (run) {
+      if (run.qxchange_id) {
+        updateLateEntry(entry);
+      } else {
+        updateLateEntry(entry);
+      }
     }
   };
 
@@ -156,42 +185,41 @@ function EntriesTable(props: {
   const makeParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue =>
     makeMap({ table, id, record: makeMap(record), issuer: "fanda" });
 
-  const insertRunInDb = async (newRun: Run) => {
+  const updateLateEntry = async (entry: LateEntry) => {
     try {
-      const sqlPath = appConfig.eventSqlApiPath(props.eventId());
 
       // Resolve classid
-      const classResult = await callRpcMethod(wsClient()!, sqlPath, "query",
-        [`SELECT id FROM classes WHERE name = '${props.className()}'`]);
-      const classId: number = (classResult as any).rows?.[0]?.[0];
-      if (!classId) throw new Error(`Class '${props.className()}' not found`);
+      // const classResult = await callRpcMethod(wsClient()!, sqlPath, "query",
+      //   [`SELECT id FROM classes WHERE name = '${props.className()}'`]);
+      // const classId: number = (classResult as any).rows?.[0]?.[0];
+      // if (!classId) throw new Error(`Class '${props.className()}' not found`);
 
-      // Insert competitor — server returns new id
-      const competitorRecord: Record<string, RpcValue> = {
-        ...(newRun.firstname    !== undefined && { firstname:    newRun.firstname }),
-        ...(newRun.lastname     !== undefined && { lastname:     newRun.lastname }),
-        ...(newRun.registration !== undefined && { registration: newRun.registration }),
-        classid: classId,
-      };
-      const competitorId = await callRpcMethod(wsClient()!, sqlPath, "insert",
-        makeMap({ table: "competitors", record: makeMap(competitorRecord), issuer: "fanda" })) as number;
-      if (typeof competitorId !== "number") throw new Error("Insert competitor did not return an id");
+      // // Insert competitor — server returns new id
+      // const competitorRecord: Record<string, RpcValue> = {
+      //   ...(newRun.firstname    !== undefined && { firstname:    newRun.firstname }),
+      //   ...(newRun.lastname     !== undefined && { lastname:     newRun.lastname }),
+      //   ...(newRun.registration !== undefined && { registration: newRun.registration }),
+      //   classid: classId,
+      // };
+      // const competitorId = await callRpcMethod(wsClient()!, sqlPath, "insert",
+      //   makeMap({ table: "competitors", record: makeMap(competitorRecord), issuer: "fanda" })) as number;
+      // if (typeof competitorId !== "number") throw new Error("Insert competitor did not return an id");
 
-      // Resolve stageid
-      const stageResult = await callRpcMethod(wsClient()!, sqlPath, "query",
-        [`SELECT id FROM stages WHERE stageno = ${props.currentStage()}`]);
-      const stageId: number = (stageResult as any).rows?.[0]?.[0];
-      if (!stageId) throw new Error(`Stage ${props.currentStage()} not found`);
+      // // Resolve stageid
+      // const stageResult = await callRpcMethod(wsClient()!, sqlPath, "query",
+      //   [`SELECT id FROM stages WHERE stageno = ${props.currentStage()}`]);
+      // const stageId: number = (stageResult as any).rows?.[0]?.[0];
+      // if (!stageId) throw new Error(`Stage ${props.currentStage()} not found`);
 
-      // Insert run
-      const runRecord: Record<string, RpcValue> = {
-        competitorid: competitorId,
-        stageid: stageId,
-        ...(newRun.siid        !== undefined && { siid:        newRun.siid }),
-        ...(newRun.starttimems !== undefined && { starttimems: newRun.starttimems }),
-      };
-      await callRpcMethod(wsClient()!, sqlPath, "insert",
-        makeMap({ table: "runs", record: makeMap(runRecord), issuer: "fanda" }));
+      // // Insert run
+      // const runRecord: Record<string, RpcValue> = {
+      //   competitorid: competitorId,
+      //   stageid: stageId,
+      //   ...(newRun.siid        !== undefined && { siid:        newRun.siid }),
+      //   ...(newRun.starttimems !== undefined && { starttimems: newRun.starttimems }),
+      // };
+      // await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "addLateEntry",
+      //   makeMap({ table: "runs", record: makeMap(runRecord), issuer: "fanda" }));
 
       showToast({ title: "New entry added" });
       props.onReload();
@@ -200,7 +228,7 @@ function EntriesTable(props: {
     }
   };
 
-  const updateRunInDb = async (newRun: Run) => {
+  const updateLateEntry2 = async (newRun: LateEntry) => {
     const origRun = props.runs().find(r => r.run_id === newRun.run_id);
     if (!origRun) return;
     try {
@@ -258,10 +286,19 @@ function EntriesTable(props: {
       width: "100px",
     },
     {
+      key: "qxchange_user_id",
+      header: "Owner",
+      sortable: true,
+      width: "100px",
+    },
+    {
       key: "actions",
       header: "Actions",
       cell: (run: Run) => (
-        <Button size="sm" variant="outline" onClick={() => openRunEditDialog(run.run_id)}>
+        <Button size="sm" variant="outline"
+          onClick={() => openLateEntryEditDialog(run.run_id)}
+          disabled={!user()}
+        >
           Edit
         </Button>
       ),
@@ -284,63 +321,63 @@ function EntriesTable(props: {
         />
       </div>
 
-      <Dialog open={!!formRun()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+      <Dialog open={!!formLateEntry()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent class="max-w-md">
           <DialogHeader>
-            <DialogTitle>{isNew() ? "New Entry" : "Edit Run"}</DialogTitle>
+            <DialogTitle>{"Late Entry"}</DialogTitle>
           </DialogHeader>
 
           <div class="space-y-4">
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                value={formRun()?.firstname || ""}
+                value={formLateEntry()?.data.firstname || ""}
                 type="text"
-                onInput={(e) => setFormRun(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                value={formRun()?.lastname || ""}
+                value={formLateEntry()?.data.lastname || ""}
                 type="text"
-                onInput={(e) => setFormRun(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
-                value={formRun()?.registration || ""}
+                value={formLateEntry()?.data.registration || ""}
                 type="text"
-                onInput={(e) => setFormRun(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
-                value={formRun()?.siid?.toString() || ""}
+                value={formLateEntry()?.data.siid?.toString() || ""}
                 type="number"
-                onInput={(e) => setFormRun(prev => prev ? { ...prev, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } : null)}
               />
             </TextField>
 
-            <TextField>
+            {/*<TextField>
               <TextFieldLabel>Start Time</TextFieldLabel>
               <TextFieldInput
-                value={formatStartTime(formRun()?.starttimems, stageStart())}
+                value={formatStartTime(formLateEntry()?.starttimems, stageStart())}
                 type="text"
                 placeholder="HH:MM"
-                onInput={(e) => setFormRun(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : null)}
               />
-            </TextField>
+            </TextField>*/}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={acceptDialog}>{isNew() ? "Add Entry" : "Save Changes"}</Button>
+            <Button onClick={acceptDialog}>{"Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -419,10 +456,12 @@ const Entries = (props: {
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
         `SELECT runs.id as run_id, runs.siid, runs.starttimems,
                 competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-                classes.name AS class_name
+                classes.name AS class_name,
+                qxchanges.id as qxchange_id, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
+                LEFT JOIN qxchanges ON runs.id = qxchanges.data_id AND qxchanges.data_type = 'LateEntry'
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`,
       ]);
