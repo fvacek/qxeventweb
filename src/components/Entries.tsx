@@ -182,67 +182,20 @@ function EntriesTable(props: {
     return `${hh}:${mm}:${ss}`;
   }
 
-  const makeParam = (table: string, id: number, record: Record<string, RpcValue>): RpcValue =>
-    makeMap({ table, id, record: makeMap(record), issuer: "fanda" });
-
-  const updateLateEntry = async (entry: LateEntry) => {
-    try {
-
-      // Resolve classid
-      // const classResult = await callRpcMethod(wsClient()!, sqlPath, "query",
-      //   [`SELECT id FROM classes WHERE name = '${props.className()}'`]);
-      // const classId: number = (classResult as any).rows?.[0]?.[0];
-      // if (!classId) throw new Error(`Class '${props.className()}' not found`);
-
-      // // Insert competitor — server returns new id
-      // const competitorRecord: Record<string, RpcValue> = {
-      //   ...(newRun.firstname    !== undefined && { firstname:    newRun.firstname }),
-      //   ...(newRun.lastname     !== undefined && { lastname:     newRun.lastname }),
-      //   ...(newRun.registration !== undefined && { registration: newRun.registration }),
-      //   classid: classId,
-      // };
-      // const competitorId = await callRpcMethod(wsClient()!, sqlPath, "insert",
-      //   makeMap({ table: "competitors", record: makeMap(competitorRecord), issuer: "fanda" })) as number;
-      // if (typeof competitorId !== "number") throw new Error("Insert competitor did not return an id");
-
-      // // Resolve stageid
-      // const stageResult = await callRpcMethod(wsClient()!, sqlPath, "query",
-      //   [`SELECT id FROM stages WHERE stageno = ${props.currentStage()}`]);
-      // const stageId: number = (stageResult as any).rows?.[0]?.[0];
-      // if (!stageId) throw new Error(`Stage ${props.currentStage()} not found`);
-
-      // // Insert run
-      // const runRecord: Record<string, RpcValue> = {
-      //   competitorid: competitorId,
-      //   stageid: stageId,
-      //   ...(newRun.siid        !== undefined && { siid:        newRun.siid }),
-      //   ...(newRun.starttimems !== undefined && { starttimems: newRun.starttimems }),
-      // };
-      // await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "addLateEntry",
-      //   makeMap({ table: "runs", record: makeMap(runRecord), issuer: "fanda" }));
-
-      showToast({ title: "New entry added" });
-      props.onReload();
-    } catch (error) {
-      showToast({ title: "Add entry error", description: (error as Error).message, variant: "destructive" });
+  const updateLateEntry = async (lateEntry: LateEntry) => {
+    let origRun = props.runs().find(r => r.run_id === lateEntry.run_id);
+    if (!origRun) {
+      origRun = {} as Run;
     }
-  };
-
-  const updateLateEntry2 = async (newRun: LateEntry) => {
-    const origRun = props.runs().find(r => r.run_id === newRun.run_id);
-    if (!origRun) return;
     try {
-      const competitorChanges = copyValidFieldsToRpcMap(origRun, newRun, ["firstname", "lastname", "registration"]);
-      if (!isRecordEmpty(competitorChanges)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
-          makeParam('competitors', origRun.competitor_id, competitorChanges));
+      const changes = copyValidFieldsToRpcMap(origRun, lateEntry.data);
+      if (isRecordEmpty(changes)) {
+        showToast({ title: "No changes" });
+      } else {
+        const params = makeMap({ run_id: lateEntry.run_id, record: makeMap(changes) });
+        await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "updateLateEntry", params);
+        showToast({ title: "Update late entry success" });
       }
-      const runChanges = copyValidFieldsToRpcMap(origRun, newRun, ["siid", "starttimems"]);
-      if (!isRecordEmpty(runChanges)) {
-        await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId()), "update",
-          makeParam('runs', origRun.run_id, runChanges));
-      }
-      showToast({ title: "Update run success" });
     } catch (error) {
       showToast({ title: "Update run error", description: (error as Error).message, variant: "destructive" });
     }
@@ -333,7 +286,7 @@ function EntriesTable(props: {
               <TextFieldInput
                 value={formLateEntry()?.data.firstname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, firstname: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
@@ -342,7 +295,7 @@ function EntriesTable(props: {
               <TextFieldInput
                 value={formLateEntry()?.data.lastname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, lastname: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
@@ -351,7 +304,7 @@ function EntriesTable(props: {
               <TextFieldInput
                 value={formLateEntry()?.data.registration || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, registration: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
@@ -360,7 +313,7 @@ function EntriesTable(props: {
               <TextFieldInput
                 value={formLateEntry()?.data.siid?.toString() || ""}
                 type="number"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } } : null)}
               />
             </TextField>
 
@@ -461,7 +414,7 @@ const Entries = (props: {
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
-                LEFT JOIN qxchanges ON runs.id = qxchanges.data_id AND qxchanges.data_type = 'LateEntry'
+                LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`,
       ]);

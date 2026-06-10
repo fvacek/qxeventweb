@@ -29,6 +29,11 @@ const EventInfo = ({ eventConfig }: EventInfoProps) => {
           <label class="block text-sm font-medium text-muted-foreground mb-1">Stages</label>
           <p class="text-lg">{eventConfig.stageCount}</p>
         </div>
+
+        <div>
+          <label class="block text-sm font-medium text-muted-foreground mb-1">Current stage</label>
+          <p class="text-lg">{eventConfig.currentStage}</p>
+        </div>
       </div>
 
       {eventConfig.stages.length > 0 && (

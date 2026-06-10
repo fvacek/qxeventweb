@@ -21,6 +21,7 @@ export class EventConfig {
   place?: string;
   date?: Date;
   stageCount: number = 1;
+  currentStage: number = 1;
   stages: StageConfig[] = [];
 }
 
@@ -37,7 +38,6 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>("");
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
-  const [currentStage, setCurrentStage] = createSignal(1);
 
   const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue, requestUserId?: boolean) => {
     const client = wsClient();
@@ -114,6 +114,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     const place = getValue("event.place");
     const dateStr = getValue("event.date") || eventData?.date;
     const stageCountStr = getValue("event.stageCount") || "1";
+    const currentStageStr = getValue("event.currentStageId") || "1";
 
     // Parse date safely
     const parseDate = (dateStr: string): Date | undefined => {
@@ -127,6 +128,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
     // Parse stage count safely
     const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
+    const currentStage = Math.max(1, parseInt(currentStageStr, 10) || 1);
 
     const stages_table = createSqlTable(stagesResult);
 
@@ -149,6 +151,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       place,
       date: parseDate(dateStr),
       stageCount,
+      currentStage,
       stages,
     };
   }
@@ -186,7 +189,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     <div class="flex w-full flex-col items-center justify-center p-4">
       <div class="flex flex-row w-full mb-6 justify-between">
         <p class="text-3xl font-bold">{eventConfig.name}</p>
-        <StageControl currentStage={currentStage} />
+        <StageControl currentStage={() => eventConfig.currentStage} />
       </div>
 
 
@@ -216,7 +219,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
               <Entries
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
-                currentStage={currentStage()}
+                currentStage={eventConfig.currentStage}
                 recchngReceived={recchngReceived}
               />
             </TabsContent>
