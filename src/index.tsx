@@ -20,7 +20,7 @@ declare global {
 const Home = lazy(() => import("./routes/Home"))
 const TableDemo = lazy(() => import("./routes/TableDemo"))
 const Events = lazy(() => import("./routes/Events"))
-const Event = lazy(() => import("./routes/Event"))
+const Event = lazy(() => import("./routes/OpenedEvent"))
 const NotFound = lazy(() => import("./routes/NotFound"))
 
 const app = document.getElementById("app")

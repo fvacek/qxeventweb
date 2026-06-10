@@ -1,4 +1,4 @@
-import { EventConfig } from "~/routes/Event";
+import { EventConfig } from "~/routes/OpenedEvent";
 
 interface EventInfoProps {
   eventConfig: EventConfig;

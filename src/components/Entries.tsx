@@ -26,7 +26,7 @@ import { object, number, string, parse, type InferOutput, undefinedable } from "
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
-import { EventConfig } from "~/routes/Event";
+import { EventConfig } from "~/routes/OpenedEvent";
 
 
 // Valibot schema for Run validation
