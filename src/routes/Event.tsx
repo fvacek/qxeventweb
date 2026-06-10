@@ -205,10 +205,10 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <Tabs defaultValue="event-info" class="w-full">
+          <Tabs defaultValue="entries" class="w-full">
             <TabsList class="grid w-full grid-cols-2">
-              <TabsTrigger value="event-info">Event</TabsTrigger>
               <TabsTrigger value="entries">Entries</TabsTrigger>
+              <TabsTrigger value="event-info">Event info</TabsTrigger>
             </TabsList>
 
             <TabsContent value="event-info" class="space-y-4">
