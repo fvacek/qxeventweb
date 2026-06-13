@@ -22,7 +22,7 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, undefinedable, optional } from "valibot";
+import { object, number, string, parse, type InferOutput, undefinedable, optional, undefinedableAsync } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
@@ -35,7 +35,7 @@ const LateEntryRecordSchema = object({
   registration: optional(string()),
   siid: optional(number()),
 });
-type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
+// type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
 const LateEntrySchema = object({
   run_id: number(),
@@ -47,15 +47,15 @@ type LateEntry = InferOutput<typeof LateEntrySchema>;
 const RunSchema = object({
   run_id: number(),
   competitor_id: number(),
-  class_name: undefinedable(string()),
-  firstname: undefinedable(string()),
-  lastname: undefinedable(string()),
-  registration: undefinedable(string()),
-  siid: undefinedable(number()),
-  starttimems: undefinedable(number()),
-  qxchange_id: undefinedable(number()),
-  qxchange_user_id: undefinedable(string()),
-  qxchange_data: undefinedable(LateEntrySchema),
+  class_name: optional(string()),
+  firstname: optional(string()),
+  lastname: optional(string()),
+  registration: optional(string()),
+  siid: optional(number()),
+  starttimems: optional(number()),
+  qxchange_id: optional(number()),
+  qxchange_user_id: optional(string()),
+  qxchange_data: optional(LateEntrySchema),
 });
 
 type Run = InferOutput<typeof RunSchema>;
@@ -93,17 +93,20 @@ function EntriesTable(props: {
   const { user } = useAuth();
 
   // null = dialog closed; run_id === 0 = new entry, run_id > 0 = editing existing
-  const [formLateEntry, setFormLateEntry] = createSignal<LateEntry | null>(null);
+  const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
 
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
-    record: {
-      firstname: undefined,
-      lastname: undefined,
-      registration: undefined,
-      siid: undefined,
-      class_name: props.className(),
-    },
+    competitor_id: 0,
+    class_name: props.className(),
+    firstname: undefined,
+    lastname: undefined,
+    registration: undefined,
+    siid: undefined,
+    starttimems: undefined,
+    qxchange_id: undefined,
+    qxchange_user_id: undefined,
+    qxchange_data: undefined,
   });
 
   // Register the opener with the parent once on mount
@@ -111,32 +114,51 @@ function EntriesTable(props: {
 
   const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
-    if (run) setFormLateEntry({
-      run_id: id,
-      record: {
-        firstname: run.firstname,
-        lastname: run.lastname,
-        registration: run.registration,
-        siid: run.siid,
-        class_name: props.className(),
-      },
+    if (run) setFormLateEntry(run);
+  };
+
+  const closeDialog = () => setFormLateEntry(undefined);
+
+  const isSiidFromLateEntry = () =>
+    typeof formLateEntry()?.qxchange_data?.record?.siid === "number";
+
+  const formSiid = () => {
+    const run = formLateEntry();
+    const newSiid = run?.qxchange_data?.record?.siid;
+    return typeof newSiid === "number" ? newSiid : run?.siid;
+  };
+
+  const setFormSiid = (siid: number | undefined) => {
+    setFormLateEntry(prev => {
+      if (!prev) return undefined;
+
+      if (prev.qxchange_data) {
+        return {
+          ...prev,
+          qxchange_data: {
+            ...prev.qxchange_data,
+            record: {
+              ...prev.qxchange_data.record,
+              siid: siid === prev.siid ? undefined : siid,
+            },
+          },
+        };
+      }
+
+      return { ...prev, siid };
     });
   };
 
-  const closeDialog = () => setFormLateEntry(null);
+  const lateEntryFromRun = (run: Run): LateEntry | undefined => run.qxchange_data;
 
   const acceptDialog = () => {
-    const entry = formLateEntry();
-    if (!entry) return;
-    const run = props.runs().find(r => r.run_id === entry.run_id);
-    closeDialog();
-    if (run) {
-      if (run.qxchange_id) {
-        updateLateEntry(entry);
-      } else {
-        updateLateEntry(entry);
-      }
+    const run = formLateEntry();
+    if (!run) return;
+    const lateEntry = run?.qxchange_data;
+    if (lateEntry) {
+      updateLateEntry(lateEntry);
     }
+    closeDialog();
   };
 
   createEffect(() => {
@@ -160,6 +182,14 @@ function EntriesTable(props: {
         if (orig) {
           const updated = { ...orig, ...record };
           props.setRuns(prev => prev.map(r => r.competitor_id === id ? updated : r));
+        }
+      } else if (table === "qxchanges") {
+        const orig = props.runs().find(r => r.qxchange_id === id);
+        if (orig) {
+          const lateEntryRecord = parse(LateEntryRecordSchema, record);
+          const lateEntry = { run_id: id, record: lateEntryRecord };
+          const updated = { ...orig, qxchange_data: lateEntry };
+          props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
         }
       }
     }
@@ -201,8 +231,11 @@ function EntriesTable(props: {
   const updateLateEntry = async (lateEntry: LateEntry) => {
     let origRun = props.runs().find(r => r.run_id === lateEntry.run_id);
     if (!origRun) {
-      origRun = {} as Run;
+      return;
     }
+    const updated = { ...origRun, qxchange_data: lateEntry };
+    props.setRuns(prev => prev.map(r => r.run_id === updated.run_id ? updated : r));
+
     try {
       const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
       if (isRecordEmpty(changes)) {
@@ -233,13 +266,13 @@ function EntriesTable(props: {
       key: "name",
       header: "Name",
       cell: (entry: Run) => {
-        const fullName = [entry.firstname, entry.lastname].filter(n => n?.trim()).join(" ");
+        const fullName = [entry.lastname, entry.firstname].filter(n => n?.trim()).join(" ");
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
       sortFn: (a: Run, b: Run) =>
-        [a.firstname, a.lastname].filter(Boolean).join(" ")
-          .localeCompare([b.firstname, b.lastname].filter(Boolean).join(" ")),
+        [a.lastname, a.firstname].filter(Boolean).join(" ")
+          .localeCompare([b.lastname, b.firstname].filter(Boolean).join(" ")),
       width: "200px",
     },
     {
@@ -251,7 +284,20 @@ function EntriesTable(props: {
     {
       key: "siid",
       header: "SI",
-      sortable: true,
+      cell: (run: Run) => {
+        const siid = run.siid;
+        const newSiid = run.qxchange_data?.record?.siid;
+        if (typeof newSiid === "number") {
+          return (
+            <div class="flex flex-col leading-tight">
+              <span class="line-through text-muted-foreground">{siid !== undefined ? siid.toString() : "—"}</span>
+              <span>{newSiid.toString()}</span>
+            </div>
+          );
+        }
+        return <span>{siid !== undefined ? siid.toString() : "—"}</span>;
+      },
+      sortable: false,
       width: "100px",
     },
     {
@@ -300,36 +346,37 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.record.firstname || ""}
+                value={formLateEntry()?.firstname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, firstname: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.record.lastname || ""}
+                value={formLateEntry()?.lastname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, lastname: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.record.registration || ""}
+                value={formLateEntry()?.registration || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, registration: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.record.siid?.toString() || ""}
+                value={formSiid()?.toString() || ""}
                 type="number"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } } : null)}
+                class={isSiidFromLateEntry() ? "text-primary font-semibold" : ""}
+                onInput={(e) => setFormSiid(e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
               />
             </TextField>
 
@@ -339,7 +386,7 @@ function EntriesTable(props: {
                 value={formatStartTime(formLateEntry()?.starttimems, stageStart())}
                 type="text"
                 placeholder="HH:MM"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : undefined)}
               />
             </TextField>*/}
           </div>

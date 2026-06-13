@@ -179,6 +179,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       // Subscribe to event SQL path (used by LateEntries)
       console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
       client.subscribe("qxeventweb", ShvRI.fromPathMethodSignal(appConfig.eventSqlApiPath(eid), "", "recchng"), (path: string, signal: string, param?: RpcValue) => {
+        // console.log("SUBSCRIBED ======>", path, signal, param);
         const recchng: RecChng = parse(RecChngSchema, param);
         setRecchngReceived(recchng);
       });
