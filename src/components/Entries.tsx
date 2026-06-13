@@ -22,14 +22,28 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, undefinedable } from "valibot";
+import { object, number, string, parse, type InferOutput, undefinedable, optional } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 
+const LateEntryRecordSchema = object({
+  class_name: optional(string()),
+  firstname: optional(string()),
+  lastname: optional(string()),
+  registration: optional(string()),
+  siid: optional(number()),
+});
+type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
-// Valibot schema for Run validation
+const LateEntrySchema = object({
+  run_id: number(),
+  record: LateEntryRecordSchema,
+});
+
+type LateEntry = InferOutput<typeof LateEntrySchema>;
+
 const RunSchema = object({
   run_id: number(),
   competitor_id: number(),
@@ -40,25 +54,27 @@ const RunSchema = object({
   siid: undefinedable(number()),
   starttimems: undefinedable(number()),
   qxchange_id: undefinedable(number()),
-  qxchange_user_id: undefinedable(number()),
-  qxchange_data: undefinedable(string()),
+  qxchange_user_id: undefinedable(string()),
+  qxchange_data: undefinedable(LateEntrySchema),
 });
 
 type Run = InferOutput<typeof RunSchema>;
 
-const LateEntryDataSchema = object({
-  class_name: undefinedable(string()),
-  firstname: undefinedable(string()),
-  lastname: undefinedable(string()),
-  registration: undefinedable(string()),
-  siid: undefinedable(number()),
-});
-type LateEntryData = InferOutput<typeof LateEntryDataSchema>;
+function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const rawChange = record.qxchange_data;
+  if (typeof rawChange !== "string") return record;
 
-type LateEntry = {
-  run_id: number;
-  data: LateEntryData;
-};
+  const parsed = JSON.parse(rawChange);
+  const lateEntry = parsed?.LateEntry;
+  if (!lateEntry) return record;
+
+  const { run_id, record: lateEntryRecord = {} } = lateEntry;
+
+  return {
+    ...record,
+    qxchange_data: { run_id, record: lateEntryRecord },
+  };
+}
 
 function EntriesTable(props: {
   className: () => string;
@@ -81,7 +97,7 @@ function EntriesTable(props: {
 
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
-    data: {
+    record: {
       firstname: undefined,
       lastname: undefined,
       registration: undefined,
@@ -97,7 +113,7 @@ function EntriesTable(props: {
     const run = props.runs().find(r => r.run_id === id);
     if (run) setFormLateEntry({
       run_id: id,
-      data: {
+      record: {
         firstname: run.firstname,
         lastname: run.lastname,
         registration: run.registration,
@@ -188,7 +204,7 @@ function EntriesTable(props: {
       origRun = {} as Run;
     }
     try {
-      const changes = copyValidFieldsToRpcMap(origRun, lateEntry.data);
+      const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
       if (isRecordEmpty(changes)) {
         showToast({ title: "No changes" });
       } else {
@@ -284,36 +300,36 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.data.firstname || ""}
+                value={formLateEntry()?.record.firstname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, firstname: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, firstname: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.data.lastname || ""}
+                value={formLateEntry()?.record.lastname || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, lastname: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, lastname: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.data.registration || ""}
+                value={formLateEntry()?.record.registration || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, registration: e.currentTarget.value || undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, registration: e.currentTarget.value || undefined } } : null)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.data.siid?.toString() || ""}
+                value={formLateEntry()?.record.siid?.toString() || ""}
                 type="number"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, data: { ...prev.data, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } } : null)}
+                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, record: { ...prev.record, siid: e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined } } : null)}
               />
             </TextField>
 
@@ -422,7 +438,7 @@ const Entries = (props: {
       const transformedRuns: Run[] = [];
       for (let i = 0; i < table.rowCount(); i++) {
         try {
-          transformedRuns.push(parse(RunSchema, table.recordAt(i)));
+          transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
         } catch (error) {
           console.warn(`Skipping invalid row ${i}:`, error);
         }
