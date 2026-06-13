@@ -407,7 +407,7 @@ const Entries = (props: {
   currentStage: number,
   recchngReceived: () => RecChng | null
 }) => {
-  const { wsClient } = useWsClient();
+  const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
 
   const [className, setClassName] = createSignal("");
@@ -419,7 +419,7 @@ const Entries = (props: {
   const currentStage = () => props.currentStage;
 
   const reloadTable = async () => {
-    if (!className()) return;
+    if (!className() || status() !== "Connected") return;
     setLoading(true);
     try {
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
@@ -457,8 +457,8 @@ const Entries = (props: {
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
           <div class="flex gap-2">
-            <Button onClick={() => addEntry()?.()} disabled={!className()}>Add entry</Button>
-            <Button variant="outline" onClick={reloadTable} disabled={loading() || !className()}>
+            <Button onClick={() => addEntry()?.()} disabled={!className() || status() !== "Connected"}>Add entry</Button>
+            <Button variant="outline" onClick={reloadTable} disabled={loading() || !className() || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
           </div>
