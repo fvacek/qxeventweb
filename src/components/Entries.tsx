@@ -149,8 +149,6 @@ function EntriesTable(props: {
     });
   };
 
-  const lateEntryFromRun = (run: Run): LateEntry | undefined => run.qxchange_data;
-
   const acceptDialog = () => {
     const run = formLateEntry();
     if (!run) return;
@@ -170,6 +168,7 @@ function EntriesTable(props: {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
+    // console.log("processRecChng ===============>", table, id, record, op);
     if (op === SqlOperation.Update) {
       if (table === "runs") {
         const orig = props.runs().find(r => r.run_id === id);
@@ -184,12 +183,17 @@ function EntriesTable(props: {
           props.setRuns(prev => prev.map(r => r.competitor_id === id ? updated : r));
         }
       } else if (table === "qxchanges") {
-        const orig = props.runs().find(r => r.qxchange_id === id);
-        if (orig) {
-          const lateEntryRecord = parse(LateEntryRecordSchema, record);
-          const lateEntry = { run_id: id, record: lateEntryRecord };
-          const updated = { ...orig, qxchange_data: lateEntry };
-          props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
+        const run = props.runs().find(r => r.qxchange_id === id);
+        if (run) {
+          if (record && record.data_type === "LateEntry" && typeof record.data === "string") {
+            const data = JSON.parse(record.data);
+            const lateEntry: LateEntry = parse(LateEntrySchema, data.LateEntry);
+            const updated = { ...run, qxchange_data: lateEntry };
+            console.log("UPDATED ===============>", updated);
+            console.log("data >", data);
+            console.log("lateEntry >", lateEntry);
+            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
+          }
         }
       }
     }
@@ -229,22 +233,20 @@ function EntriesTable(props: {
   }
 
   const updateLateEntry = async (lateEntry: LateEntry) => {
-    let origRun = props.runs().find(r => r.run_id === lateEntry.run_id);
-    if (!origRun) {
-      return;
-    }
-    const updated = { ...origRun, qxchange_data: lateEntry };
-    props.setRuns(prev => prev.map(r => r.run_id === updated.run_id ? updated : r));
+    const origRun = props.runs().find(r => r.run_id === lateEntry.run_id);
+    if (!origRun) return;
+
+    const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
+
+    // if (isRecordEmpty(changes)) {
+    //   showToast({ title: "No changes" });
+    //   return;
+    // }
 
     try {
-      const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
-      if (isRecordEmpty(changes)) {
-        showToast({ title: "No changes" });
-      } else {
-        const params = makeMap({ run_id: lateEntry.run_id, record: makeMap(changes) });
-        await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "updateLateEntry", params);
-        showToast({ title: "Update late entry success" });
-      }
+      const params = makeMap({ run_id: lateEntry.run_id, record: makeMap(changes) });
+      await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "updateLateEntry", params);
+      showToast({ title: "Update late entry success" });
     } catch (error) {
       showToast({ title: "Update run error", description: (error as Error).message, variant: "destructive" });
     }

@@ -47,7 +47,7 @@ export function copyRecordChanges(origValue: Record<string, any>, newValue: Reco
     if (fields !== undefined && !fields.includes(k)) {
       continue;
     }
-    if (v != origValue[k]) {
+    if (v !== undefined && v != origValue[k]) {
       obj[k] = toRpcValue(v);
     }
   }
