@@ -41,8 +41,12 @@ const LateEntrySchema = object({
   run_id: number(),
   record: LateEntryRecordSchema,
 });
-
 type LateEntry = InferOutput<typeof LateEntrySchema>;
+
+const QxChangeDataSchema = object({
+  LateEntry: optional(LateEntrySchema),
+});
+type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
 const RunSchema = object({
   run_id: number(),
@@ -145,7 +149,13 @@ function EntriesTable(props: {
         };
       }
 
-      return { ...prev, siid };
+      return {
+        ...prev,
+        qxchange_data: {
+          run_id: prev.run_id,
+          record: { siid, },
+        },
+      };
     });
   };
 
@@ -169,6 +179,23 @@ function EntriesTable(props: {
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
     // console.log("processRecChng ===============>", table, id, record, op);
+    if (op === SqlOperation.Insert) {
+      if (record && typeof record.data === "string" && typeof record.user_id === "string") {
+        const data = JSON.parse(record.data);
+        const qxchangeData: QxChangeData = parse(QxChangeDataSchema, data);
+        const lateEntry = qxchangeData.LateEntry;
+        if (lateEntry) {
+          props.setRuns(prev =>
+            prev.map(r =>
+              r.run_id === lateEntry.run_id
+                ? { ...r, qxchange_id: id, qxchange_user_id: record.user_id as string, qxchange_data: lateEntry, }
+                : r
+            )
+          );
+        }
+      }
+      return;
+    }
     if (op === SqlOperation.Update) {
       if (table === "runs") {
         const orig = props.runs().find(r => r.run_id === id);
@@ -183,19 +210,30 @@ function EntriesTable(props: {
           props.setRuns(prev => prev.map(r => r.competitor_id === id ? updated : r));
         }
       } else if (table === "qxchanges") {
-        const run = props.runs().find(r => r.qxchange_id === id);
-        if (run) {
-          if (record && record.data_type === "LateEntry" && typeof record.data === "string") {
-            const data = JSON.parse(record.data);
-            const lateEntry: LateEntry = parse(LateEntrySchema, data.LateEntry);
-            const updated = { ...run, qxchange_data: lateEntry };
-            console.log("UPDATED ===============>", updated);
-            console.log("data >", data);
-            console.log("lateEntry >", lateEntry);
-            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
+        if (record && typeof record.data === "string" && typeof record.user_id === "string") {
+          const data = JSON.parse(record.data);
+          const qxchangeData: QxChangeData = parse(QxChangeDataSchema, data);
+          if (qxchangeData.LateEntry) {
+            const run = props.runs().find(r => r.qxchange_id === id);
+            if (run) {
+              const updated = { ...run, qxchange_data: qxchangeData.LateEntry };
+              // console.log("UPDATED ===============>", updated);
+              // console.log("data >", data);
+              // console.log("lateEntry >", qxchangeData.LateEntry);
+              props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
+              return;
+            }
           }
         }
+        console.log("Cannot process RecChng ===============>", table, id, record, op);
       }
+      return;
+    }
+    if (op === SqlOperation.Delete) {
+      if (table === "qxchanges") {
+        props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r));
+      }
+      return;
     }
   };
 
@@ -237,11 +275,6 @@ function EntriesTable(props: {
     if (!origRun) return;
 
     const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
-
-    // if (isRecordEmpty(changes)) {
-    //   showToast({ title: "No changes" });
-    //   return;
-    // }
 
     try {
       const params = makeMap({ run_id: lateEntry.run_id, record: makeMap(changes) });
