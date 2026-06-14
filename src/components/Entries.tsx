@@ -178,62 +178,51 @@ function EntriesTable(props: {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
-    // console.log("processRecChng ===============>", table, id, record, op);
+
+    const parseQxChangeData = (rec: typeof record): QxChangeData => {
+      if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
+      return parse(QxChangeDataSchema, JSON.parse(rec.data));
+    };
+
     if (op === SqlOperation.Insert) {
-      if (record && typeof record.data === "string" && typeof record.user_id === "string") {
-        const data = JSON.parse(record.data);
-        const qxchangeData: QxChangeData = parse(QxChangeDataSchema, data);
-        const lateEntry = qxchangeData.LateEntry;
-        if (lateEntry) {
-          props.setRuns(prev =>
-            prev.map(r =>
-              r.run_id === lateEntry.run_id
-                ? { ...r, qxchange_id: id, qxchange_user_id: record.user_id as string, qxchange_data: lateEntry, }
-                : r
-            )
-          );
-        }
+      let lateEntry = parseQxChangeData(record).LateEntry;
+      if (typeof record!.user_id === "string" && lateEntry) {
+        props.setRuns(prev =>
+          prev.map(r =>
+            r.run_id === lateEntry.run_id
+              ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
+              : r
+          )
+        );
       }
-      return;
-    }
-    if (op === SqlOperation.Update) {
+    } else if (op === SqlOperation.Update) {
       if (table === "runs") {
         const orig = props.runs().find(r => r.run_id === id);
         if (orig) {
-          const updated = { ...orig, ...record };
-          props.setRuns(prev => prev.map(r => r.run_id === updated.run_id ? updated : r));
+          props.setRuns(prev => prev.map(r => r.run_id === id ? { ...orig, ...record } : r));
         }
       } else if (table === "competitors") {
         const orig = props.runs().find(r => r.competitor_id === id);
         if (orig) {
-          const updated = { ...orig, ...record };
-          props.setRuns(prev => prev.map(r => r.competitor_id === id ? updated : r));
+          props.setRuns(prev => prev.map(r => r.competitor_id === id ? { ...orig, ...record } : r));
         }
       } else if (table === "qxchanges") {
-        if (record && typeof record.data === "string" && typeof record.user_id === "string") {
-          const data = JSON.parse(record.data);
-          const qxchangeData: QxChangeData = parse(QxChangeDataSchema, data);
-          if (qxchangeData.LateEntry) {
-            const run = props.runs().find(r => r.qxchange_id === id);
-            if (run) {
-              const updated = { ...run, qxchange_data: qxchangeData.LateEntry };
-              // console.log("UPDATED ===============>", updated);
-              // console.log("data >", data);
-              // console.log("lateEntry >", qxchangeData.LateEntry);
-              props.setRuns(prev => prev.map(r => r.qxchange_id === id ? updated : r));
-              return;
-            }
+        let lateEntry = parseQxChangeData(record).LateEntry;
+        if (lateEntry) {
+          const run = props.runs().find(r => r.qxchange_id === id);
+          if (run) {
+            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
+          } else {
+            console.log("Cannot process RecChng ===============>", table, id, record, op);
           }
         }
-        console.log("Cannot process RecChng ===============>", table, id, record, op);
       }
-      return;
-    }
-    if (op === SqlOperation.Delete) {
+    } else if (op === SqlOperation.Delete) {
       if (table === "qxchanges") {
-        props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r));
+        props.setRuns(prev => prev.map(r =>
+          r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
+        ));
       }
-      return;
     }
   };
 
