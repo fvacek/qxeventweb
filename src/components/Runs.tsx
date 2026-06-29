@@ -70,6 +70,19 @@ export function normalizeRunRecord(record: Record<string, unknown>): Record<stri
   };
 }
 
+export function parseRunTable(result: RpcValue): Run[] {
+  const table = createSqlTable(result);
+  const transformedRuns: Run[] = [];
+  for (let i = 0; i < table.rowCount(); i++) {
+    try {
+      transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
+    } catch (error) {
+      console.warn(`Skipping invalid row ${i}:`, error);
+    }
+  }
+  return transformedRuns;
+}
+
 export function processRunRecChng(params: {
   recchng: RecChng;
   runs: () => Run[];
@@ -144,8 +157,8 @@ export function processRunRecChng(params: {
   }
 }
 
-function RunsTable(props: {
-  className: () => string;
+export function RunsTable(props: {
+  className?: () => string;
   eventConfig: () => EventConfig;
   eventId: () => number;
   currentStage: () => number;
@@ -153,8 +166,9 @@ function RunsTable(props: {
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
   onReload: () => void;
-  onAddEntry: (open: () => void) => void;
+  onAddEntry?: (open: () => void) => void;
   recchngReceived: () => RecChng | null;
+  firstColumn?: "startTime" | "className";
 }) {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
@@ -166,7 +180,7 @@ function RunsTable(props: {
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
-    class_name: props.className(),
+    class_name: props.className?.(),
     firstname: undefined,
     lastname: undefined,
     registration: undefined,
@@ -178,7 +192,7 @@ function RunsTable(props: {
   });
 
   // Register the opener with the parent once on mount
-  onMount(() => props.onAddEntry(openNewEntryDialog));
+  onMount(() => props.onAddEntry?.(openNewEntryDialog));
 
   const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
@@ -291,17 +305,27 @@ function RunsTable(props: {
   };
 
   createEffect(() => {
-    if (props.className()) props.onReload();
+    if (props.className?.()) props.onReload();
   });
 
-  const columns: TableColumn<Run>[] = [
-    {
+  const firstColumn: TableColumn<Run> = props.firstColumn === "className"
+    ? {
+      key: "class_name",
+      header: "Class name",
+      cell: (run: Run) => <span>{run.class_name || "—"}</span>,
+      sortable: true,
+      width: "120px",
+    }
+    : {
       key: "starttimems",
       header: "Start Time",
       cell: (run: Run) => <span>{formatStartTime(run.starttimems, stageStart()) || "—"}</span>,
       sortable: true,
       width: "120px",
-    },
+    };
+
+  const columns: TableColumn<Run>[] = [
+    firstColumn,
     {
       key: "name",
       header: "Name",
@@ -495,16 +519,7 @@ const Runs = (props: {
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`,
       ]);
-      const table = createSqlTable(result);
-      const transformedRuns: Run[] = [];
-      for (let i = 0; i < table.rowCount(); i++) {
-        try {
-          transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
-        } catch (error) {
-          console.warn(`Skipping invalid row ${i}:`, error);
-        }
-      }
-      setRuns(transformedRuns);
+      setRuns(parseRunTable(result));
     } catch (error) {
       showToast({ title: "Reload table error", description: (error as Error).message, variant: "destructive" });
     }
