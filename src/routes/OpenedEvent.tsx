@@ -12,6 +12,7 @@ import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 import Runs from "../components/Runs";
 import LateEntries from "~/components/LateEntries";
+import { useAuth } from "~/context/AuthContext";
 
 export type StageConfig = {
   stageStart?: Date;
@@ -33,6 +34,7 @@ interface EventProps {
 const Event = ({ event_id_str: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
+  const { user } = useAuth();
 
   const [eventId, _setEventId] = createSignal<number>(parseInt(initialEventId));
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
@@ -210,7 +212,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
           <Tabs defaultValue="runs" class="w-full">
             <TabsList class="flex w-full flex-row">
               <TabsTrigger value="runs">Runs</TabsTrigger>
-              <TabsTrigger value="late_entries">Late entries</TabsTrigger>
+              <TabsTrigger value="late_entries" disabled={!user()}>Late entries</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
             </TabsList>
 
