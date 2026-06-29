@@ -26,7 +26,6 @@ import {
 } from "~/components/Runs";
 
 function RunsTable(props: {
-  className: () => string;
   eventConfig: () => EventConfig;
   eventId: () => number;
   currentStage: () => number;
@@ -34,7 +33,6 @@ function RunsTable(props: {
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
   onReload: () => void;
-  onAddEntry: (open: () => void) => void;
   recchngReceived: () => RecChng | null;
 }) {
   const { wsClient } = useWsClient();
@@ -47,7 +45,6 @@ function RunsTable(props: {
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
-    class_name: props.className(),
     firstname: undefined,
     lastname: undefined,
     registration: undefined,
@@ -57,9 +54,6 @@ function RunsTable(props: {
     qxchange_user_id: undefined,
     qxchange_data: undefined,
   });
-
-  // Register the opener with the parent once on mount
-  onMount(() => props.onAddEntry(openNewEntryDialog));
 
   const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
@@ -242,10 +236,6 @@ function RunsTable(props: {
     }
   };
 
-  createEffect(() => {
-    if (props.className()) props.onReload();
-  });
-
   const columns: TableColumn<Run>[] = [
     {
       key: "starttimems",
@@ -426,7 +416,6 @@ const LateEntries = (props: {
 
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
-  const [addEntry, setAddEntry] = createSignal<(() => void) | null>(null);
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
@@ -478,7 +467,6 @@ const LateEntries = (props: {
           </div>
         </div>
         <RunsTable
-          className={() => ""}
           eventConfig={props.eventConfig}
           eventId={eventId}
           currentStage={currentStage}
@@ -486,7 +474,6 @@ const LateEntries = (props: {
           setRuns={setRuns}
           loading={loading}
           onReload={reloadTable}
-          onAddEntry={(fn) => setAddEntry(() => fn)}
           recchngReceived={props.recchngReceived}
         />
       </div>
