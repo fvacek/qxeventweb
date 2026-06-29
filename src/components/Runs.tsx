@@ -69,6 +69,80 @@ export function normalizeRunRecord(record: Record<string, unknown>): Record<stri
   };
 }
 
+export function processRunRecChng(params: {
+  recchng: RecChng;
+  runs: () => Run[];
+  setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
+  verbose?: boolean;
+}) {
+  const { recchng, runs, setRuns, verbose = false } = params;
+  const { table, id, record, op } = recchng;
+  if (verbose) console.log("processRunRecChng: received change", { table, id, record, op });
+
+  const parseQxChangeData = (rec: typeof record): QxChangeData => {
+    if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
+    return parse(QxChangeDataSchema, JSON.parse(rec.data));
+  };
+
+  if (op === SqlOperation.Insert) {
+    if (verbose) console.log(`processRunRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
+    let lateEntry = parseQxChangeData(record).LateEntry;
+    if (typeof record!.user_id === "string" && lateEntry) {
+      if (verbose) console.log(`processRunRecChng: [Insert] Attaching late entry to run_id=${lateEntry.run_id}, owned by user_id=${record!.user_id}`);
+      setRuns(prev =>
+        prev.map(r =>
+          r.run_id === lateEntry.run_id
+            ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
+            : r
+        )
+      );
+    } else {
+      if (verbose) console.warn(`processRunRecChng: [Insert] Skipping — lateEntry or user_id missing`, { lateEntry, user_id: record?.user_id });
+    }
+  } else if (op === SqlOperation.Update) {
+    if (table === "runs") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating run with run_id=${id}`);
+      const orig = runs().find(r => r.run_id === id);
+      if (orig) {
+        if (verbose) console.log(`processRunRecChng: [Update] Found run, applying record changes`, record);
+        setRuns(prev => prev.map(r => r.run_id === id ? { ...orig, ...record } : r));
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] Run with run_id=${id} not found in local state`);
+      }
+    } else if (table === "competitors") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating competitor with competitor_id=${id}`);
+      const orig = runs().find(r => r.competitor_id === id);
+      if (orig) {
+        if (verbose) console.log(`processRunRecChng: [Update] Found competitor, applying record changes`, record);
+        setRuns(prev => prev.map(r => r.competitor_id === id ? { ...orig, ...record } : r));
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] Competitor with competitor_id=${id} not found in local state`);
+      }
+    } else if (table === "qxchanges") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
+      let lateEntry = parseQxChangeData(record).LateEntry;
+      if (lateEntry) {
+        const run = runs().find(r => r.qxchange_id === id);
+        if (run) {
+          if (verbose) console.log(`processRunRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
+          setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
+        } else {
+          if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
+        }
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
+      }
+    }
+  } else if (op === SqlOperation.Delete) {
+    if (table === "qxchanges") {
+      if (verbose) console.log(`processRunRecChng: [Delete] Removing qxchange data from run with qxchange_id=${id}`);
+      setRuns(prev => prev.map(r =>
+        r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
+      ));
+    }
+  }
+}
+
 function RunsTable(props: {
   className: () => string;
   eventConfig: () => EventConfig;
@@ -161,82 +235,9 @@ function RunsTable(props: {
   createEffect(() => {
     const recchng = props.recchngReceived();
     if (recchng) {
-      untrack(() => processRecChng(recchng));
+      untrack(() => processRunRecChng({ recchng, runs: props.runs, setRuns: props.setRuns }));
     }
   });
-
-  const processRecChng = (recchng: RecChng, verbose = false) => {
-    const { table, id, record, op } = recchng;
-    if (verbose) console.log("processRecChng: received change", { table, id, record, op });
-
-    const parseQxChangeData = (rec: typeof record): QxChangeData => {
-      if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
-      return parse(QxChangeDataSchema, JSON.parse(rec.data));
-    };
-
-    if (op === SqlOperation.Insert) {
-      // A new qxchange record was inserted; update the matching run with the new late entry data
-      if (verbose) console.log(`processRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
-      let lateEntry = parseQxChangeData(record).LateEntry;
-      if (typeof record!.user_id === "string" && lateEntry) {
-        if (verbose) console.log(`processRecChng: [Insert] Attaching late entry to run_id=${lateEntry.run_id}, owned by user_id=${record!.user_id}`);
-        props.setRuns(prev =>
-          prev.map(r =>
-            r.run_id === lateEntry.run_id
-              ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
-              : r
-          )
-        );
-      } else {
-        if (verbose) console.warn(`processRecChng: [Insert] Skipping — lateEntry or user_id missing`, { lateEntry, user_id: record?.user_id });
-      }
-    } else if (op === SqlOperation.Update) {
-      if (table === "runs") {
-        // A run record was updated directly; merge the changed fields into the matching run
-        if (verbose) console.log(`processRecChng: [Update] Updating run with run_id=${id}`);
-        const orig = props.runs().find(r => r.run_id === id);
-        if (orig) {
-          if (verbose) console.log(`processRecChng: [Update] Found run, applying record changes`, record);
-          props.setRuns(prev => prev.map(r => r.run_id === id ? { ...orig, ...record } : r));
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] Run with run_id=${id} not found in local state`);
-        }
-      } else if (table === "competitors") {
-        // A competitor record was updated; merge the changed fields into all runs belonging to that competitor
-        if (verbose) console.log(`processRecChng: [Update] Updating competitor with competitor_id=${id}`);
-        const orig = props.runs().find(r => r.competitor_id === id);
-        if (orig) {
-          if (verbose) console.log(`processRecChng: [Update] Found competitor, applying record changes`, record);
-          props.setRuns(prev => prev.map(r => r.competitor_id === id ? { ...orig, ...record } : r));
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] Competitor with competitor_id=${id} not found in local state`);
-        }
-      } else if (table === "qxchanges") {
-        // A qxchange record was updated; replace the late entry data on the matching run
-        if (verbose) console.log(`processRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
-        let lateEntry = parseQxChangeData(record).LateEntry;
-        if (lateEntry) {
-          const run = props.runs().find(r => r.qxchange_id === id);
-          if (run) {
-            if (verbose) console.log(`processRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
-            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
-          } else {
-            if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
-          }
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
-        }
-      }
-    } else if (op === SqlOperation.Delete) {
-      if (table === "qxchanges") {
-        // A qxchange record was deleted; clear all late entry fields from the matching run
-        if (verbose) console.log(`processRecChng: [Delete] Removing qxchange data from run with qxchange_id=${id}`);
-        props.setRuns(prev => prev.map(r =>
-          r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
-        ));
-      }
-    }
-  };
 
 
 
