@@ -3,18 +3,6 @@ import { createSignal, createEffect, onMount, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import {
-  TextField,
-  TextFieldInput,
-  TextFieldLabel,
-} from "~/components/ui/text-field";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 
 import { useWsClient } from "~/context/WsClient";
@@ -27,6 +15,7 @@ import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/l
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
+import LateEntryDialog, { type LateEntryField, type LateEntryFieldValue } from "~/components/LateEntryDialog";
 
 export const LateEntryRecordSchema = object({
   class_name: optional(string()),
@@ -123,18 +112,16 @@ function RunsTable(props: {
 
   const closeDialog = () => setFormLateEntry(undefined);
 
-  type LateEntryField = "firstname" | "lastname" | "registration" | "siid";
-
   const isFieldFromLateEntry = (field: LateEntryField) =>
     formLateEntry()?.qxchange_data?.record?.[field] !== undefined;
 
-  const formField = <K extends LateEntryField>(field: K): Run[K] => {
+  const formField = (field: LateEntryField): LateEntryFieldValue => {
     const run = formLateEntry();
     const newValue = run?.qxchange_data?.record?.[field];
-    return newValue !== undefined ? newValue as Run[K] : run?.[field] as Run[K];
+    return newValue !== undefined ? newValue : run?.[field];
   };
 
-  const setFormField = <K extends LateEntryField>(field: K, value: Run[K]) => {
+  const setFormField = (field: LateEntryField, value: LateEntryFieldValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
@@ -414,70 +401,14 @@ function RunsTable(props: {
         />
       </div>
 
-      <Dialog open={!!formLateEntry()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-        <DialogContent class="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{"Late Entry"}</DialogTitle>
-          </DialogHeader>
-
-          <div class="space-y-4">
-            <TextField>
-              <TextFieldLabel>First Name</TextFieldLabel>
-              <TextFieldInput
-                value={formField("firstname") || ""}
-                type="text"
-                class={isFieldFromLateEntry("firstname") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("firstname", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>Last Name</TextFieldLabel>
-              <TextFieldInput
-                value={formField("lastname") || ""}
-                type="text"
-                class={isFieldFromLateEntry("lastname") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("lastname", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>Registration</TextFieldLabel>
-              <TextFieldInput
-                value={formField("registration") || ""}
-                type="text"
-                class={isFieldFromLateEntry("registration") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("registration", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>SI ID</TextFieldLabel>
-              <TextFieldInput
-                value={formField("siid")?.toString() || ""}
-                type="number"
-                class={isFieldFromLateEntry("siid") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
-              />
-            </TextField>
-
-            {/*<TextField>
-              <TextFieldLabel>Start Time</TextFieldLabel>
-              <TextFieldInput
-                value={formatStartTime(formLateEntry()?.starttimems, stageStart())}
-                type="text"
-                placeholder="HH:MM"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : undefined)}
-              />
-            </TextField>*/}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={acceptDialog}>{"Save Changes"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LateEntryDialog
+        open={!!formLateEntry()}
+        fieldValue={formField}
+        isFieldChanged={isFieldFromLateEntry}
+        setFieldValue={setFormField}
+        onClose={closeDialog}
+        onAccept={acceptDialog}
+      />
     </div>
   );
 }
