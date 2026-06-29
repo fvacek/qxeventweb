@@ -10,7 +10,8 @@ import { EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
-import Entries from "../components/Entries";
+import Runs from "../components/Runs";
+import LateEntries from "~/components/LateEntries";
 
 export type StageConfig = {
   stageStart?: Date;
@@ -206,9 +207,10 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <Tabs defaultValue="entries" class="w-full">
-            <TabsList class="grid w-full grid-cols-2">
-              <TabsTrigger value="entries">Entries</TabsTrigger>
+          <Tabs defaultValue="runs" class="w-full">
+            <TabsList class="flex w-full flex-row">
+              <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="late_entries">Late entries</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
             </TabsList>
 
@@ -216,8 +218,17 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
               <EventInfo eventConfig={eventConfig} />
             </TabsContent>
 
-            <TabsContent value="entries" class="space-y-4">
-              <Entries
+            <TabsContent value="runs" class="space-y-4">
+              <Runs
+                eventId={eventId()}
+                eventConfig={() => eventConfig}
+                currentStage={eventConfig.currentStage}
+                recchngReceived={recchngReceived}
+              />
+            </TabsContent>
+
+            <TabsContent value="late_entries" class="space-y-4">
+              <LateEntries
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}

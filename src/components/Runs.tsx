@@ -28,7 +28,7 @@ import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 
-const LateEntryRecordSchema = object({
+export const LateEntryRecordSchema = object({
   class_name: optional(string()),
   firstname: optional(string()),
   lastname: optional(string()),
@@ -80,7 +80,7 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   };
 }
 
-function EntriesTable(props: {
+function RunsTable(props: {
   className: () => string;
   eventConfig: () => EventConfig;
   eventId: () => number;
@@ -123,16 +123,18 @@ function EntriesTable(props: {
 
   const closeDialog = () => setFormLateEntry(undefined);
 
-  const isSiidFromLateEntry = () =>
-    typeof formLateEntry()?.qxchange_data?.record?.siid === "number";
+  type LateEntryField = "firstname" | "lastname" | "registration" | "siid";
 
-  const formSiid = () => {
+  const isFieldFromLateEntry = (field: LateEntryField) =>
+    formLateEntry()?.qxchange_data?.record?.[field] !== undefined;
+
+  const formField = <K extends LateEntryField>(field: K): Run[K] => {
     const run = formLateEntry();
-    const newSiid = run?.qxchange_data?.record?.siid;
-    return typeof newSiid === "number" ? newSiid : run?.siid;
+    const newValue = run?.qxchange_data?.record?.[field];
+    return newValue !== undefined ? newValue as Run[K] : run?.[field] as Run[K];
   };
 
-  const setFormSiid = (siid: number | undefined) => {
+  const setFormField = <K extends LateEntryField>(field: K, value: Run[K]) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
@@ -143,7 +145,7 @@ function EntriesTable(props: {
             ...prev.qxchange_data,
             record: {
               ...prev.qxchange_data.record,
-              siid: siid === prev.siid ? undefined : siid,
+              [field]: value === prev[field] ? undefined : value,
             },
           },
         };
@@ -153,7 +155,7 @@ function EntriesTable(props: {
         ...prev,
         qxchange_data: {
           run_id: prev.run_id,
-          record: { siid, },
+          record: { [field]: value, },
         },
       };
     });
@@ -316,6 +318,20 @@ function EntriesTable(props: {
       header: "Name",
       cell: (entry: Run) => {
         const fullName = [entry.lastname, entry.firstname].filter(n => n?.trim()).join(" ");
+        const newFirstname = entry.qxchange_data?.record?.firstname;
+        const newLastname = entry.qxchange_data?.record?.lastname;
+        if (typeof newFirstname === "string" || typeof newLastname === "string") {
+          const newFullName = [
+            typeof newLastname === "string" ? newLastname : entry.lastname,
+            typeof newFirstname === "string" ? newFirstname : entry.firstname,
+          ].filter(n => n?.trim()).join(" ");
+          return (
+            <div class="flex flex-col leading-tight">
+              <span class="line-through text-muted-foreground">{fullName || "—"}</span>
+              <span>{newFullName || "—"}</span>
+            </div>
+          );
+        }
         return <span>{fullName || "—"}</span>;
       },
       sortable: true,
@@ -327,6 +343,19 @@ function EntriesTable(props: {
     {
       key: "registration",
       header: "Reg",
+      cell: (run: Run) => {
+        const registration = run.registration;
+        const newRegistration = run.qxchange_data?.record?.registration;
+        if (typeof newRegistration === "string") {
+          return (
+            <div class="flex flex-col leading-tight">
+              <span class="line-through text-muted-foreground">{registration || "—"}</span>
+              <span>{newRegistration}</span>
+            </div>
+          );
+        }
+        return <span>{registration || "—"}</span>;
+      },
       sortable: true,
       width: "100px",
     },
@@ -395,37 +424,40 @@ function EntriesTable(props: {
             <TextField>
               <TextFieldLabel>First Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.firstname || ""}
+                value={formField("firstname") || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, firstname: e.currentTarget.value || undefined } : undefined)}
+                class={isFieldFromLateEntry("firstname") ? "text-primary font-semibold" : ""}
+                onInput={(e) => setFormField("firstname", e.currentTarget.value || undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Last Name</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.lastname || ""}
+                value={formField("lastname") || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, lastname: e.currentTarget.value || undefined } : undefined)}
+                class={isFieldFromLateEntry("lastname") ? "text-primary font-semibold" : ""}
+                onInput={(e) => setFormField("lastname", e.currentTarget.value || undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>Registration</TextFieldLabel>
               <TextFieldInput
-                value={formLateEntry()?.registration || ""}
+                value={formField("registration") || ""}
                 type="text"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, registration: e.currentTarget.value || undefined } : undefined)}
+                class={isFieldFromLateEntry("registration") ? "text-primary font-semibold" : ""}
+                onInput={(e) => setFormField("registration", e.currentTarget.value || undefined)}
               />
             </TextField>
 
             <TextField>
               <TextFieldLabel>SI ID</TextFieldLabel>
               <TextFieldInput
-                value={formSiid()?.toString() || ""}
+                value={formField("siid")?.toString() || ""}
                 type="number"
-                class={isSiidFromLateEntry() ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormSiid(e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
+                class={isFieldFromLateEntry("siid") ? "text-primary font-semibold" : ""}
+                onInput={(e) => setFormField("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
               />
             </TextField>
 
@@ -497,7 +529,7 @@ function ClassSelector(props: {
   );
 }
 
-const Entries = (props: {
+const Runs = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
   currentStage: number,
@@ -548,7 +580,7 @@ const Entries = (props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Late Entries</h1>
+      <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
@@ -559,7 +591,7 @@ const Entries = (props: {
             </Button>
           </div>
         </div>
-        <EntriesTable
+        <RunsTable
           className={className}
           eventConfig={props.eventConfig}
           eventId={eventId}
@@ -576,4 +608,4 @@ const Entries = (props: {
   );
 };
 
-export default Entries;
+export default Runs;
