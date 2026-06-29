@@ -26,18 +26,18 @@ export const LateEntryRecordSchema = object({
 });
 // type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
-const LateEntrySchema = object({
+export const LateEntrySchema = object({
   run_id: number(),
   record: LateEntryRecordSchema,
 });
-type LateEntry = InferOutput<typeof LateEntrySchema>;
+export type LateEntry = InferOutput<typeof LateEntrySchema>;
 
-const QxChangeDataSchema = object({
+export const QxChangeDataSchema = object({
   LateEntry: optional(LateEntrySchema),
 });
-type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
+export type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
-const RunSchema = object({
+export const RunSchema = object({
   run_id: number(),
   competitor_id: number(),
   class_name: optional(string()),
@@ -51,9 +51,9 @@ const RunSchema = object({
   qxchange_data: optional(LateEntrySchema),
 });
 
-type Run = InferOutput<typeof RunSchema>;
+export type Run = InferOutput<typeof RunSchema>;
 
-function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
+export function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
   const rawChange = record.qxchange_data;
   if (typeof rawChange !== "string") return record;
 

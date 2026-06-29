@@ -10,64 +10,20 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, undefinedable, optional, undefinedableAsync } from "valibot";
+import { parse } from "valibot";
 import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 import LateEntryDialog, { type LateEntryField, type LateEntryFieldValue } from "~/components/LateEntryDialog";
-
-export const LateEntryRecordSchema = object({
-  class_name: optional(string()),
-  firstname: optional(string()),
-  lastname: optional(string()),
-  registration: optional(string()),
-  siid: optional(number()),
-});
-// type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
-
-const LateEntrySchema = object({
-  run_id: number(),
-  record: LateEntryRecordSchema,
-});
-type LateEntry = InferOutput<typeof LateEntrySchema>;
-
-const QxChangeDataSchema = object({
-  LateEntry: optional(LateEntrySchema),
-});
-type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
-
-const RunSchema = object({
-  run_id: number(),
-  competitor_id: number(),
-  class_name: optional(string()),
-  firstname: optional(string()),
-  lastname: optional(string()),
-  registration: optional(string()),
-  siid: optional(number()),
-  starttimems: optional(number()),
-  qxchange_id: optional(number()),
-  qxchange_user_id: optional(string()),
-  qxchange_data: optional(LateEntrySchema),
-});
-
-type Run = InferOutput<typeof RunSchema>;
-
-function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
-  const rawChange = record.qxchange_data;
-  if (typeof rawChange !== "string") return record;
-
-  const parsed = JSON.parse(rawChange);
-  const lateEntry = parsed?.LateEntry;
-  if (!lateEntry) return record;
-
-  const { run_id, record: lateEntryRecord = {} } = lateEntry;
-
-  return {
-    ...record,
-    qxchange_data: { run_id, record: lateEntryRecord },
-  };
-}
+import {
+  QxChangeDataSchema,
+  RunSchema,
+  normalizeRunRecord,
+  type LateEntry,
+  type QxChangeData,
+  type Run,
+} from "~/components/Runs";
 
 function RunsTable(props: {
   className: () => string;

@@ -212,8 +212,8 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
           <Tabs defaultValue="runs" class="w-full">
             <TabsList class="flex w-full flex-row">
               <TabsTrigger value="runs">Runs</TabsTrigger>
-              <TabsTrigger value="late_entries" disabled={!user()}>Late entries</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
+              <TabsTrigger value="late_entries" disabled={!user()}>Late entries</TabsTrigger>
             </TabsList>
 
             <TabsContent value="event-info" class="space-y-4">
