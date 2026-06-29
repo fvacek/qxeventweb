@@ -18,7 +18,7 @@ declare global {
 }
 
 const Home = lazy(() => import("./routes/Home"))
-const TableDemo = lazy(() => import("./routes/TableDemo"))
+// const TableDemo = lazy(() => import("./routes/TableDemo"))
 const Events = lazy(() => import("./routes/Events"))
 const Event = lazy(() => import("./routes/OpenedEvent"))
 const NotFound = lazy(() => import("./routes/NotFound"))
@@ -29,7 +29,7 @@ if (app) {
         () => (
             <Router root={App}>
                 <Route path="/" component={Home} />
-                <Route path="/table-demo" component={TableDemo} />
+                {/*<Route path="/table-demo" component={TableDemo} />*/}
                 <Route path="/events" component={Events} />
                 <Route path="/event/:id" component={(props) => <Event event_id_str={props.params.id!} />} />
                 {/*<Route path="/late-entries" component={LateEntries} />*/}

@@ -165,9 +165,9 @@ function RunsTable(props: {
 
   const columns: TableColumn<Run>[] = [
     {
-      key: "starttimems",
-      header: "Start Time",
-      cell: (run: Run) => <span>{formatStartTime(run.starttimems, stageStart()) || "—"}</span>,
+      key: "class_name",
+      header: "Class name",
+      cell: (run: Run) => <span>{run.class_name || "—"}</span>,
       sortable: true,
       width: "120px",
     },

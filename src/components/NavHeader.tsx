@@ -29,11 +29,11 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
       name: "Home",
       to: "/",
     },
-    {
-      name: "Table Demo",
-      to: "/table-demo",
-      file: "TableDemo",
-    },
+    // {
+    //   name: "Table Demo",
+    //   to: "/table-demo",
+    //   file: "TableDemo",
+    // },
     {
       name: "Events",
       to: "/events",

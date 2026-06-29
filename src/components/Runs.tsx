@@ -23,6 +23,7 @@ export const LateEntryRecordSchema = object({
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
+  note: optional(string()),
 });
 // type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
