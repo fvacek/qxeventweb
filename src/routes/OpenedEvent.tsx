@@ -10,7 +10,7 @@ import { EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
-import Runs from "../components/Runs";
+import Runs from "../components/Runs3";
 import LateEntries from "~/components/LateEntries";
 import { useAuth } from "~/context/AuthContext";
 

@@ -3,18 +3,6 @@ import { createSignal, createEffect, onMount, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import {
-  TextField,
-  TextFieldInput,
-  TextFieldLabel,
-} from "~/components/ui/text-field";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 
 import { useWsClient } from "~/context/WsClient";
@@ -27,6 +15,7 @@ import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/l
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
+import LateEntryDialog, { type LateEntryField, type LateEntryFieldValue } from "~/components/LateEntryDialog";
 
 export const LateEntryRecordSchema = object({
   class_name: optional(string()),
@@ -34,21 +23,22 @@ export const LateEntryRecordSchema = object({
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
+  // note: optional(string()),
 });
 // type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
-const LateEntrySchema = object({
+export const LateEntrySchema = object({
   run_id: number(),
   record: LateEntryRecordSchema,
 });
-type LateEntry = InferOutput<typeof LateEntrySchema>;
+export type LateEntry = InferOutput<typeof LateEntrySchema>;
 
-const QxChangeDataSchema = object({
+export const QxChangeDataSchema = object({
   LateEntry: optional(LateEntrySchema),
 });
-type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
+export type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
-const RunSchema = object({
+export const RunSchema = object({
   run_id: number(),
   competitor_id: number(),
   class_name: optional(string()),
@@ -62,9 +52,9 @@ const RunSchema = object({
   qxchange_data: optional(LateEntrySchema),
 });
 
-type Run = InferOutput<typeof RunSchema>;
+export type Run = InferOutput<typeof RunSchema>;
 
-function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
+export function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
   const rawChange = record.qxchange_data;
   if (typeof rawChange !== "string") return record;
 
@@ -80,8 +70,95 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   };
 }
 
-function RunsTable(props: {
-  className: () => string;
+export function parseRunTable(result: RpcValue): Run[] {
+  const table = createSqlTable(result);
+  const transformedRuns: Run[] = [];
+  for (let i = 0; i < table.rowCount(); i++) {
+    try {
+      transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
+    } catch (error) {
+      console.warn(`Skipping invalid row ${i}:`, error);
+    }
+  }
+  return transformedRuns;
+}
+
+export function processRunRecChng(params: {
+  recchng: RecChng;
+  runs: () => Run[];
+  setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
+  verbose?: boolean;
+}) {
+  const { recchng, runs, setRuns, verbose = false } = params;
+  const { table, id, record, op } = recchng;
+  if (verbose) console.log("processRunRecChng: received change", { table, id, record, op });
+
+  const parseQxChangeData = (rec: typeof record): QxChangeData => {
+    if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
+    return parse(QxChangeDataSchema, JSON.parse(rec.data));
+  };
+
+  if (op === SqlOperation.Insert) {
+    if (verbose) console.log(`processRunRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
+    let lateEntry = parseQxChangeData(record).LateEntry;
+    if (typeof record!.user_id === "string" && lateEntry) {
+      if (verbose) console.log(`processRunRecChng: [Insert] Attaching late entry to run_id=${lateEntry.run_id}, owned by user_id=${record!.user_id}`);
+      setRuns(prev =>
+        prev.map(r =>
+          r.run_id === lateEntry.run_id
+            ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
+            : r
+        )
+      );
+    } else {
+      if (verbose) console.warn(`processRunRecChng: [Insert] Skipping — lateEntry or user_id missing`, { lateEntry, user_id: record?.user_id });
+    }
+  } else if (op === SqlOperation.Update) {
+    if (table === "runs") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating run with run_id=${id}`);
+      const orig = runs().find(r => r.run_id === id);
+      if (orig) {
+        if (verbose) console.log(`processRunRecChng: [Update] Found run, applying record changes`, record);
+        setRuns(prev => prev.map(r => r.run_id === id ? { ...orig, ...record } : r));
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] Run with run_id=${id} not found in local state`);
+      }
+    } else if (table === "competitors") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating competitor with competitor_id=${id}`);
+      const orig = runs().find(r => r.competitor_id === id);
+      if (orig) {
+        if (verbose) console.log(`processRunRecChng: [Update] Found competitor, applying record changes`, record);
+        setRuns(prev => prev.map(r => r.competitor_id === id ? { ...orig, ...record } : r));
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] Competitor with competitor_id=${id} not found in local state`);
+      }
+    } else if (table === "qxchanges") {
+      if (verbose) console.log(`processRunRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
+      let lateEntry = parseQxChangeData(record).LateEntry;
+      if (lateEntry) {
+        const run = runs().find(r => r.qxchange_id === id);
+        if (run) {
+          if (verbose) console.log(`processRunRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
+          setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
+        } else {
+          if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
+        }
+      } else {
+        if (verbose) console.warn(`processRunRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
+      }
+    }
+  } else if (op === SqlOperation.Delete) {
+    if (table === "qxchanges") {
+      if (verbose) console.log(`processRunRecChng: [Delete] Removing qxchange data from run with qxchange_id=${id}`);
+      setRuns(prev => prev.map(r =>
+        r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
+      ));
+    }
+  }
+}
+
+export function RunsTable(props: {
+  className?: () => string;
   eventConfig: () => EventConfig;
   eventId: () => number;
   currentStage: () => number;
@@ -89,8 +166,9 @@ function RunsTable(props: {
   setRuns: (runs: Run[] | ((prev: Run[]) => Run[])) => void;
   loading: () => boolean;
   onReload: () => void;
-  onAddEntry: (open: () => void) => void;
+  onAddEntry?: (open: () => void) => void;
   recchngReceived: () => RecChng | null;
+  firstColumn?: "startTime" | "className";
 }) {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
@@ -102,7 +180,7 @@ function RunsTable(props: {
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
-    class_name: props.className(),
+    class_name: props.className?.(),
     firstname: undefined,
     lastname: undefined,
     registration: undefined,
@@ -114,7 +192,7 @@ function RunsTable(props: {
   });
 
   // Register the opener with the parent once on mount
-  onMount(() => props.onAddEntry(openNewEntryDialog));
+  onMount(() => props.onAddEntry?.(openNewEntryDialog));
 
   const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
@@ -123,18 +201,16 @@ function RunsTable(props: {
 
   const closeDialog = () => setFormLateEntry(undefined);
 
-  type LateEntryField = "firstname" | "lastname" | "registration" | "siid";
-
   const isFieldFromLateEntry = (field: LateEntryField) =>
     formLateEntry()?.qxchange_data?.record?.[field] !== undefined;
 
-  const formField = <K extends LateEntryField>(field: K): Run[K] => {
+  const formField = (field: LateEntryField): LateEntryFieldValue => {
     const run = formLateEntry();
     const newValue = run?.qxchange_data?.record?.[field];
-    return newValue !== undefined ? newValue as Run[K] : run?.[field] as Run[K];
+    return newValue !== undefined ? newValue : run?.[field];
   };
 
-  const setFormField = <K extends LateEntryField>(field: K, value: Run[K]) => {
+  const setFormField = (field: LateEntryField, value: LateEntryFieldValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
@@ -174,82 +250,9 @@ function RunsTable(props: {
   createEffect(() => {
     const recchng = props.recchngReceived();
     if (recchng) {
-      untrack(() => processRecChng(recchng));
+      untrack(() => processRunRecChng({ recchng, runs: props.runs, setRuns: props.setRuns }));
     }
   });
-
-  const processRecChng = (recchng: RecChng, verbose = false) => {
-    const { table, id, record, op } = recchng;
-    if (verbose) console.log("processRecChng: received change", { table, id, record, op });
-
-    const parseQxChangeData = (rec: typeof record): QxChangeData => {
-      if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
-      return parse(QxChangeDataSchema, JSON.parse(rec.data));
-    };
-
-    if (op === SqlOperation.Insert) {
-      // A new qxchange record was inserted; update the matching run with the new late entry data
-      if (verbose) console.log(`processRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
-      let lateEntry = parseQxChangeData(record).LateEntry;
-      if (typeof record!.user_id === "string" && lateEntry) {
-        if (verbose) console.log(`processRecChng: [Insert] Attaching late entry to run_id=${lateEntry.run_id}, owned by user_id=${record!.user_id}`);
-        props.setRuns(prev =>
-          prev.map(r =>
-            r.run_id === lateEntry.run_id
-              ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
-              : r
-          )
-        );
-      } else {
-        if (verbose) console.warn(`processRecChng: [Insert] Skipping — lateEntry or user_id missing`, { lateEntry, user_id: record?.user_id });
-      }
-    } else if (op === SqlOperation.Update) {
-      if (table === "runs") {
-        // A run record was updated directly; merge the changed fields into the matching run
-        if (verbose) console.log(`processRecChng: [Update] Updating run with run_id=${id}`);
-        const orig = props.runs().find(r => r.run_id === id);
-        if (orig) {
-          if (verbose) console.log(`processRecChng: [Update] Found run, applying record changes`, record);
-          props.setRuns(prev => prev.map(r => r.run_id === id ? { ...orig, ...record } : r));
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] Run with run_id=${id} not found in local state`);
-        }
-      } else if (table === "competitors") {
-        // A competitor record was updated; merge the changed fields into all runs belonging to that competitor
-        if (verbose) console.log(`processRecChng: [Update] Updating competitor with competitor_id=${id}`);
-        const orig = props.runs().find(r => r.competitor_id === id);
-        if (orig) {
-          if (verbose) console.log(`processRecChng: [Update] Found competitor, applying record changes`, record);
-          props.setRuns(prev => prev.map(r => r.competitor_id === id ? { ...orig, ...record } : r));
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] Competitor with competitor_id=${id} not found in local state`);
-        }
-      } else if (table === "qxchanges") {
-        // A qxchange record was updated; replace the late entry data on the matching run
-        if (verbose) console.log(`processRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
-        let lateEntry = parseQxChangeData(record).LateEntry;
-        if (lateEntry) {
-          const run = props.runs().find(r => r.qxchange_id === id);
-          if (run) {
-            if (verbose) console.log(`processRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
-            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
-          } else {
-            if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
-          }
-        } else {
-          if (verbose) console.warn(`processRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
-        }
-      }
-    } else if (op === SqlOperation.Delete) {
-      if (table === "qxchanges") {
-        // A qxchange record was deleted; clear all late entry fields from the matching run
-        if (verbose) console.log(`processRecChng: [Delete] Removing qxchange data from run with qxchange_id=${id}`);
-        props.setRuns(prev => prev.map(r =>
-          r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
-        ));
-      }
-    }
-  };
 
 
 
@@ -302,17 +305,27 @@ function RunsTable(props: {
   };
 
   createEffect(() => {
-    if (props.className()) props.onReload();
+    if (props.className?.()) props.onReload();
   });
 
-  const columns: TableColumn<Run>[] = [
-    {
+  const firstColumn: TableColumn<Run> = props.firstColumn === "className"
+    ? {
+      key: "class_name",
+      header: "Class name",
+      cell: (run: Run) => <span>{run.class_name || "—"}</span>,
+      sortable: true,
+      width: "120px",
+    }
+    : {
       key: "starttimems",
       header: "Start Time",
       cell: (run: Run) => <span>{formatStartTime(run.starttimems, stageStart()) || "—"}</span>,
       sortable: true,
       width: "120px",
-    },
+    };
+
+  const columns: TableColumn<Run>[] = [
+    firstColumn,
     {
       key: "name",
       header: "Name",
@@ -414,70 +427,14 @@ function RunsTable(props: {
         />
       </div>
 
-      <Dialog open={!!formLateEntry()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-        <DialogContent class="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{"Late Entry"}</DialogTitle>
-          </DialogHeader>
-
-          <div class="space-y-4">
-            <TextField>
-              <TextFieldLabel>First Name</TextFieldLabel>
-              <TextFieldInput
-                value={formField("firstname") || ""}
-                type="text"
-                class={isFieldFromLateEntry("firstname") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("firstname", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>Last Name</TextFieldLabel>
-              <TextFieldInput
-                value={formField("lastname") || ""}
-                type="text"
-                class={isFieldFromLateEntry("lastname") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("lastname", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>Registration</TextFieldLabel>
-              <TextFieldInput
-                value={formField("registration") || ""}
-                type="text"
-                class={isFieldFromLateEntry("registration") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("registration", e.currentTarget.value || undefined)}
-              />
-            </TextField>
-
-            <TextField>
-              <TextFieldLabel>SI ID</TextFieldLabel>
-              <TextFieldInput
-                value={formField("siid")?.toString() || ""}
-                type="number"
-                class={isFieldFromLateEntry("siid") ? "text-primary font-semibold" : ""}
-                onInput={(e) => setFormField("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
-              />
-            </TextField>
-
-            {/*<TextField>
-              <TextFieldLabel>Start Time</TextFieldLabel>
-              <TextFieldInput
-                value={formatStartTime(formLateEntry()?.starttimems, stageStart())}
-                type="text"
-                placeholder="HH:MM"
-                onInput={(e) => setFormLateEntry(prev => prev ? { ...prev, starttimems: parseStartTime(e.currentTarget.value) } : undefined)}
-              />
-            </TextField>*/}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={acceptDialog}>{"Save Changes"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LateEntryDialog
+        open={!!formLateEntry()}
+        fieldValue={formField}
+        isFieldChanged={isFieldFromLateEntry}
+        setFieldValue={setFormField}
+        onClose={closeDialog}
+        onAccept={acceptDialog}
+      />
     </div>
   );
 }
@@ -562,16 +519,7 @@ const Runs = (props: {
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`,
       ]);
-      const table = createSqlTable(result);
-      const transformedRuns: Run[] = [];
-      for (let i = 0; i < table.rowCount(); i++) {
-        try {
-          transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
-        } catch (error) {
-          console.warn(`Skipping invalid row ${i}:`, error);
-        }
-      }
-      setRuns(transformedRuns);
+      setRuns(parseRunTable(result));
     } catch (error) {
       showToast({ title: "Reload table error", description: (error as Error).message, variant: "destructive" });
     }

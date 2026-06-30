@@ -9,7 +9,7 @@ import { useAppConfig } from "~/context/AppConfig";
 import { RecChng } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
-import { RunsTable, parseRunTable, type Run } from "~/components/Runs";
+import { RunsTable, parseRunTable, type Run } from "~/components/Runs3";
 
 const LateEntries = (props: {
   eventId: number,
