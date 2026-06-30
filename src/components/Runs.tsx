@@ -28,19 +28,19 @@ import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 
-export const LateEntryRecordSchema = object({
-  class_name: optional(string()),
+const LateEntryIdSchema = object({
+  RunId: optional(number()),
+  ClassId: optional(number()),
+});
+
+export const LateEntrySchema = object({
+  id: LateEntryIdSchema,
   firstname: optional(string()),
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
 });
-// type LateEntryRecord = InferOutput<typeof LateEntryRecordSchema>;
 
-const LateEntrySchema = object({
-  run_id: number(),
-  record: LateEntryRecordSchema,
-});
 type LateEntry = InferOutput<typeof LateEntrySchema>;
 
 const QxChangeDataSchema = object({
@@ -59,7 +59,7 @@ const RunSchema = object({
   starttimems: optional(number()),
   qxchange_id: optional(number()),
   qxchange_user_id: optional(string()),
-  qxchange_data: optional(LateEntrySchema),
+  qxchange_data: optional(QxChangeDataSchema),
 });
 
 type Run = InferOutput<typeof RunSchema>;
@@ -72,11 +72,13 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   const lateEntry = parsed?.LateEntry;
   if (!lateEntry) return record;
 
-  const { run_id, record: lateEntryRecord = {} } = lateEntry;
+  const normalizedLateEntry = lateEntry.record
+    ? { id: { RunId: lateEntry.run_id }, ...lateEntry.record }
+    : lateEntry;
 
   return {
     ...record,
-    qxchange_data: { run_id, record: lateEntryRecord },
+    qxchange_data: { LateEntry: normalizedLateEntry },
   };
 }
 
@@ -126,36 +128,30 @@ function RunsTable(props: {
   type LateEntryField = "firstname" | "lastname" | "registration" | "siid";
 
   const isFieldFromLateEntry = (field: LateEntryField) =>
-    formLateEntry()?.qxchange_data?.record?.[field] !== undefined;
+    formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
   const formField = <K extends LateEntryField>(field: K): Run[K] => {
     const run = formLateEntry();
-    const newValue = run?.qxchange_data?.record?.[field];
+    const newValue = run?.qxchange_data?.LateEntry?.[field];
     return newValue !== undefined ? newValue as Run[K] : run?.[field] as Run[K];
   };
 
-  const setFormField = <K extends LateEntryField>(field: K, value: Run[K]) => {
+  const setFormField = <K extends LateEntryField>( field: K, value: Run[K] ) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
-      if (prev.qxchange_data) {
-        return {
-          ...prev,
-          qxchange_data: {
-            ...prev.qxchange_data,
-            record: {
-              ...prev.qxchange_data.record,
-              [field]: value === prev[field] ? undefined : value,
-            },
-          },
-        };
-      }
+      const lateEntry: LateEntry = {
+        ...(prev.qxchange_data?.LateEntry ?? {
+          id: { RunId: prev.run_id },
+        }),
+        [field]: value === prev[field] ? undefined : value,
+      };
 
       return {
         ...prev,
         qxchange_data: {
-          run_id: prev.run_id,
-          record: { [field]: value, },
+          ...prev.qxchange_data,
+          LateEntry: lateEntry,
         },
       };
     });
@@ -164,9 +160,9 @@ function RunsTable(props: {
   const acceptDialog = () => {
     const run = formLateEntry();
     if (!run) return;
-    const lateEntry = run?.qxchange_data;
+    const lateEntry = run?.qxchange_data?.LateEntry;
     if (lateEntry) {
-      updateLateEntry(lateEntry);
+      saveLateEntry(run.qxchange_id, lateEntry);
     }
     closeDialog();
   };
@@ -191,12 +187,12 @@ function RunsTable(props: {
       // A new qxchange record was inserted; update the matching run with the new late entry data
       if (verbose) console.log(`processRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
       let lateEntry = parseQxChangeData(record).LateEntry;
-      if (typeof record!.user_id === "string" && lateEntry) {
-        if (verbose) console.log(`processRecChng: [Insert] Attaching late entry to run_id=${lateEntry.run_id}, owned by user_id=${record!.user_id}`);
+      if (typeof record!.user_id === "string" && lateEntry?.id.RunId) {
+        if (verbose) console.log(`processRecChng: [Insert] Attaching late entry to run_id=${lateEntry.id.RunId}, owned by user_id=${record!.user_id}`);
         props.setRuns(prev =>
           prev.map(r =>
-            r.run_id === lateEntry.run_id
-              ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: lateEntry }
+            r.run_id === lateEntry.id.RunId
+              ? { ...r, qxchange_id: id, qxchange_user_id: record!.user_id as string, qxchange_data: { LateEntry: lateEntry } }
               : r
           )
         );
@@ -232,7 +228,7 @@ function RunsTable(props: {
           const run = props.runs().find(r => r.qxchange_id === id);
           if (run) {
             if (verbose) console.log(`processRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
-            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: lateEntry } : r));
+            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: { LateEntry: lateEntry } } : r));
           } else {
             if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
           }
@@ -250,8 +246,6 @@ function RunsTable(props: {
       }
     }
   };
-
-
 
   function stageStart(): Date | undefined {
     return props.eventConfig().stages[props.currentStage() - 1]?.stageStart;
@@ -286,14 +280,13 @@ function RunsTable(props: {
     return `${hh}:${mm}:${ss}`;
   }
 
-  const updateLateEntry = async (lateEntry: LateEntry) => {
-    const origRun = props.runs().find(r => r.run_id === lateEntry.run_id);
+  const saveLateEntry = async (change_id: number | undefined, lateEntry: LateEntry) => {
+    const origRun = props.runs().find(r => r.run_id === lateEntry.id.RunId);
     if (!origRun) return;
 
-    const changes = copyValidFieldsToRpcMap(origRun, lateEntry.record);
-
+    const changes = copyValidFieldsToRpcMap(origRun, lateEntry, ["firstname", "lastname", "registration", "siid"]);
     try {
-      const params = makeMap({ run_id: lateEntry.run_id, record: makeMap(changes) });
+      const params = makeMap({ change_id: change_id, late_entry: makeMap({ id: makeMap(lateEntry.id), ...changes }) });
       await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId()), "updateLateEntry", params);
       showToast({ title: "Update late entry success" });
     } catch (error) {
@@ -318,8 +311,8 @@ function RunsTable(props: {
       header: "Name",
       cell: (entry: Run) => {
         const fullName = [entry.lastname, entry.firstname].filter(n => n?.trim()).join(" ");
-        const newFirstname = entry.qxchange_data?.record?.firstname;
-        const newLastname = entry.qxchange_data?.record?.lastname;
+        const newFirstname = entry.qxchange_data?.LateEntry?.firstname;
+        const newLastname = entry.qxchange_data?.LateEntry?.lastname;
         if (typeof newFirstname === "string" || typeof newLastname === "string") {
           const newFullName = [
             typeof newLastname === "string" ? newLastname : entry.lastname,
@@ -345,7 +338,7 @@ function RunsTable(props: {
       header: "Reg",
       cell: (run: Run) => {
         const registration = run.registration;
-        const newRegistration = run.qxchange_data?.record?.registration;
+        const newRegistration = run.qxchange_data?.LateEntry?.registration;
         if (typeof newRegistration === "string") {
           return (
             <div class="flex flex-col leading-tight">
@@ -364,7 +357,7 @@ function RunsTable(props: {
       header: "SI",
       cell: (run: Run) => {
         const siid = run.siid;
-        const newSiid = run.qxchange_data?.record?.siid;
+        const newSiid = run.qxchange_data?.LateEntry?.siid;
         if (typeof newSiid === "number") {
           return (
             <div class="flex flex-col leading-tight">
@@ -533,7 +526,8 @@ const Runs = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
   currentStage: number,
-  recchngReceived: () => RecChng | null
+  recchngReceived: () => RecChng | null,
+  withClassSelector: boolean,
 }) => {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -547,20 +541,32 @@ const Runs = (props: {
   const currentStage = () => props.currentStage;
 
   const reloadTable = async () => {
-    if (!className() || status() !== "Connected") return;
+    if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
-        `SELECT runs.id as run_id, runs.siid, runs.starttimems,
+      const query = props.withClassSelector
+        ? `SELECT runs.id as run_id, runs.siid, runs.starttimems,
+              competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
+              classes.name AS class_name,
+              qxchanges.id as qxchange_id, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
+              FROM runs
+              INNER JOIN competitors ON runs.competitorid = competitors.id
+              INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
+              LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
+              WHERE runs.stageid = ${props.currentStage}
+              ORDER BY runs.starttimems ASC`
+        : `SELECT runs.id as run_id, runs.siid, runs.starttimems,
                 competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                 classes.name AS class_name,
                 qxchanges.id as qxchange_id, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
-                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
-                LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
+                LEFT JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
+                INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
                 WHERE runs.stageid = ${props.currentStage}
-                ORDER BY runs.starttimems ASC`,
+                ORDER BY runs.starttimems ASC`;
+      const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
+        query,
       ]);
       const table = createSqlTable(result);
       const transformedRuns: Run[] = [];
