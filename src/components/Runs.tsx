@@ -101,6 +101,8 @@ function RunsTable(props: {
   // null = dialog closed; run_id === 0 = new entry, run_id > 0 = editing existing
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
 
+  const pendingChangesOnly = () => props.className() !== "";
+
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
@@ -174,19 +176,19 @@ function RunsTable(props: {
     }
   });
 
-  const processRecChng = (recchng: RecChng, verbose = false) => {
+  const processRecChng = (recchng: RecChng, verbose = true) => {
     const { table, id, record, op } = recchng;
     if (verbose) console.log("processRecChng: received change", { table, id, record, op });
 
-    const parseQxChangeData = (rec: typeof record): QxChangeData => {
-      if (!rec || typeof rec.data !== "string") throw new Error("Invalid qxchange record: missing or non-string data field");
-      return parse(QxChangeDataSchema, JSON.parse(rec.data));
+    const getLateEnry = (rec: typeof record): LateEntry | undefined => {
+      if (!rec || typeof rec.data !== "string") return undefined;
+      return parse(QxChangeDataSchema, JSON.parse(rec.data)).LateEntry;
     };
 
     if (op === SqlOperation.Insert) {
       // A new qxchange record was inserted; update the matching run with the new late entry data
       if (verbose) console.log(`processRecChng: [Insert] Parsing qxchange data for new record with id=${id}`);
-      let lateEntry = parseQxChangeData(record).LateEntry;
+      let lateEntry = getLateEnry(record);
       if (typeof record!.user_id === "string" && lateEntry?.id.RunId) {
         if (verbose) console.log(`processRecChng: [Insert] Attaching late entry to run_id=${lateEntry.id.RunId}, owned by user_id=${record!.user_id}`);
         props.setRuns(prev =>
@@ -223,17 +225,25 @@ function RunsTable(props: {
       } else if (table === "qxchanges") {
         // A qxchange record was updated; replace the late entry data on the matching run
         if (verbose) console.log(`processRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
-        let lateEntry = parseQxChangeData(record).LateEntry;
-        if (lateEntry) {
-          const run = props.runs().find(r => r.qxchange_id === id);
-          if (run) {
-            if (verbose) console.log(`processRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
-            props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: { LateEntry: lateEntry } } : r));
-          } else {
-            if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
-          }
+        if (pendingChangesOnly() && record?.status && record.status !== "Pending") {
+          // A qxchange record was resolved; clear all late entry fields from the matching run
+          if (verbose) console.log(`processRecChng: [RESOLVED] Removing qxchange data from run with qxchange_id=${id}`);
+          props.setRuns(prev => prev.map(r =>
+            r.qxchange_id === id ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined } : r
+          ));
         } else {
-          if (verbose) console.warn(`processRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
+          let lateEntry = getLateEnry(record);
+          if (lateEntry) {
+            const run = props.runs().find(r => r.qxchange_id === id);
+            if (run) {
+              if (verbose) console.log(`processRecChng: [Update] Found run for qxchange_id=${id}, updating qxchange_data`, lateEntry);
+              props.setRuns(prev => prev.map(r => r.qxchange_id === id ? { ...run, qxchange_data: { LateEntry: lateEntry } } : r));
+            } else {
+              if (verbose) console.log("Cannot process RecChng ===============>", table, id, record, op);
+            }
+          } else {
+            if (verbose) console.warn(`processRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
+          }
         }
       }
     } else if (op === SqlOperation.Delete) {
@@ -552,7 +562,9 @@ const Runs = (props: {
               FROM runs
               INNER JOIN competitors ON runs.competitorid = competitors.id
               INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
-              LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
+              LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id  AND qxchanges.foreign_table = 'runs'
+                AND qxchanges.data_type = 'LateEntry'
+                AND qxchanges.status = 'Pending'
               WHERE runs.stageid = ${props.currentStage}
               ORDER BY runs.starttimems ASC`
         : `SELECT runs.id as run_id, runs.siid, runs.starttimems,
@@ -562,7 +574,7 @@ const Runs = (props: {
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 LEFT JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
-                INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.data_type = 'LateEntry'
+                INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`;
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [
