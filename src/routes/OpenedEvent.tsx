@@ -11,7 +11,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 import Runs from "../components/Runs";
-import LateEntries from "~/components/LateEntries";
 import { useAuth } from "~/context/AuthContext";
 
 export type StageConfig = {
@@ -231,11 +230,12 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
             </TabsContent>
 
             <TabsContent value="late_entries" class="space-y-4">
-              <LateEntries
+              <Runs
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}
                 recchngReceived={recchngReceived}
+                withClassSelector={false}
               />
             </TabsContent>
           </Tabs>

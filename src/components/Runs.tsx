@@ -601,9 +601,9 @@ const Runs = (props: {
       <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
-          <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />
-          <div class="flex gap-2">
-            <Button onClick={() => addEntry()?.()} disabled={!className() || status() !== "Connected"}>Add entry</Button>
+          {props.withClassSelector && <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />}
+          <div class="flex gap-2 justify-end">
+            {props.withClassSelector && <Button onClick={() => addEntry()?.()} disabled={!className() || status() !== "Connected"}>Add entry</Button>}
             <Button variant="outline" onClick={reloadTable} disabled={loading() || !className() || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
