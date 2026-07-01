@@ -65,7 +65,7 @@ function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
 }
 
-function sqlString(value: string): string {
+function sqlQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
@@ -128,7 +128,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
     : `INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'`;
 
   const classJoin = mode === "runs"
-    ? `INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlString(className)}`
+    ? `INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(className)}`
     : `LEFT JOIN classes ON competitors.classid = classes.id`;
 
   return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
@@ -145,7 +145,13 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
 
 function getLateEntry(record: RecChng["record"]): LateEntry | undefined {
   if (!record || typeof record.data !== "string") return undefined;
-  return parse(QxChangeDataSchema, JSON.parse(record.data)).LateEntry;
+
+  try {
+    return parse(QxChangeDataSchema, JSON.parse(record.data)).LateEntry;
+  } catch (error) {
+    console.warn("Invalid qxchange LateEntry data:", error, record.data);
+    return undefined;
+  }
 }
 
 function clearQxChange(runs: Run[], changeId: number): Run[] {
@@ -183,7 +189,13 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode, verbo
 
     return runs.map(r =>
       r.run_id === runId
-        ? { ...r, qxchange_id: id, qxchange_user_id: userId, qxchange_data: { LateEntry: lateEntry } }
+        ? {
+          ...r,
+          qxchange_id: id,
+          qxchange_user_id: userId,
+          qxchange_status: typeof record?.status === "string" ? record.status : r.qxchange_status,
+          qxchange_data: { LateEntry: lateEntry },
+        }
         : r
     );
   }
@@ -203,7 +215,12 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode, verbo
 
   return runs.map(r =>
     r.qxchange_id === id
-      ? { ...r, qxchange_data: { LateEntry: lateEntry } }
+      ? {
+        ...r,
+        qxchange_user_id: typeof record?.user_id === "string" ? record.user_id : r.qxchange_user_id,
+        qxchange_status: typeof record?.status === "string" ? record.status : r.qxchange_status,
+        qxchange_data: { LateEntry: lateEntry },
+      }
       : r
   );
 }
@@ -221,7 +238,7 @@ function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry, 
 function createRunColumns(args: {
   mode: RunsMode;
   stageStart: () => Date | undefined;
-  canEdit: boolean;
+  canEdit: () => boolean;
   onEditRun: (run: Run) => void;
 }): TableColumn<Run>[] {
   const isLateEntriesMode = args.mode === "lateEntries";
@@ -296,7 +313,7 @@ function createRunColumns(args: {
       cell: (run: Run) => (
         <Button size="sm" variant="outline"
           onClick={() => args.onEditRun(run)}
-          disabled={!args.canEdit}
+          disabled={!args.canEdit()}
         >
           Edit
         </Button>
@@ -313,7 +330,7 @@ function RunsTable(props: {
   runs: () => Run[];
   loading: () => boolean;
   mode: RunsMode;
-  canEdit: boolean;
+  canEdit: () => boolean;
   onEditRun: (run: Run) => void;
 }) {
   const columns = createRunColumns({
@@ -406,7 +423,6 @@ const Runs = (props: {
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
-  const isLateEntriesMode = props.mode === "lateEntries";
 
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
@@ -427,13 +443,12 @@ const Runs = (props: {
   const isFieldFromLateEntry = (field: LateEntryField) =>
     formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
-  const formField = <K extends LateEntryField>(field: K): Run[K] => {
+  const formField = (field: LateEntryField): LateEntryFieldValue => {
     const run = formLateEntry();
-    const newValue = run?.qxchange_data?.LateEntry?.[field];
-    return newValue !== undefined ? newValue as Run[K] : run?.[field] as Run[K];
+    return run?.qxchange_data?.LateEntry?.[field] ?? run?.[field];
   };
 
-  const setFormField = <K extends LateEntryField>(field: K, value: Run[K]) => {
+  const setFormField = (field: LateEntryField, value: LateEntryFieldValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
@@ -483,8 +498,9 @@ const Runs = (props: {
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
       showToast({ title: "Reload table error", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   createEffect(() => {
@@ -517,7 +533,7 @@ const Runs = (props: {
           runs={runs}
           loading={loading}
           mode={props.mode}
-          canEdit={!!user()}
+          canEdit={() => !!user()}
           onEditRun={setFormLateEntry}
         />
 
