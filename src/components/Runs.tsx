@@ -27,6 +27,7 @@ import { copyRecordChanges as copyValidFieldsToRpcMap, isRecordEmpty } from "~/l
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
+import { reload } from "@solidjs/router";
 
 const LateEntryIdSchema = object({
   RunId: optional(number()),
@@ -59,6 +60,7 @@ const RunSchema = object({
   starttimems: optional(number()),
   qxchange_id: optional(number()),
   qxchange_user_id: optional(string()),
+  qxchange_status: optional(string()),
   qxchange_data: optional(QxChangeDataSchema),
 });
 
@@ -93,6 +95,7 @@ function RunsTable(props: {
   onReload: () => void;
   onAddEntry: (open: () => void) => void;
   recchngReceived: () => RecChng | null;
+  withClassSelector: boolean;
 }) {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
@@ -101,7 +104,7 @@ function RunsTable(props: {
   // null = dialog closed; run_id === 0 = new entry, run_id > 0 = editing existing
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
 
-  const pendingChangesOnly = () => props.className() !== "";
+  const pendingChangesOnly = !props.withClassSelector;
 
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
@@ -118,7 +121,12 @@ function RunsTable(props: {
   });
 
   // Register the opener with the parent once on mount
-  onMount(() => props.onAddEntry(openNewEntryDialog));
+  onMount(() => {
+    props.onAddEntry(openNewEntryDialog);
+    if (!props.withClassSelector) {
+      props.onReload();
+    }
+  });
 
   const openLateEntryEditDialog = (id: number) => {
     const run = props.runs().find(r => r.run_id === id);
@@ -225,7 +233,7 @@ function RunsTable(props: {
       } else if (table === "qxchanges") {
         // A qxchange record was updated; replace the late entry data on the matching run
         if (verbose) console.log(`processRecChng: [Update] Updating qxchange with qxchange_id=${id}`);
-        if (pendingChangesOnly() && record?.status && record.status !== "Pending") {
+        if (pendingChangesOnly && record?.status && record.status !== "Pending") {
           // A qxchange record was resolved; clear all late entry fields from the matching run
           if (verbose) console.log(`processRecChng: [RESOLVED] Removing qxchange data from run with qxchange_id=${id}`);
           props.setRuns(prev => prev.map(r =>
@@ -308,7 +316,22 @@ function RunsTable(props: {
     if (props.className()) props.onReload();
   });
 
+  const classNameColumn: TableColumn<Run> = {
+    key: "class_name",
+    header: "Class",
+    sortable: true,
+    width: "120px",
+  };
+
+  const qxChangeStatusColumn: TableColumn<Run> = {
+    key: "qxchange_status",
+    header: "Status",
+    sortable: true,
+    width: "100px",
+  };
+
   const columns: TableColumn<Run>[] = [
+    ...(!props.withClassSelector ? [classNameColumn] : []),
     {
       key: "starttimems",
       header: "Start Time",
@@ -387,6 +410,7 @@ function RunsTable(props: {
       sortable: true,
       width: "100px",
     },
+    ...(!props.withClassSelector ? [qxChangeStatusColumn] : []),
     {
       key: "actions",
       header: "Actions",
@@ -558,7 +582,7 @@ const Runs = (props: {
         ? `SELECT runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
               classes.name AS class_name,
-              qxchanges.id as qxchange_id, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
+              qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
               FROM runs
               INNER JOIN competitors ON runs.competitorid = competitors.id
               INNER JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
@@ -570,10 +594,10 @@ const Runs = (props: {
         : `SELECT runs.id as run_id, runs.siid, runs.starttimems,
                 competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                 classes.name AS class_name,
-                qxchanges.id as qxchange_id, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
+                qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
-                LEFT JOIN classes ON competitors.classid = classes.id AND classes.name = '${className()}'
+                LEFT JOIN classes ON competitors.classid = classes.id
                 INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
                 WHERE runs.stageid = ${props.currentStage}
                 ORDER BY runs.starttimems ASC`;
@@ -620,6 +644,7 @@ const Runs = (props: {
           onReload={reloadTable}
           onAddEntry={(fn) => setAddEntry(() => fn)}
           recchngReceived={props.recchngReceived}
+          withClassSelector={props.withClassSelector}
         />
       </div>
     </div>
