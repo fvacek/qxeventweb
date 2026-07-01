@@ -225,7 +225,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}
                 recchngReceived={recchngReceived}
-                withClassSelector={true}
+                mode="runs"
               />
             </TabsContent>
 
@@ -235,7 +235,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}
                 recchngReceived={recchngReceived}
-                withClassSelector={false}
+                mode="lateEntries"
               />
             </TabsContent>
           </Tabs>
