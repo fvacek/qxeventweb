@@ -54,6 +54,7 @@ const RunSchema = object({
 
 type Run = InferOutput<typeof RunSchema>;
 type RunsMode = "runs" | "lateEntries";
+type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 type LateEntryField = LateEntryDialogField;
 type LateEntryFieldValue = LateEntryDialogValue;
 
@@ -420,6 +421,7 @@ const Runs = (props: {
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>(undefined);
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
@@ -503,6 +505,15 @@ const Runs = (props: {
     }
   };
 
+  const tableRuns = () => {
+    const filter = statusFilter();
+    return filter ? runs().filter(run => run.qxchange_status === filter) : runs();
+  };
+
+  const toggleStatusFilter = (filter: LateEntryStatusFilter) => {
+    setStatusFilter(prev => prev === filter ? undefined : filter);
+  };
+
   createEffect(() => {
     const recchng = props.recchngReceived();
     if (recchng) setRuns(prev => applyRecChngToRuns(prev, recchng, props.mode));
@@ -522,6 +533,15 @@ const Runs = (props: {
           {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />}
           <div class="flex gap-2 justify-end">
             {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>Add entry</Button>}
+            {props.mode === "lateEntries" && ["Pending", "Accepted", "Rejected"].map(filter => (
+              <Button
+                variant={statusFilter() === filter ? "default" : "outline"}
+                onClick={() => toggleStatusFilter(filter as LateEntryStatusFilter)}
+                disabled={status() !== "Connected"}
+              >
+                {filter}
+              </Button>
+            ))}
             <Button variant="outline" onClick={reloadTable} disabled={loading() || (props.mode === "runs" && !className()) || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
@@ -530,7 +550,7 @@ const Runs = (props: {
         <RunsTable
           eventConfig={props.eventConfig}
           currentStage={currentStage}
-          runs={runs}
+          runs={tableRuns}
           loading={loading}
           mode={props.mode}
           canEdit={() => !!user()}
