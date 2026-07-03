@@ -122,10 +122,11 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
 function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string): string {
   const fields = `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-              classes.name AS class_name,
               qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
   if (mode === "runs") {
-    return `SELECT ${fields} FROM runs
+    return `SELECT ${fields},
+                  classes.name AS class_name
+                FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
                 INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(className)}
                 LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id  AND qxchanges.foreign_table = 'runs'
@@ -136,7 +137,9 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 ORDER BY runs.starttimems ASC`;
   }
 
-  return `SELECT ${fields} FROM qxchanges
+  return `SELECT ${fields},
+                  COALESCE(classes.name, qxclasses.name) AS class_name
+                FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
                 LEFT JOIN competitors ON runs.competitorid = competitors.id
                 LEFT JOIN classes ON competitors.classid = classes.id
@@ -459,6 +462,12 @@ const Runs = (props: {
 
   const closeDialog = () => setFormLateEntry(undefined);
 
+  const formClassName = (): string => {
+    if (className()) return className();
+    const run = formLateEntry();
+    return run?.class_name ?? "";
+  };
+
   const isFieldFromLateEntry = (field: LateEntryDialogField) =>
     formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
@@ -540,7 +549,7 @@ const Runs = (props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
+      <h1 class="mt-7 mb-7 text-3xl font-bold">{props.mode === "lateEntries" ? "Late Entries" : "Runs"}</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
           {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassId={setClassId} eventId={eventId} currentStage={currentStage} />}
@@ -574,7 +583,7 @@ const Runs = (props: {
 
         <LateEntryDialog
           open={!!formLateEntry()}
-          className={className}
+          className={formClassName}
           fieldValue={formField}
           isFieldChanged={isFieldFromLateEntry}
           setFieldValue={setFormField}
