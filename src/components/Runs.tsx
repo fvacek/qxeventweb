@@ -267,6 +267,27 @@ function createRunColumns(args: {
     width: "120px",
   };
 
+  const operationColumn: TableColumn<Run> = {
+    key: "operation",
+    header: "Operation",
+    cell: (run: Run) => {
+      const isChange = (run.qxchange_data?.LateEntry?.id?.RunId ?? 0) > 0;
+      const label = isChange ? "Change" : "New";
+      return (
+        <span class="inline-flex w-full justify-center">
+          <span
+            title={label}
+            aria-label={label}
+            class="inline-flex size-6 items-center justify-center rounded-md bg-highlight text-background text-lg font-bold"
+          >
+            {isChange ? "✎" : "+"}
+          </span>
+        </span>
+      );
+    },
+    width: "100px",
+  };
+
   const qxChangeStatusColumn: TableColumn<Run> = {
     key: "qxchange_status",
     header: "Status",
@@ -275,7 +296,7 @@ function createRunColumns(args: {
   };
 
   return [
-    ...(isLateEntriesMode ? [classNameColumn] : []),
+    ...(isLateEntriesMode ? [operationColumn, classNameColumn] : []),
     {
       key: "starttimems",
       header: "Start Time",
