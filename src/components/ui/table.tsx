@@ -13,7 +13,7 @@ const tableVariants = cva(
     variants: {
       variant: {
         default: "border-collapse",
-        striped: "border-collapse [&>tbody>tr:nth-child(even)]:bg-muted/50",
+        striped: "border-collapse table-striped",
         bordered: "border-collapse table-border",
       },
       size: {
@@ -417,7 +417,7 @@ const TableRow = <T extends ValidComponent = "tr">(
   return (
     <tr
       class={cn(
-        "table-border-b transition-colors hover:bg-accent/60 data-[state=selected]:bg-muted",
+        "table-row table-border-b transition-colors data-[state=selected]:bg-muted",
         local.onClick && "cursor-pointer",
         local.selected && "bg-muted",
         local.class
