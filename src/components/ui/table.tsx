@@ -417,7 +417,7 @@ const TableRow = <T extends ValidComponent = "tr">(
   return (
     <tr
       class={cn(
-        "table-border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "table-border-b transition-colors hover:bg-accent/60 data-[state=selected]:bg-muted",
         local.onClick && "cursor-pointer",
         local.selected && "bg-muted",
         local.class
