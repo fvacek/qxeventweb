@@ -74,7 +74,7 @@ function ChangedValue(props: { original: string; changed?: string }) {
   return (
     <div class="flex flex-col leading-tight">
       <span class="line-through text-muted-foreground">{props.original || ""}</span>
-      <span class="text-bold">{props.changed || ""}</span>
+      <span class="font-bold">{props.changed || ""}</span>
     </div>
   );
 }
