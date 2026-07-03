@@ -40,7 +40,7 @@ function LateEntryDialog(props: {
             <TextFieldInput
               value={props.fieldValue("firstname")?.toString() || ""}
               type="text"
-              class={props.isFieldChanged("firstname") ? "text-primary font-semibold" : ""}
+              class={props.isFieldChanged("firstname") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("firstname", e.currentTarget.value || undefined)}
             />
           </TextField>
@@ -50,7 +50,7 @@ function LateEntryDialog(props: {
             <TextFieldInput
               value={props.fieldValue("lastname")?.toString() || ""}
               type="text"
-              class={props.isFieldChanged("lastname") ? "text-primary font-semibold" : ""}
+              class={props.isFieldChanged("lastname") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("lastname", e.currentTarget.value || undefined)}
             />
           </TextField>
@@ -60,7 +60,7 @@ function LateEntryDialog(props: {
             <TextFieldInput
               value={props.fieldValue("registration")?.toString() || ""}
               type="text"
-              class={props.isFieldChanged("registration") ? "text-primary font-semibold" : ""}
+              class={props.isFieldChanged("registration") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("registration", e.currentTarget.value || undefined)}
             />
           </TextField>
@@ -70,7 +70,7 @@ function LateEntryDialog(props: {
             <TextFieldInput
               value={props.fieldValue("siid")?.toString() || ""}
               type="number"
-              class={props.isFieldChanged("siid") ? "text-primary font-semibold" : ""}
+              class={props.isFieldChanged("siid") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
             />
           </TextField>
@@ -80,7 +80,7 @@ function LateEntryDialog(props: {
             <TextFieldInput
               value={props.fieldValue("note")?.toString() || ""}
               type="text"
-              class={props.isFieldChanged("note") ? "text-primary font-semibold" : ""}
+              class={props.isFieldChanged("note") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("note", e.currentTarget.value ||   undefined)}
             />
           </TextField>

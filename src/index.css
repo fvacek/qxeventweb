@@ -16,7 +16,7 @@
     --foreground: #000000;
 
     --muted: #c8dbcd;
-    --muted-foreground: #132018;
+    --muted-foreground: #166329;
 
     --popover: #ffffff;
     --popover-foreground: #000000;
@@ -45,7 +45,7 @@
 [data-theme="dark"] {
     --primary: green;
     --secondary: #e0d5c7;
-    --highlight: #f59e0b;
+    --highlight: #b37205;
 
     --ok: #22c55e;
     --warn: #f59e0b;
