@@ -353,7 +353,7 @@ function RunsTable(props: {
   });
 
   return (
-    <div class="rounded-md border">
+    <div class="rounded-md table-border">
       <Table
         data={props.runs()}
         columns={columns}

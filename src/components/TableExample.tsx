@@ -209,7 +209,7 @@ export function TableExample() {
       </div>
 
       {/* Example 1: Auto-rendered table with sorting and global search */}
-      <div class="rounded-md border">
+      <div class="rounded-md table-border">
         <Table
           data={users()}
           columns={columns}
@@ -223,7 +223,7 @@ export function TableExample() {
       </div>
 
       {/* Example 2: Manual table structure */}
-      <div class="rounded-md border">
+      <div class="rounded-md table-border">
         <Table variant="bordered">
           <caption>Manual Table Example</caption>
           <thead>
@@ -254,7 +254,7 @@ export function TableExample() {
       </div>
 
       {/* Example 3: Using individual table components */}
-      <div class="rounded-md border">
+      <div class="rounded-md table-border">
         <Table>
           <TableHeader sticky>
             <TableRow>

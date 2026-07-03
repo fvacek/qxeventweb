@@ -14,7 +14,7 @@ const tableVariants = cva(
       variant: {
         default: "border-collapse",
         striped: "border-collapse [&>tbody>tr:nth-child(even)]:bg-muted/50",
-        bordered: "border-collapse border border-border",
+        bordered: "border-collapse table-border",
       },
       size: {
         default: "",
@@ -30,7 +30,7 @@ const tableVariants = cva(
 )
 
 const tableHeaderVariants = cva(
-  "border-b text-left font-medium text-muted-foreground [&:has([role=checkbox])]:pl-3",
+  "table-border-b text-left font-medium text-muted-foreground [&:has([role=checkbox])]:pl-3",
   {
     variants: {
       sticky: {
@@ -390,7 +390,7 @@ const TableFooter = <T extends ValidComponent = "tfoot">(
 ) => {
   const [local, others] = splitProps(props as TableFooterProps, ["class", "children"])
   return (
-    <tfoot class={cn("border-t bg-muted/50 font-medium", local.class)} {...others}>
+    <tfoot class={cn("table-border-t bg-muted/50 font-medium", local.class)} {...others}>
       {local.children}
     </tfoot>
   )
@@ -417,7 +417,7 @@ const TableRow = <T extends ValidComponent = "tr">(
   return (
     <tr
       class={cn(
-        "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "table-border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
         local.onClick && "cursor-pointer",
         local.selected && "bg-muted",
         local.class

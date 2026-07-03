@@ -421,7 +421,7 @@ export function AdvancedTableExample() {
       </div>
 
       {/* Main Table */}
-      <div class="rounded-md border">
+      <div class="rounded-md table-border">
         <Table
           data={filteredProducts()}
           columns={columns}
@@ -573,7 +573,7 @@ export function SimpleAdvancedTable() {
         defaultExpanded={true}
       />
       
-      <div class="rounded-md border">
+      <div class="rounded-md table-border">
         <Table
           data={filteredData()}
           columns={columns}
