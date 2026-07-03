@@ -18,6 +18,8 @@ export type LateEntryDialogValue = string | number | undefined;
 function LateEntryDialog(props: {
   open: boolean;
   className: () => string;
+  status: () => string | undefined;
+  statusMessage: () => string | undefined;
   fieldValue: (field: LateEntryDialogField) => LateEntryDialogValue;
   isFieldChanged: (field: LateEntryDialogField) => boolean;
   setFieldValue: (field: LateEntryDialogField, value: LateEntryDialogValue) => void;
@@ -35,6 +37,19 @@ function LateEntryDialog(props: {
           <div class="rounded-md bg-muted px-3 py-2 text-lg font-semibold">
             {props.className()}
           </div>
+
+          {(props.status() || props.statusMessage()) && (
+            <div class="rounded-md border border-border bg-accent/40 px-3 py-2 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-medium text-muted-foreground">Status</span>
+                <span class="font-semibold">{props.status() || "—"}</span>
+              </div>
+              {props.statusMessage() && (
+                <p class="mt-1 text-muted-foreground">{props.statusMessage()}</p>
+              )}
+            </div>
+          )}
+
           <TextField>
             <TextFieldLabel>First Name</TextFieldLabel>
             <TextFieldInput
@@ -88,7 +103,7 @@ function LateEntryDialog(props: {
 
         <DialogFooter>
           <Button variant="outline" onClick={props.onClose}>Cancel</Button>
-          <Button onClick={props.onAccept}>{"Save Changes"}</Button>
+          <Button onClick={props.onAccept} disabled={props.status() !== "Pending"}>{"Save Changes"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

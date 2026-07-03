@@ -51,6 +51,7 @@ const RunSchema = object({
   qxchange_id: optional(number()),
   qxchange_user_id: optional(string()),
   qxchange_status: optional(string()),
+  qxchange_status_message: optional(string()),
   qxchange_data: optional(QxChangeDataSchema),
 });
 
@@ -124,7 +125,9 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
 function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string): string {
   const fields = `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-              qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
+              qxchanges.id as qxchange_id,
+              qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
+              qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
   if (mode === "runs") {
     return `SELECT ${fields},
                   classes.name AS class_name
@@ -150,7 +153,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 ORDER BY qxchanges.id ASC`;
 }
 
-function getLateEntry(record: RecChng["record"]): LateEntry | undefined {
+function parseLateEntryFromRecChng(record: RecChng["record"]): LateEntry | undefined {
   if (!record || typeof record.data !== "string") return undefined;
 
   try {
@@ -164,7 +167,7 @@ function getLateEntry(record: RecChng["record"]): LateEntry | undefined {
 function clearQxChange(runs: Run[], changeId: number): Run[] {
   return runs.map(r =>
     r.qxchange_id === changeId
-      ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_data: undefined }
+      ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_status: undefined, qxchange_status_message: undefined, qxchange_data: undefined }
       : r
   );
 }
@@ -191,7 +194,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
       return clearQxChange(runs, id);
 
     case SqlOperation.Insert: {
-      const lateEntry = getLateEntry(record);
+      const lateEntry = parseLateEntryFromRecChng(record);
       const userId = str(record?.user_id);
       const runId = lateEntry?.id.RunId;
 
@@ -207,6 +210,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
             qxchange_id: id,
             qxchange_user_id: userId,
             qxchange_status: str(record?.status, r.qxchange_status),
+            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
             qxchange_data: { LateEntry: lateEntry },
           }
           : r
@@ -216,14 +220,11 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
     case SqlOperation.Update: {
       if (mode === "lateEntries" && record?.status && record.status !== "Pending") {
         console.log(`processRecChng: [RESOLVED] Removing qxchange data from run with qxchange_id=${id}`);
+        // hide required changes on status update, because change is accepted or rejected already
         return clearQxChange(runs, id);
       }
 
-      const lateEntry = getLateEntry(record);
-      if (!lateEntry) {
-        console.warn(`processRecChng: [Update] No LateEntry found in qxchange data for qxchange_id=${id}`);
-        return runs;
-      }
+      const lateEntry = parseLateEntryFromRecChng(record);
 
       return runs.map(r =>
         r.qxchange_id === id
@@ -231,7 +232,8 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
             ...r,
             qxchange_user_id: str(record?.user_id, r.qxchange_user_id),
             qxchange_status: str(record?.status, r.qxchange_status),
-            qxchange_data: { LateEntry: lateEntry },
+            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+            qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
           }
           : r
       );
@@ -480,6 +482,8 @@ const Runs = (props: {
     starttimems: undefined,
     qxchange_id: undefined,
     qxchange_user_id: undefined,
+    qxchange_status: "Pending",
+    qxchange_status_message: undefined,
     qxchange_data: undefined,
   });
 
@@ -607,6 +611,8 @@ const Runs = (props: {
         <LateEntryDialog
           open={!!formLateEntry()}
           className={formClassName}
+          status={() => formLateEntry()?.qxchange_status}
+          statusMessage={() => formLateEntry()?.qxchange_status_message}
           fieldValue={formField}
           isFieldChanged={isFieldFromLateEntry}
           setFieldValue={setFormField}
