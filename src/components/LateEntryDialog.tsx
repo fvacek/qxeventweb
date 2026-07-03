@@ -17,6 +17,7 @@ export type LateEntryDialogValue = string | number | undefined;
 
 function LateEntryDialog(props: {
   open: boolean;
+  className: () => string;
   fieldValue: (field: LateEntryDialogField) => LateEntryDialogValue;
   isFieldChanged: (field: LateEntryDialogField) => boolean;
   setFieldValue: (field: LateEntryDialogField, value: LateEntryDialogValue) => void;
@@ -27,10 +28,13 @@ function LateEntryDialog(props: {
     <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose(); }}>
       <DialogContent class="max-w-md">
         <DialogHeader>
-          <DialogTitle>{"Late Entry"}</DialogTitle>
+          <DialogTitle>{"Late Entry "}</DialogTitle>
         </DialogHeader>
 
         <div class="space-y-4">
+          <div class="rounded-md bg-muted px-3 py-2 text-lg font-semibold">
+            {props.className()}
+          </div>
           <TextField>
             <TextFieldLabel>First Name</TextFieldLabel>
             <TextFieldInput

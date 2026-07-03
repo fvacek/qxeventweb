@@ -38,8 +38,8 @@ const QxChangeDataSchema = object({
 type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
 const RunSchema = object({
-  run_id: number(),
-  competitor_id: number(),
+  run_id: optional(number()),
+  competitor_id: optional(number()),
   class_name: optional(string()),
   firstname: optional(string()),
   lastname: optional(string()),
@@ -119,27 +119,30 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
   return transformedRuns;
 }
 
-function createRunsQuery(mode: RunsMode, className: string, currentStage: number): string {
-  const qxchangeJoin = mode === "runs"
-    ? `LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id  AND qxchanges.foreign_table = 'runs'
-                AND qxchanges.data_type = 'LateEntry'
-                AND qxchanges.status = 'Pending'`
-    : `INNER JOIN qxchanges ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'`;
-
-  const classJoin = mode === "runs"
-    ? `INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(className)}`
-    : `LEFT JOIN classes ON competitors.classid = classes.id`;
-
-  return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
-                competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-                classes.name AS class_name,
-                qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id
-                FROM runs
+function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string): string {
+  const fields = `runs.id as run_id, runs.siid, runs.starttimems,
+              competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
+              classes.name AS class_name,
+              qxchanges.id as qxchange_id, qxchanges.status as qxchange_status, qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
+  if (mode === "runs") {
+    return `SELECT ${fields} FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
-                ${classJoin}
-                ${qxchangeJoin}
+                INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(className)}
+                LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id  AND qxchanges.foreign_table = 'runs'
+                  AND qxchanges.data_type = 'LateEntry'
+                  AND qxchanges.status = 'Pending'
                 WHERE runs.stageid = ${currentStage}
+                  AND runs.isRunning = true
                 ORDER BY runs.starttimems ASC`;
+  }
+
+  return `SELECT ${fields} FROM qxchanges
+                LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
+                LEFT JOIN competitors ON runs.competitorid = competitors.id
+                LEFT JOIN classes ON competitors.classid = classes.id
+                LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
+                WHERE qxchanges.stage_id = ${currentStage} AND qxchanges.user_id = ${sqlQuotedString(userId)}
+                ORDER BY qxchanges.id ASC`;
 }
 
 function getLateEntry(record: RecChng["record"]): LateEntry | undefined {
@@ -234,12 +237,12 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
   }
 }
 
-function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry, changes: Record<string, RpcValue>) {
+function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
   return makeMap({
     change_id: changeId,
     late_entry: makeMap({
+      ...lateEntry,
       id: makeMap(lateEntry.id),
-      ...changes,
     }),
   });
 }
@@ -362,12 +365,13 @@ function RunsTable(props: {
 function ClassSelector(props: {
   className: () => string;
   setClassName: (name: string) => void;
+  setClassId: (id: number) => void;
   eventId: () => number;
   currentStage: () => number;
 }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
-  const [classes, setClasses] = createSignal<string[]>([]);
+  const [classes, setClasses] = createSignal<{ id: number; name: string }[]>([]);
 
   async function loadClasses() {
     try {
@@ -375,16 +379,19 @@ function ClassSelector(props: {
         wsClient()!,
         appConfig.eventSqlApiPath(props.eventId()),
         "query",
-        [`SELECT classes.name AS class_name FROM classes, classdefs
+        [`SELECT classes.id, classes.name FROM classes, classdefs
           WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
           ORDER BY classes.name`],
       );
       const table = createSqlTable(result);
-      const classNames = Array.from({ length: table.rowCount() }, (_, i) =>
-        String(table.get(i, "class_name")),
+      const classlist = Array.from({ length: table.rowCount() }, (_, i) =>
+        ({ id: Number(table.get(i, "id")), name: String(table.get(i, "name")) }),
       );
-      setClasses(classNames);
-      if (classNames.length > 0) props.setClassName(classNames[0]);
+      setClasses(classlist);
+      if (classlist.length > 0) {
+        props.setClassName(classlist[0].name);
+        props.setClassId(classlist[0].id);
+      }
     } catch (error) {
       showToast({ title: "Load classes error", description: (error as Error).message, variant: "destructive" });
     }
@@ -394,13 +401,19 @@ function ClassSelector(props: {
     if (status() === "Connected") loadClasses();
   });
 
+  const selectClass = (name: string) => {
+    const selectedClass = classes().find(c => c.name === name);
+    props.setClassName(name);
+    props.setClassId(selectedClass?.id ?? 0);
+  };
+
   return (
     <div class="w-full">
       {props.className() && (
         <FlexDropdown
           value={props.className()}
-          options={classes()}
-          onSelect={props.setClassName}
+          options={classes().map(c => c.name)}
+          onSelect={selectClass}
           variant="default"
           fullWidth={true}
         />
@@ -421,6 +434,7 @@ const Runs = (props: {
   const { user } = useAuth();
 
   const [className, setClassName] = createSignal("");
+  const [classId, setClassId] = createSignal(0);
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
@@ -457,29 +471,23 @@ const Runs = (props: {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
-      const lateEntry: LateEntry = {
-        ...(prev.qxchange_data?.LateEntry ?? { id: { RunId: prev.run_id } }),
-        [field]: value === prev[field] ? undefined : value,
-      };
-
       return {
         ...prev,
         qxchange_data: {
           ...prev.qxchange_data,
-          LateEntry: lateEntry,
+          LateEntry: {
+            ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classId() } }),
+            [field]: value === prev[field] ? undefined : value,
+          },
         },
       };
     });
   };
 
-
   const saveLateEntry = async (change_id: number | undefined, lateEntry: LateEntry) => {
-    const origRun = runs().find(r => r.run_id === lateEntry.id.RunId);
-    if (!origRun) return;
-
-    const changes = copyValidFieldsToRpcMap(origRun, lateEntry, ["firstname", "lastname", "registration", "siid"]);
+    // const changes = copyValidFieldsToRpcMap(origRun, lateEntry, ["firstname", "lastname", "registration", "siid"]);
     try {
-      const params = lateEntryRpcParams(change_id, lateEntry, changes);
+      const params = lateEntryRpcParams(change_id, lateEntry);
       await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId), "updateLateEntry", params);
       showToast({ title: "Update late entry success" });
     } catch (error) {
@@ -490,7 +498,9 @@ const Runs = (props: {
   const acceptDialog = () => {
     const run = formLateEntry();
     const lateEntry = run?.qxchange_data?.LateEntry;
-    if (run && lateEntry) saveLateEntry(run.qxchange_id, lateEntry);
+    if (run && lateEntry) {
+      saveLateEntry(run.qxchange_id, lateEntry);
+    }
     closeDialog();
   };
 
@@ -498,7 +508,7 @@ const Runs = (props: {
     if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const query = createRunsQuery(props.mode, className(), props.currentStage);
+      const query = createRunsQuery(props.mode, className(), props.currentStage, user()?.email ?? "");
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
@@ -533,9 +543,9 @@ const Runs = (props: {
       <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
-          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} eventId={eventId} currentStage={currentStage} />}
+          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassId={setClassId} eventId={eventId} currentStage={currentStage} />}
           <div class="flex gap-2 justify-end">
-            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>Add entry</Button>}
+            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>New entry</Button>}
             {props.mode === "lateEntries" && (
               <For each={STATUS_FILTERS}>{(filter) => (
                 <Button
@@ -564,6 +574,7 @@ const Runs = (props: {
 
         <LateEntryDialog
           open={!!formLateEntry()}
+          className={className}
           fieldValue={formField}
           isFieldChanged={isFieldFromLateEntry}
           setFieldValue={setFormField}
