@@ -28,6 +28,7 @@ export const LateEntrySchema = object({
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
+  note: optional(string()),
 });
 
 type LateEntry = InferOutput<typeof LateEntrySchema>;
@@ -45,6 +46,7 @@ const RunSchema = object({
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
+  note: optional(string()),
   starttimems: optional(number()),
   qxchange_id: optional(number()),
   qxchange_user_id: optional(string()),
@@ -71,8 +73,8 @@ function ChangedValue(props: { original: string; changed?: string }) {
 
   return (
     <div class="flex flex-col leading-tight">
-      <span class="line-through text-muted-foreground">{props.original || "—"}</span>
-      <span>{props.changed || "—"}</span>
+      <span class="line-through text-muted-foreground">{props.original || ""}</span>
+      <span class="text-bold">{props.changed || ""}</span>
     </div>
   );
 }

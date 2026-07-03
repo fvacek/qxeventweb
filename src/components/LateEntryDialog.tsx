@@ -12,7 +12,7 @@ import {
   TextFieldLabel,
 } from "~/components/ui/text-field";
 
-export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid";
+export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note";
 export type LateEntryDialogValue = string | number | undefined;
 
 function LateEntryDialog(props: {
@@ -72,6 +72,16 @@ function LateEntryDialog(props: {
               type="number"
               class={props.isFieldChanged("siid") ? "text-primary font-semibold" : ""}
               onInput={(e) => props.setFieldValue("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
+            />
+          </TextField>
+
+          <TextField>
+            <TextFieldLabel>Note</TextFieldLabel>
+            <TextFieldInput
+              value={props.fieldValue("note")?.toString() || ""}
+              type="text"
+              class={props.isFieldChanged("note") ? "text-primary font-semibold" : ""}
+              onInput={(e) => props.setFieldValue("note", e.currentTarget.value ||   undefined)}
             />
           </TextField>
         </div>

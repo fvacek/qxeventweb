@@ -9,33 +9,33 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   border-radius: 0.5rem;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
+  font-weight: 700;
+  color: var(--foreground);
 }
 
 .login-button:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--accent);
+  color: var(--accent-foreground);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
 }
 
 /* Different hover state when logged in */
 .login-button.logged-in:hover {
-  background-color: #eff6ff;
-  border: 1px solid #dbeafe;
+  background-color: var(--accent);
+  border-color: var(--highlight);
 }
 
 /* Different hover state when logged out */
 .login-button.logged-out:hover {
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background-color: var(--muted);
+  border-color: var(--primary);
 }
 
 .login-button:focus {
@@ -47,31 +47,31 @@
   height: 2rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   transition: border-color 0.2s ease-in-out;
 }
 
 .login-button:hover .user-avatar {
-  border-color: #d1d5db;
+  border-color: var(--highlight);
 }
 
 .avatar-fallback {
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--highlight) 0%, var(--primary) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: 600;
+  color: var(--primary-foreground);
+  font-weight: 700;
   font-size: 0.875rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   transition: border-color 0.2s ease-in-out;
 }
 
 .login-button:hover .avatar-fallback {
-  border-color: #d1d5db;
+  border-color: var(--highlight);
 }
 
 .user-name {
@@ -79,49 +79,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: inherit;
 }
 
 .login-text {
-  color: #6b7280;
-  font-weight: 400;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .login-button {
-    color: #f9fafb;
-  }
-
-  .login-button:hover {
-    background-color: #374151;
-    color: #ffffff;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-
-  .login-button.logged-in:hover {
-    background-color: #1e3a8a;
-    border: 1px solid #3b82f6;
-  }
-
-  .login-button.logged-out:hover {
-    background-color: #166534;
-    border: 1px solid #22c55e;
-  }
-
-  .user-avatar,
-  .avatar-fallback {
-    border-color: #4b5563;
-  }
-
-  .login-button:hover .user-avatar,
-  .login-button:hover .avatar-fallback {
-    border-color: #6b7280;
-  }
-
-  .login-text {
-    color: #9ca3af;
-  }
+  color: var(--muted-foreground);
+  font-weight: 600;
 }
 
 /* Loading and interactive states */

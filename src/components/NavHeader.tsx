@@ -136,7 +136,7 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
   };
 
   return (
-    <header class="flex w-full items-center justify-between p-4">
+    <header class="flex w-full items-center justify-between border-b border-highlight bg-highlight bg-opacity-10 p-4 text-foreground">
       <h1 class="text-3xl font-bold">
         <A href="/">QxEvent</A>
       </h1>

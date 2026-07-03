@@ -15,6 +15,7 @@ export default defineConfig({
       ring: 'var(--ring)',
       background: 'var(--background)',
       foreground: 'var(--foreground)',
+      highlight: 'var(--highlight)',
       primary: {
         DEFAULT: 'var(--primary)',
         foreground: 'var(--primary-foreground)',
