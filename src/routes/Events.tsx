@@ -387,13 +387,6 @@ function EventsTable() {
                 onInput={(e) => setFormData(prev => prev ? { ...prev, owner: e.currentTarget.value } : null)}
               />
             </TextField>
-            {/*<TextField>
-              <TextFieldLabel>is local</TextFieldLabel>
-              <TextFieldInput
-              value={formData()?.is_local === undefined ? "NULL" : String(formData()?.is_local)}
-              type="text"
-              />
-            </TextField>*/}
             <SwitchField
               label="Local Event DB"
               checked={Boolean(formData()?.is_local)}

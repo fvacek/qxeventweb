@@ -7,6 +7,10 @@ export const BooleanFromSqlite = v.pipe(
   v.transform((val) => val !== 0 && val !== false),
 );
 
+const EventConfigSchema = v.object({
+  members: v.record(v.string(), v.string()),
+});
+
 export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
@@ -15,6 +19,7 @@ export const EventRecordSchema = v.object({
   api_token: v.string(),
   owner: v.string(),
   is_local: BooleanFromSqlite,
+  config: v.optional(EventConfigSchema),
 });
 
 export const EventRecordChangeSchema = v.object({
