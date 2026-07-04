@@ -268,7 +268,7 @@ function EventsTable() {
     try {
       let res = await callRpcMethod(
         wsClient(),
-        `${appConfig.qxeventdPath}/event`,
+        appConfig.eventCtlApiPath(),
         "deleteEvent",
         api_token,
       );

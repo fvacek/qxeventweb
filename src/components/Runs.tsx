@@ -179,8 +179,13 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
   const { table, id, record, op } = recchng;
   console.log("processRecChng: received change", { table, id, record, op });
 
-  if (table === "runs" && op === SqlOperation.Update) {
-    return runs.map(r => r.run_id === id ? { ...r, ...record } : r);
+  if (table === "runs") {
+    if (op === SqlOperation.Update) {
+      return runs.map(r => r.run_id === id ? { ...r, ...record } : r);
+    }
+    if (op === SqlOperation.Delete) {
+      return runs.filter(r => r.run_id !== id);
+    }
   }
 
   if (table === "competitors" && op === SqlOperation.Update) {
