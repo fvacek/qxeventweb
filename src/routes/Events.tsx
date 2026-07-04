@@ -1,7 +1,7 @@
 import {
   makeMap,
 } from "libshv-js";
-import { createMemo, createSignal, createEffect, untrack } from "solid-js";
+import { For, createMemo, createSignal, createEffect, untrack } from "solid-js";
 import QRCode from "qrcode";
 
 import { Button } from "~/components/ui/button";
@@ -152,6 +152,50 @@ function EventsTable() {
   const [formData, setFormData] = createSignal<EventRecord | null>(null);
 
   const isFormValid = () => !!(formData()?.name?.trim());
+
+  const formMembers = createMemo(() => Object.entries(formData()?.config?.members ?? {}));
+
+  const updateFormMembers = (updater: (members: Record<string, string>) => Record<string, string>) => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const members = updater(prev.config?.members ?? {});
+      return { ...prev, config: { ...(prev.config ?? {}), members } };
+    });
+  };
+
+  const addMember = () => {
+    updateFormMembers(members => {
+      let key = "member@example.com";
+      let index = 2;
+      while (Object.prototype.hasOwnProperty.call(members, key)) {
+        key = `member${index}@example.com`;
+        index += 1;
+      }
+      return { ...members, [key]: "member" };
+    });
+  };
+
+  const updateMemberKey = (oldKey: string, newKey: string) => {
+    updateFormMembers(members => {
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(members)) {
+        next[key === oldKey ? newKey : key] = value;
+      }
+      return next;
+    });
+  };
+
+  const updateMemberValue = (key: string, value: string) => {
+    updateFormMembers(members => ({ ...members, [key]: value }));
+  };
+
+  const removeMember = (key: string) => {
+    updateFormMembers(members => {
+      const next = { ...members };
+      delete next[key];
+      return next;
+    });
+  };
 
   const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
 
@@ -337,12 +381,12 @@ function EventsTable() {
       </div>
 
       <Dialog open={!!formData()} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-        <DialogContent class="max-w-md">
+        <DialogContent class="max-w-md md:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
 
-          <div class="space-y-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <TextField>
               <TextFieldLabel>ID</TextFieldLabel>
               <TextFieldInput value={formData()?.id.toString() ?? ""} type="number" readOnly />
@@ -392,6 +436,42 @@ function EventsTable() {
               checked={Boolean(formData()?.is_local)}
               onChange={(checked) => setFormData(prev => prev ? { ...prev, is_local: checked } : null)}
             />
+
+            <div class="space-y-3 rounded-md border border-border p-3 md:col-span-2">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h3 class="font-semibold">Members</h3>
+                  <p class="text-xs text-muted-foreground">Manage event member permissions.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addMember}>Add</Button>
+              </div>
+
+              {formMembers().length === 0 ? (
+                <p class="text-sm text-muted-foreground">No members configured.</p>
+              ) : (
+                <div class="space-y-2">
+                  <For each={formMembers()}>{([member, permission]) => (
+                    <div class="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_8rem_auto]">
+                      <input
+                        value={member}
+                        onInput={(e) => updateMemberKey(member, e.currentTarget.value)}
+                        aria-label="Member"
+                        placeholder="email@example.com"
+                        class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
+                      />
+                      <input
+                        value={permission}
+                        onInput={(e) => updateMemberValue(member, e.currentTarget.value)}
+                        aria-label="Permission"
+                        placeholder="permission"
+                        class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={() => removeMember(member)}>Remove</Button>
+                    </div>
+                  )}</For>
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
