@@ -271,12 +271,12 @@ function createRunColumns(args: {
     key: "class_name",
     header: "Class",
     sortable: true,
-    width: "120px",
+    // width: "120px",
   };
 
   const operationColumn: TableColumn<Run> = {
     key: "operation",
-    header: "Operation",
+    header: "Op",
     cell: (run: Run) => {
       const isChange = (run.qxchange_data?.LateEntry?.id?.RunId ?? 0) > 0;
       const label = isChange ? "Change" : "New";
@@ -292,14 +292,14 @@ function createRunColumns(args: {
         </span>
       );
     },
-    width: "100px",
+    width: "20px",
   };
 
   const qxChangeStatusColumn: TableColumn<Run> = {
     key: "qxchange_status",
     header: "Status",
     sortable: true,
-    width: "100px",
+    // width: "100px",
   };
 
   return [
@@ -309,7 +309,7 @@ function createRunColumns(args: {
       header: "Start Time",
       cell: (run: Run) => <span>{formatStartTime(run.starttimems, args.stageStart()) || "—"}</span>,
       sortable: true,
-      width: "120px",
+      // width: "120px",
     },
     {
       key: "name",
@@ -324,32 +324,32 @@ function createRunColumns(args: {
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => fullName(a.lastname, a.firstname).localeCompare(fullName(b.lastname, b.firstname)),
-      width: "200px",
+      // width: "200px",
     },
     {
       key: "registration",
       header: "Reg",
       cell: (run: Run) => <ChangedValue original={run.registration || ""} changed={run.qxchange_data?.LateEntry?.registration} />,
       sortable: true,
-      width: "100px",
+      // width: "100px",
     },
     {
       key: "siid",
       header: "SI",
       cell: (run: Run) => <ChangedValue original={run.siid?.toString() || ""} changed={run.qxchange_data?.LateEntry?.siid?.toString()} />,
       sortable: false,
-      width: "100px",
+      // width: "100px",
     },
     {
       key: "qxchange_user_id",
       header: "Owner",
       sortable: true,
-      width: "100px",
+      // width: "100px",
     },
     ...(isLateEntriesMode ? [qxChangeStatusColumn] : []),
     {
       key: "actions",
-      header: "Actions",
+      header: "Action",
       cell: (run: Run) => (
         <Button size="sm" variant="outline"
           onClick={() => args.onEditRun(run)}
@@ -359,7 +359,7 @@ function createRunColumns(args: {
         </Button>
       ),
       sortable: false,
-      width: "80px",
+      // width: "80px",
     },
   ];
 }
