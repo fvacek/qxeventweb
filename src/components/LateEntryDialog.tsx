@@ -103,7 +103,7 @@ function LateEntryDialog(props: {
 
         <DialogFooter>
           <Button variant="outline" onClick={props.onClose}>Cancel</Button>
-          <Button onClick={props.onAccept} disabled={props.status() !== "Pending"}>{"Save Changes"}</Button>
+          <Button onClick={props.onAccept} disabled={!(props.status() === "Pending" || props.status() === undefined)}>{"Save Changes"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

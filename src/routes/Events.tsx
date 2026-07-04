@@ -42,6 +42,13 @@ import {
   type EventTableRecord,
 } from "~/schema/event-record-schema";
 
+const MEMBER_ROLES = ["Organizer", "Banned"] as const;
+type MemberRole = typeof MEMBER_ROLES[number];
+
+function normalizeMemberRole(role: string): MemberRole {
+  return role === "Banned" ? "Banned" : "Organizer";
+}
+
 function EventsTable() {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -152,7 +159,10 @@ function EventsTable() {
 
   const isFormValid = () => !!(formData()?.name?.trim());
 
-  const formMembers = createMemo(() => Object.entries(formData()?.config?.members ?? {}));
+  const formMembers = createMemo(() =>
+    Object.entries(formData()?.config?.members ?? {})
+      .map(([member, role]) => [member, normalizeMemberRole(role)] as const)
+  );
   const updateFormMembers = (updater: (members: Record<string, string>) => Record<string, string>) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -169,7 +179,7 @@ function EventsTable() {
         key = `member${index}@example.com`;
         index += 1;
       }
-      return { ...members, [key]: "member" };
+      return { ...members, [key]: "Organizer" };
     });
   };
 
@@ -183,7 +193,7 @@ function EventsTable() {
     });
   };
 
-  const updateMemberValue = (key: string, value: string) => {
+  const updateMemberValue = (key: string, value: MemberRole) => {
     updateFormMembers(members => ({ ...members, [key]: value }));
   };
 
@@ -443,7 +453,7 @@ function EventsTable() {
                   <h3 class="font-semibold">Members</h3>
                   <p class="text-xs text-muted-foreground">Manage event member permissions.</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addMember}>Add</Button>
+                <Button type="button" variant="secondary" size="sm" onClick={addMember}>➕</Button>
               </div>
 
               {formMembers().length === 0 ? (
@@ -459,14 +469,16 @@ function EventsTable() {
                         placeholder="email@example.com"
                         class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
                       />
-                      <input
+                      <select
                         value={entry()[1]}
-                        onInput={(e) => updateMemberValue(entry()[0], e.currentTarget.value)}
+                        onChange={(e) => updateMemberValue(entry()[0], e.currentTarget.value as MemberRole)}
                         aria-label="Role"
-                        placeholder="role"
                         class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
-                      />
-                      <Button type="button" variant="outline" size="sm" onClick={() => removeMember(entry()[0])}>Remove</Button>
+                      >
+                        <option value="Organizer">Organizer</option>
+                        <option value="Banned">Banned</option>
+                      </select>
+                      <Button type="button" variant="destructive" size="sm" onClick={() => removeMember(entry()[0])} aria-label="Remove member" title="Remove member">➖</Button>
                     </div>
                   )}</Index>
                 </div>

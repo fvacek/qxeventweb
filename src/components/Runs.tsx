@@ -218,7 +218,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
     }
 
     case SqlOperation.Update: {
-      if (mode === "lateEntries" && record?.status && record.status !== "Pending") {
+      if (record?.status && record.status !== "Pending") {
         console.log(`processRecChng: [RESOLVED] Removing qxchange data from run with qxchange_id=${id}`);
         // hide required changes on status update, because change is accepted or rejected already
         return clearQxChange(runs, id);
