@@ -7,8 +7,9 @@ export const BooleanFromSqlite = v.pipe(
   v.transform((val) => val !== 0 && val !== false),
 );
 
+const EventMembersSchema = v.record(v.string(), v.string());
 const EventConfigSchema = v.object({
-  members: v.record(v.string(), v.string()),
+  members: EventMembersSchema,
 });
 
 export const EventRecordSchema = v.object({
@@ -40,5 +41,6 @@ export const EventTableRecordSchema = v.object({
 
 export const EventRecordTableSchema = v.array(EventTableRecordSchema);
 
+export type EventMembers = InferOutput<typeof EventMembersSchema>;
 export type EventRecord = InferOutput<typeof EventRecordSchema>;
 export type EventTableRecord = InferOutput<typeof EventTableRecordSchema>;

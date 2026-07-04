@@ -217,10 +217,14 @@ function EventsTable() {
     }).then(setQrCodeDataURL).catch(() => setQrCodeDataURL(""));
   });
 
+  const getEventRecord = async (id: number) : Promise<EventRecord> => {
+    const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
+    return parse(EventRecordSchema, rpcMapToObject(eventData));
+  };
+
   const openEditRecordDialog = async (id: number, provisional = false) => {
     try {
-      const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
-      const record = parse(EventRecordSchema, rpcMapToObject(eventData));
+      const record = await getEventRecord(id);
       setIsProvisionalEvent(provisional);
       setFormData(record);
     } catch (error) {

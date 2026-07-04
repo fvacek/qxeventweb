@@ -1,5 +1,5 @@
 import { makeMap, type RpcValue } from "libshv-js";
-import { createSignal, createEffect } from "solid-js";
+import { createSignal, createEffect, createMemo } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
@@ -123,7 +123,7 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
   return transformedRuns;
 }
 
-function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string): string {
+function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const fields = `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
               qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
@@ -142,7 +142,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                   AND runs.isRunning = true
                 ORDER BY runs.starttimems ASC`;
   }
-
+  const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
   return `SELECT ${fields},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
@@ -150,7 +150,8 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 LEFT JOIN competitors ON runs.competitorid = competitors.id
                 LEFT JOIN classes ON competitors.classid = classes.id
                 LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
-                WHERE qxchanges.stage_id = ${currentStage} AND qxchanges.user_id = ${sqlQuotedString(userId)}
+                WHERE qxchanges.stage_id = ${currentStage}
+                  ${ownerFilter}
                 ORDER BY qxchanges.id ASC`;
 }
 
@@ -264,6 +265,7 @@ function createRunColumns(args: {
   mode: RunsMode;
   stageStart: () => Date | undefined;
   canEdit: () => boolean;
+  canShowOwner: () => boolean;
   onEditRun: (run: Run) => void;
 }): TableColumn<Run>[] {
   const isLateEntriesMode = args.mode === "lateEntries";
@@ -299,6 +301,13 @@ function createRunColumns(args: {
   const qxChangeStatusColumn: TableColumn<Run> = {
     key: "qxchange_status",
     header: "Status",
+    sortable: true,
+    // width: "100px",
+  };
+
+  const ownerColumn: TableColumn<Run> = {
+    key: "qxchange_user_id",
+    header: "Owner",
     sortable: true,
     // width: "100px",
   };
@@ -341,12 +350,7 @@ function createRunColumns(args: {
       sortable: false,
       // width: "100px",
     },
-    {
-      key: "qxchange_user_id",
-      header: "Owner",
-      sortable: true,
-      // width: "100px",
-    },
+    ...(isLateEntriesMode && args.canShowOwner() ? [ownerColumn] : []),
     ...(isLateEntriesMode ? [qxChangeStatusColumn] : []),
     {
       key: "actions",
@@ -372,20 +376,22 @@ function RunsTable(props: {
   loading: () => boolean;
   mode: RunsMode;
   canEdit: () => boolean;
+  currentUserIsOrganizer: () => boolean;
   onEditRun: (run: Run) => void;
 }) {
-  const columns = createRunColumns({
+  const columns = createMemo(() => createRunColumns({
     mode: props.mode,
     stageStart: () => props.eventConfig().stages[props.currentStage() - 1]?.stageStart,
     canEdit: props.canEdit,
+    canShowOwner: props.currentUserIsOrganizer,
     onEditRun: props.onEditRun,
-  });
+  }));
 
   return (
     <div class="rounded-md table-border">
       <Table
         data={props.runs()}
-        columns={columns}
+        columns={columns()}
         loading={props.loading()}
         emptyMessage="No entries found"
         variant="striped"
@@ -477,6 +483,8 @@ const Runs = (props: {
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
 
+  const currentUserIsOrganizer = () => props.eventConfig().members?.[user()?.email ?? ""] === "Organizer";
+
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
@@ -551,7 +559,7 @@ const Runs = (props: {
     if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const query = createRunsQuery(props.mode, className(), props.currentStage, user()?.email ?? "");
+      const query = createRunsQuery(props.mode, className(), props.currentStage, user()?.email ?? "", currentUserIsOrganizer());
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
@@ -611,6 +619,7 @@ const Runs = (props: {
           loading={loading}
           mode={props.mode}
           canEdit={() => !!user()}
+          currentUserIsOrganizer={currentUserIsOrganizer}
           onEditRun={setFormLateEntry}
         />
 

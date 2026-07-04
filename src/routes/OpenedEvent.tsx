@@ -6,7 +6,7 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
-import { EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
+import { EventMembers, EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
@@ -24,6 +24,7 @@ export class EventConfig {
   stageCount: number = 1;
   currentStage: number = 1;
   stages: StageConfig[] = [];
+  members?: EventMembers;
 }
 
 interface EventProps {
@@ -80,9 +81,9 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       }
 
       const eventApiPath = appConfig.eventCtlApiPath();
-      let recordResult = await callRpcMethod(eventApiPath, "eventData", [event_id]);
+      let eventData = await callRpcMethod(eventApiPath, "eventData", event_id);
 
-      let eventRecord = parse(EventRecordSchema, recordResult);
+      let eventRecord = parse(EventRecordSchema, eventData);
 
       // Then get detailed config and stages
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
@@ -102,7 +103,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     }
   };
 
-  function parseEventConfig(event_config: RpcValue, stagesResult: RpcValue, eventData?: any): EventConfig {
+  function parseEventConfig(event_config: RpcValue, stagesResult: RpcValue, eventRecord: EventRecord): EventConfig {
     const data = createSqlTable(event_config);
 
     // Helper to find a config value by key
@@ -112,9 +113,9 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     };
 
     // Use event data from events table if provided, otherwise fall back to config table
-    const name = getValue("event.name") || eventData?.name;
+    const name = getValue("event.name") || eventRecord?.name;
     const place = getValue("event.place");
-    const dateStr = getValue("event.date") || eventData?.date;
+    const dateStr = getValue("event.date") || eventRecord?.date;
     const stageCountStr = getValue("event.stageCount") || "1";
     const currentStageStr = getValue("event.currentStageId") || "1";
 
@@ -151,10 +152,11 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     return {
       name,
       place,
-      date: parseDate(dateStr),
+      date: dateStr ? parseDate(dateStr) : undefined,
       stageCount,
       currentStage,
       stages,
+      members: eventRecord.config?.members,
     };
   }
 
