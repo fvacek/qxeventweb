@@ -1,5 +1,5 @@
 import { makeMap, type RpcValue } from "libshv-js";
-import { createSignal, createEffect, For } from "solid-js";
+import { createSignal, createEffect } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
@@ -49,6 +49,7 @@ const RunSchema = object({
   note: optional(string()),
   starttimems: optional(number()),
   qxchange_id: optional(number()),
+  qxchange_created: optional(string()),
   qxchange_user_id: optional(string()),
   qxchange_status: optional(string()),
   qxchange_status_message: optional(string()),
@@ -125,7 +126,7 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
 function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string): string {
   const fields = `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-              qxchanges.id as qxchange_id,
+              qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
               qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
               qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
   if (mode === "runs") {
@@ -486,6 +487,7 @@ const Runs = (props: {
     siid: undefined,
     starttimems: undefined,
     qxchange_id: undefined,
+    qxchange_created: undefined,
     qxchange_user_id: undefined,
     qxchange_status: "Pending",
     qxchange_status_message: undefined,
@@ -564,8 +566,8 @@ const Runs = (props: {
     return filter ? runs().filter(run => run.qxchange_status === filter) : runs();
   };
 
-  const toggleStatusFilter = (filter: LateEntryStatusFilter) => {
-    setStatusFilter(prev => prev === filter ? undefined : filter);
+  const selectStatusFilter = (filter: string) => {
+    setStatusFilter(filter === "All" ? undefined : filter as LateEntryStatusFilter);
   };
 
   createEffect(() => {
@@ -588,15 +590,14 @@ const Runs = (props: {
           <div class="flex gap-2 justify-end">
             {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>New entry</Button>}
             {props.mode === "lateEntries" && (
-              <For each={STATUS_FILTERS}>{(filter) => (
-                <Button
-                  variant={statusFilter() === filter ? "default" : "outline"}
-                  onClick={() => toggleStatusFilter(filter)}
-                  disabled={status() !== "Connected"}
-                >
-                  {filter}
-                </Button>
-              )}</For>
+              <FlexDropdown
+                value={statusFilter() ?? "All"}
+                options={["All", ...STATUS_FILTERS]}
+                onSelect={selectStatusFilter}
+                disabled={status() !== "Connected"}
+                variant="outline"
+                size="sm"
+              />
             )}
             <Button variant="outline" onClick={reloadTable} disabled={loading() || (props.mode === "runs" && !className()) || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
@@ -616,6 +617,8 @@ const Runs = (props: {
         <LateEntryDialog
           open={!!formLateEntry()}
           className={formClassName}
+          qxchangeId={() => formLateEntry()?.qxchange_id}
+          qxchangeCreated={() => formLateEntry()?.qxchange_created}
           status={() => formLateEntry()?.qxchange_status}
           statusMessage={() => formLateEntry()?.qxchange_status_message}
           fieldValue={formField}

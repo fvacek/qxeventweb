@@ -14,10 +14,19 @@ import {
 
 export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note";
 export type LateEntryDialogValue = string | number | undefined;
+export type LateEntryDialogDateValue = Date | string | number | undefined;
+
+function formatDateTime(value: LateEntryDialogDateValue): string {
+  if (value === undefined) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? value.toString() : date.toLocaleString();
+}
 
 function LateEntryDialog(props: {
   open: boolean;
   className: () => string;
+  qxchangeId: () => number | undefined;
+  qxchangeCreated: () => LateEntryDialogDateValue;
   status: () => string | undefined;
   statusMessage: () => string | undefined;
   fieldValue: (field: LateEntryDialogField) => LateEntryDialogValue;
@@ -36,6 +45,11 @@ function LateEntryDialog(props: {
         <div class="space-y-4">
           <div class="rounded-md bg-muted px-3 py-2 text-lg font-semibold">
             {props.className()}
+          </div>
+
+          <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span>change id: <span class="font-medium text-foreground">{props.qxchangeId() ?? "—"}</span></span>
+            <span class="text-right">created: <span class="font-medium text-foreground">{formatDateTime(props.qxchangeCreated())}</span></span>
           </div>
 
           {(props.status() || props.statusMessage()) && (
