@@ -1,7 +1,4 @@
-import {
-  makeMap,
-} from "libshv-js";
-import { For, createMemo, createSignal, createEffect, untrack } from "solid-js";
+import { Index, createMemo, createSignal, createEffect, untrack } from "solid-js";
 import QRCode from "qrcode";
 
 import { Button } from "~/components/ui/button";
@@ -31,6 +28,7 @@ import { parse } from "valibot";
 import {
   copyRecordChanges as copyValidFieldsToRpcMap,
   isRecordEmpty,
+  makeMapRecursive,
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
@@ -154,7 +152,6 @@ function EventsTable() {
   const isFormValid = () => !!(formData()?.name?.trim());
 
   const formMembers = createMemo(() => Object.entries(formData()?.config?.members ?? {}));
-
   const updateFormMembers = (updater: (members: Record<string, string>) => Record<string, string>) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -241,7 +238,8 @@ function EventsTable() {
     try {
       const recChanges = copyValidFieldsToRpcMap(original, record);
       if (!isRecordEmpty(recChanges)) {
-        await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "updateEventRecord", [record.id, makeMap(recChanges)]);
+        const params = [record.id, makeMapRecursive(recChanges)];
+        await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "updateEventRecord", params);
         showToast({ title: "Update event success" });
       }
     } catch (error) {
@@ -450,25 +448,25 @@ function EventsTable() {
                 <p class="text-sm text-muted-foreground">No members configured.</p>
               ) : (
                 <div class="space-y-2">
-                  <For each={formMembers()}>{([member, permission]) => (
+                  <Index each={formMembers()}>{(entry) => (
                     <div class="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_8rem_auto]">
                       <input
-                        value={member}
-                        onInput={(e) => updateMemberKey(member, e.currentTarget.value)}
+                        value={entry()[0]}
+                        onInput={(e) => updateMemberKey(entry()[0], e.currentTarget.value)}
                         aria-label="Member"
                         placeholder="email@example.com"
                         class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
                       />
                       <input
-                        value={permission}
-                        onInput={(e) => updateMemberValue(member, e.currentTarget.value)}
+                        value={entry()[1]}
+                        onInput={(e) => updateMemberValue(entry()[0], e.currentTarget.value)}
                         aria-label="Permission"
                         placeholder="permission"
                         class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
                       />
-                      <Button type="button" variant="outline" size="sm" onClick={() => removeMember(member)}>Remove</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => removeMember(entry()[0])}>Remove</Button>
                     </div>
-                  )}</For>
+                  )}</Index>
                 </div>
               )}
             </div>

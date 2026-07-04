@@ -1,5 +1,5 @@
 import { type ClassValue, clsx } from "clsx"
-import { RpcValue } from "libshv-js";
+import { makeMap, RpcValue } from "libshv-js";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs)
@@ -38,6 +38,24 @@ export function toRpcValue(value: unknown): RpcValue {
 
   // If it's something else (a class instance, function, symbol, etc.), throw or convert
   throw new Error(`Cannot convert value to RpcValue: ${String(value)}`);
+}
+
+export function makeMapRecursive(value: Record<string, RpcValue>): RpcValue {
+  const mapped: Record<string, RpcValue> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      mapped[key] = makeMapRecursive(item as Record<string, RpcValue>);
+    } else if (Array.isArray(item)) {
+      mapped[key] = item.map(entry =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+          ? makeMapRecursive(entry as Record<string, RpcValue>)
+          : entry
+      ) as RpcValue;
+    } else {
+      mapped[key] = item;
+    }
+  }
+  return makeMap(mapped) as RpcValue;
 }
 
 export function copyRecordChanges(origValue: Record<string, any>, newValue: Record<string, any>, fields?: string[]): Record<string, RpcValue> {
