@@ -1,11 +1,11 @@
-import { createSignal, createEffect, createMemo } from "solid-js";
+import { createSignal, createEffect } from "solid-js";
 import { createStore } from "solid-js/store";
 import { RpcValue, makeMap, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
-import { parse, object, string, boolean, undefinedable, type InferOutput } from "valibot";
+import { parse } from "valibot";
 import { EventMembers, EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
@@ -24,6 +24,7 @@ export class EventConfig {
   stageCount: number = 1;
   currentStage: number = 1;
   stages: StageConfig[] = [];
+  owner?: string;
   members?: EventMembers;
 }
 
@@ -31,7 +32,7 @@ interface EventProps {
   event_id_str: string;
 }
 
-const Event = ({ event_id_str: initialEventId }: EventProps) => {
+const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
   const { user } = useAuth();
@@ -59,11 +60,8 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
     return result;
   };
 
-  const loadEventConfig = async (event_id: number) => {
-    if (event_id === 0) {
-      setEventConfig(new EventConfig());
-      return;
-    }
+  const loadEventConfig = async () => {
+    const event_id = eventId();
 
     if (appConfig.debug) {
       console.log("Loading event config for event ID:", event_id);
@@ -156,6 +154,7 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
       stageCount,
       currentStage,
       stages,
+      owner: eventRecord.owner,
       members: eventRecord.config?.members,
     };
   }
@@ -176,9 +175,9 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
     if (status() === "Connected" && eventId() > 0) {
-      const eid = eventId();
-      loadEventConfig(eid);
+      loadEventConfig();
 
+      const eid = eventId();
       const client = wsClient()!;
       // Subscribe to event SQL path (used by LateEntries)
       console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
@@ -247,4 +246,4 @@ const Event = ({ event_id_str: initialEventId }: EventProps) => {
   );
 };
 
-export default Event;
+export default OpenedEvent;
