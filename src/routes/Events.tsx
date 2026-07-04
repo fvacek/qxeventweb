@@ -29,6 +29,7 @@ import {
   copyRecordChanges as copyValidFieldsToRpcMap,
   isRecordEmpty,
   makeMapRecursive,
+  rpcMapToObject,
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
@@ -208,7 +209,8 @@ function EventsTable() {
   const openEditRecordDialog = async (id: number) => {
     try {
       const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
-      setFormData(parse(EventRecordSchema, eventData));
+      const record = parse(EventRecordSchema, rpcMapToObject(eventData));
+      setFormData(record);
     } catch (error) {
       showToast({ title: "Open event error", description: (error as Error).message, variant: "destructive" });
     }
@@ -460,8 +462,8 @@ function EventsTable() {
                       <input
                         value={entry()[1]}
                         onInput={(e) => updateMemberValue(entry()[0], e.currentTarget.value)}
-                        aria-label="Permission"
-                        placeholder="permission"
+                        aria-label="Role"
+                        placeholder="role"
                         class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
                       />
                       <Button type="button" variant="outline" size="sm" onClick={() => removeMember(entry()[0])}>Remove</Button>

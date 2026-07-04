@@ -58,6 +58,25 @@ export function makeMapRecursive(value: Record<string, RpcValue>): RpcValue {
   return makeMap(mapped) as RpcValue;
 }
 
+export function rpcMapToObject(value: unknown): Record<string, unknown> {
+  const map = value as Record<string, unknown>;
+  const ret: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(map)) {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      ret[key] = rpcMapToObject(item);
+    } else if (Array.isArray(item)) {
+      ret[key] = item.map(entry =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+          ? rpcMapToObject(entry)
+          : entry
+      );
+    } else {
+      ret[key] = item;
+    }
+  }
+  return ret;
+}
+
 export function copyRecordChanges(origValue: Record<string, any>, newValue: Record<string, any>, fields?: string[]): Record<string, RpcValue> {
   const obj: Record<string, RpcValue> = {};
   for (const [k, v] of Object.entries(newValue)) {
