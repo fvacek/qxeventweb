@@ -142,7 +142,7 @@ function EventsTable() {
           });
           // Reload table to show new record
           // await reloadTable(); recchng will do this
-          openEditRecordDialog(eventId);
+          openEditRecordDialog(eventId, true);
         }
       }
     } catch (error) {
@@ -156,6 +156,7 @@ function EventsTable() {
 
   // Edit dialog state — single signal holds the record being edited (null = closed)
   const [formData, setFormData] = createSignal<EventRecord | null>(null);
+  const [isProvisionalEvent, setIsProvisionalEvent] = createSignal(false);
 
   const isFormValid = () => !!(formData()?.name?.trim());
 
@@ -216,17 +217,21 @@ function EventsTable() {
     }).then(setQrCodeDataURL).catch(() => setQrCodeDataURL(""));
   });
 
-  const openEditRecordDialog = async (id: number) => {
+  const openEditRecordDialog = async (id: number, provisional = false) => {
     try {
       const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
       const record = parse(EventRecordSchema, rpcMapToObject(eventData));
+      setIsProvisionalEvent(provisional);
       setFormData(record);
     } catch (error) {
       showToast({ title: "Open event error", description: (error as Error).message, variant: "destructive" });
     }
   };
 
-  const closeDialog = () => setFormData(null);
+  const closeDialog = () => {
+    setFormData(null);
+    setIsProvisionalEvent(false);
+  };
 
   const acceptEditRecordDialog = () => {
     const record = formData();
@@ -487,7 +492,7 @@ function EventsTable() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            {!isProvisionalEvent() && <Button variant="outline" onClick={closeDialog}>Cancel</Button>}
             <Button variant="destructive" onClick={() => {
               const name = formData()?.name;
               if (confirm(`Are you sure you want to delete the event "${name || 'this event'}"?\n\nThis action cannot be undone.`))
