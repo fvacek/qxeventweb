@@ -12,7 +12,7 @@ import {
   TextFieldLabel,
 } from "~/components/ui/text-field";
 
-export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note";
+export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems";
 export type LateEntryDialogValue = string | number | undefined;
 export type LateEntryDialogDateValue = Date | string | number | undefined;
 
@@ -22,9 +22,20 @@ function formatDateTime(value: LateEntryDialogDateValue): string {
   return Number.isNaN(date.getTime()) ? value.toString() : date.toLocaleString();
 }
 
+function formatStartTimeInput(msec: number | undefined, stageStart: Date | undefined): string {
+  if (msec === undefined || !stageStart) return "";
+  const date = new Date(stageStart.getTime() + msec);
+  const hh = date.getHours().toString().padStart(2, "0");
+  const mm = date.getMinutes().toString().padStart(2, "0");
+  const ss = date.getSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
 function LateEntryDialog(props: {
   open: boolean;
   className: () => string;
+  stageStart: () => Date | undefined;
+  possibleStartTimes: () => number[];
   qxchangeId: () => number | undefined;
   qxchangeCreated: () => LateEntryDialogDateValue;
   status: () => string | undefined;
@@ -102,6 +113,22 @@ function LateEntryDialog(props: {
               class={props.isFieldChanged("siid") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
             />
+          </TextField>
+
+          <TextField>
+            <TextFieldLabel>Start Time</TextFieldLabel>
+            <select
+              value={props.fieldValue("starttimems")?.toString() || ""}
+              class={`w-full rounded-md border border-border bg-input px-3 py-2 text-sm ${props.isFieldChanged("starttimems") ? "text-highlight font-semibold" : ""}`}
+              onChange={(e) => props.setFieldValue("starttimems", e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
+            >
+              <option value="">—</option>
+              {props.possibleStartTimes().map((starttimems) => (
+                <option value={starttimems.toString()}>
+                  {formatStartTimeInput(starttimems, props.stageStart())}
+                </option>
+              ))}
+            </select>
           </TextField>
 
           <TextField>

@@ -29,6 +29,7 @@ export const LateEntrySchema = object({
   registration: optional(string()),
   siid: optional(number()),
   note: optional(string()),
+  starttimems: optional(number()),
 });
 
 type LateEntry = InferOutput<typeof LateEntrySchema>;
@@ -317,7 +318,14 @@ function createRunColumns(args: {
     {
       key: "starttimems",
       header: "Start Time",
-      cell: (run: Run) => <span>{formatStartTime(run.starttimems, args.stageStart()) || "—"}</span>,
+      cell: (run: Run) => (
+        <ChangedValue
+          original={formatStartTime(run.starttimems, args.stageStart())}
+          changed={run.qxchange_data?.LateEntry?.starttimems !== undefined
+            ? formatStartTime(run.qxchange_data.LateEntry.starttimems, args.stageStart())
+            : undefined}
+        />
+      ),
       sortable: true,
       // width: "120px",
     },
@@ -402,16 +410,24 @@ function RunsTable(props: {
   );
 }
 
+type ClassDef = {
+  id: number;
+  name: string;
+  start: number;
+  interval: number;
+  mapCount: number;
+};
+
 function ClassSelector(props: {
   className: () => string;
   setClassName: (name: string) => void;
-  setClassId: (id: number) => void;
+  setClassDef: (cd: ClassDef) => void;
   eventId: () => number;
   currentStage: () => number;
 }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
-  const [classes, setClasses] = createSignal<{ id: number; name: string }[]>([]);
+  const [classes, setClasses] = createSignal<ClassDef[]>([]);
 
   async function loadClasses() {
     try {
@@ -419,18 +435,24 @@ function ClassSelector(props: {
         wsClient()!,
         appConfig.eventSqlApiPath(props.eventId()),
         "query",
-        [`SELECT classes.id, classes.name FROM classes, classdefs
+        [`SELECT classes.id, classes.name,
+          classdefs.startTimeMin, classdefs.startIntervalMin, classdefs.mapCount
+          FROM classes, classdefs
           WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
           ORDER BY classes.name`],
       );
       const table = createSqlTable(result);
-      const classlist = Array.from({ length: table.rowCount() }, (_, i) =>
-        ({ id: Number(table.get(i, "id")), name: String(table.get(i, "name")) }),
-      );
+      const classlist: ClassDef[] = Array.from({ length: table.rowCount() }, (_, i) => ({
+        id: Number(table.get(i, "id")),
+        name: String(table.get(i, "name")),
+        start: Number(table.get(i, "startTimeMin")),
+        interval: Number(table.get(i, "startIntervalMin")),
+        mapCount: Number(table.get(i, "mapCount")),
+      }));
       setClasses(classlist);
       if (classlist.length > 0) {
         props.setClassName(classlist[0].name);
-        props.setClassId(classlist[0].id);
+        props.setClassDef(classlist[0]);
       }
     } catch (error) {
       showToast({ title: "Load classes error", description: (error as Error).message, variant: "destructive" });
@@ -444,7 +466,7 @@ function ClassSelector(props: {
   const selectClass = (name: string) => {
     const selectedClass = classes().find(c => c.name === name);
     props.setClassName(name);
-    props.setClassId(selectedClass?.id ?? 0);
+    if (selectedClass) props.setClassDef(selectedClass);
   };
 
   return (
@@ -474,7 +496,7 @@ const Runs = (props: {
   const { user } = useAuth();
 
   const [className, setClassName] = createSignal("");
-  const [classId, setClassId] = createSignal(0);
+  const [classDef, setClassDef] = createSignal<ClassDef | undefined>(undefined);
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
@@ -510,6 +532,24 @@ const Runs = (props: {
     return run?.class_name ?? "";
   };
 
+  const possibleStartTimes = () => {
+    const cd = classDef();
+    if (!cd || !cd.interval) return [];
+
+    const start_times = new Set(
+      runs()
+        .map(run => run.starttimems)
+        .filter((starttimems): starttimems is number => starttimems !== undefined),
+    );
+    const start_slots = [];
+    for (let i = 0; i < cd.mapCount; i++) {
+      const start_time = (cd.start + i * cd.interval) * 60 * 1000;
+      if (start_times.has(start_time)) continue;
+      start_slots.push(start_time);
+    }
+    return start_slots;
+  };
+
   const isFieldFromLateEntry = (field: LateEntryDialogField) =>
     formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
@@ -527,7 +567,7 @@ const Runs = (props: {
         qxchange_data: {
           ...prev.qxchange_data,
           LateEntry: {
-            ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classId() } }),
+            ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classDef()?.id } }),
             [field]: value === prev[field] ? undefined : value,
           },
         },
@@ -594,7 +634,7 @@ const Runs = (props: {
       <h1 class="mt-7 mb-7 text-3xl font-bold">{props.mode === "lateEntries" ? "Late Entries" : "Runs"}</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
-          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassId={setClassId} eventId={eventId} currentStage={currentStage} />}
+          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} currentStage={currentStage} />}
           <div class="flex gap-2 justify-end">
             {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>New entry</Button>}
             {props.mode === "lateEntries" && (
@@ -626,6 +666,8 @@ const Runs = (props: {
         <LateEntryDialog
           open={!!formLateEntry()}
           className={formClassName}
+          stageStart={() => props.eventConfig().stages[props.currentStage - 1]?.stageStart}
+          possibleStartTimes={possibleStartTimes}
           qxchangeId={() => formLateEntry()?.qxchange_id}
           qxchangeCreated={() => formLateEntry()?.qxchange_created}
           status={() => formLateEntry()?.qxchange_status}
