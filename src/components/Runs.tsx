@@ -490,6 +490,7 @@ const Runs = (props: {
   currentStage: number,
   recchngReceived: () => RecChng | null,
   mode: RunsMode,
+  onNewLateEntrySaved?: () => void,
 }) => {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -622,24 +623,33 @@ const Runs = (props: {
     }
   };
 
-  const saveLateEntry = async (change_id: number | undefined, lateEntry: LateEntry) => {
+  const saveLateEntry = async (change_id: number | undefined, lateEntry: LateEntry): Promise<boolean> => {
     // const changes = copyValidFieldsToRpcMap(origRun, lateEntry, ["firstname", "lastname", "registration", "siid"]);
     try {
       const params = lateEntryRpcParams(change_id, lateEntry);
       await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId), "updateLateEntry", params);
       showToast({ title: "Update late entry success" });
+      return true;
     } catch (error) {
       showToast({ title: "Update run error", description: (error as Error).message, variant: "destructive" });
+      return false;
     }
   };
 
-  const acceptDialog = () => {
+  const acceptDialog = async () => {
     const formRun = formLateEntry();
     const lateEntry = formRun?.qxchange_data?.LateEntry;
+    const isNewLateEntry = formRun?.qxchange_id === undefined;
+    let saved = false;
+
     if (lateEntry) {
-      saveLateEntry(formRun.qxchange_id, lateEntry);
+      saved = await saveLateEntry(formRun.qxchange_id, lateEntry);
     }
     closeDialog();
+
+    if (saved && isNewLateEntry) {
+      props.onNewLateEntrySaved?.();
+    }
   };
 
   const reloadTable = async () => {

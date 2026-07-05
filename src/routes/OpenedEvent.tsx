@@ -42,6 +42,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>("");
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
+  const [activeTab, setActiveTab] = createSignal("runs");
 
   const callRpcMethod = async (shvPath: string | undefined, method: string, params?: RpcValue, requestUserId?: boolean) => {
     const client = wsClient();
@@ -209,7 +210,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
 
       {!loading() && !error() && eventConfig.name && (
         <div class="w-full max-w-7xl">
-          <Tabs defaultValue="runs" class="w-full">
+          <Tabs value={activeTab()} onChange={setActiveTab} class="w-full">
             <TabsList class="flex w-full flex-row">
               <TabsTrigger value="runs">Runs</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
@@ -227,6 +228,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
                 currentStage={eventConfig.currentStage}
                 recchngReceived={recchngReceived}
                 mode="runs"
+                onNewLateEntrySaved={() => setActiveTab("late_entries")}
               />
             </TabsContent>
 
