@@ -538,7 +538,7 @@ const Runs = (props: {
 
     const start_times = new Set(
       runs()
-        .map(run => run.starttimems)
+        .map(run => run.qxchange_data?.LateEntry?.starttimems === undefined ? run.starttimems : run.qxchange_data?.LateEntry?.starttimems)
         .filter((starttimems): starttimems is number => starttimems !== undefined),
     );
     const start_slots = [];

@@ -49,6 +49,10 @@ function normalizeMemberRole(role: string): MemberRole {
   return role === "Banned" ? "Banned" : "Organizer";
 }
 
+function formatDateWithoutMilliseconds(date?: string): string {
+  return date?.replace(/\.\d+(?=Z|[+-]\d{2}:?\d{2}|$)/, "") ?? "";
+}
+
 function EventsTable() {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -317,38 +321,34 @@ function EventsTable() {
       key: "name",
       header: "Name",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-30 block" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
+        return <span class="text-sm" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
       },
       sortable: true,
-      width: "120px",
     },
     {
       key: "date",
       header: "Date",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-25 block" title={rec.date}>{rec.date}</span>;
+        return <span class="text-sm" title={rec.date}>{formatDateWithoutMilliseconds(rec.date)}</span>;
       },
       sortable: true,
-      width: "100px",
     },
     {
       key: "owner",
       header: "Owner",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-25 block" title={rec.owner}>{rec.owner}</span>;
+        return <span class="text-sm" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
-      width: "100px",
       hidden: "hidden sm:table-cell",
     },
     {
       key: "is_local",
       header: "Local",
       cell: (rec: EventRecord) => {
-        return <span class="text-sm truncate max-w-25 block">{rec.is_local ? "local" : "remote"}</span>;
+        return <span class="text-sm">{rec.is_local ? "local" : "remote"}</span>;
       },
       sortable: true,
-      width: "100px",
       hidden: "hidden sm:table-cell",
     },
     {
