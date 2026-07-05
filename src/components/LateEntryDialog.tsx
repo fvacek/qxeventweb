@@ -43,6 +43,7 @@ function LateEntryDialog(props: {
   fieldValue: (field: LateEntryDialogField) => LateEntryDialogValue;
   isFieldChanged: (field: LateEntryDialogField) => boolean;
   setFieldValue: (field: LateEntryDialogField, value: LateEntryDialogValue) => void;
+  onLoadRegistration: () => void;
   onClose: () => void;
   onAccept: () => void;
 }) {
@@ -76,6 +77,25 @@ function LateEntryDialog(props: {
           )}
 
           <TextField>
+            <TextFieldLabel>Registration</TextFieldLabel>
+            <div class="flex gap-2">
+              <TextFieldInput
+                value={props.fieldValue("registration")?.toString() || ""}
+                type="text"
+                class={props.isFieldChanged("registration") ? "text-highlight font-semibold" : ""}
+                onInput={(e) => props.setFieldValue("registration", e.currentTarget.value || undefined)}
+              />
+              <Button
+                variant="outline"
+                onClick={props.onLoadRegistration}
+                disabled={!props.fieldValue("registration")}
+              >
+                Load
+              </Button>
+            </div>
+          </TextField>
+
+          <TextField>
             <TextFieldLabel>First Name</TextFieldLabel>
             <TextFieldInput
               value={props.fieldValue("firstname")?.toString() || ""}
@@ -92,16 +112,6 @@ function LateEntryDialog(props: {
               type="text"
               class={props.isFieldChanged("lastname") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("lastname", e.currentTarget.value || undefined)}
-            />
-          </TextField>
-
-          <TextField>
-            <TextFieldLabel>Registration</TextFieldLabel>
-            <TextFieldInput
-              value={props.fieldValue("registration")?.toString() || ""}
-              type="text"
-              class={props.isFieldChanged("registration") ? "text-highlight font-semibold" : ""}
-              onInput={(e) => props.setFieldValue("registration", e.currentTarget.value || undefined)}
             />
           </TextField>
 

@@ -35,6 +35,7 @@ export const EventTableRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
   date: v.optional(v.string()),
+  stage: v.optional(v.number()),
   owner: v.string(),
   is_local: BooleanFromSqlite,
 });

@@ -575,6 +575,53 @@ const Runs = (props: {
     });
   };
 
+  const loadRegistration = async () => {
+    const registration = formField("registration")?.toString().trim().toUpperCase();
+    if (!registration) return;
+
+    try {
+      const result = await callRpcMethod(
+        wsClient()!,
+        appConfig.eventSqlApiPath(props.eventId),
+        "query",
+        [`SELECT * FROM registrations WHERE registrations.registration = ${sqlQuotedString(registration)}`],
+      );
+      const table = createSqlTable(result);
+      if (table.rowCount() === 0) {
+        showToast({ title: "Registration not found", description: `No record found for registration ${registration}`, variant: "destructive" });
+        return;
+      }
+      if (table.rowCount() > 1) {
+        showToast({ title: "Registration not found", description: `Multiple records found for registration ${registration}`, variant: "destructive" });
+        return;
+      }
+
+      const regrec = table.recordAt(0);
+      const regFirstname = regrec.firstname?.toString();
+      const regLastname = regrec.lastname?.toString();
+      const regSiid = regrec.siid === undefined || regrec.siid === null ? undefined : Number(regrec.siid);
+
+      setFormLateEntry(prev => {
+        if (!prev) return undefined;
+        return {
+          ...prev,
+          qxchange_data: {
+            ...prev.qxchange_data,
+            LateEntry: {
+              ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classDef()?.id } }),
+              registration: registration,
+              firstname: regFirstname === undefined ? prev.firstname : regFirstname,
+              lastname: regLastname === undefined ? prev.lastname : regLastname,
+              siid: regSiid === undefined ? prev.siid : regSiid,
+            },
+          },
+        };
+      });
+    } catch (error) {
+      showToast({ title: "Load registration error", description: (error as Error).message, variant: "destructive" });
+    }
+  };
+
   const saveLateEntry = async (change_id: number | undefined, lateEntry: LateEntry) => {
     // const changes = copyValidFieldsToRpcMap(origRun, lateEntry, ["firstname", "lastname", "registration", "siid"]);
     try {
@@ -636,7 +683,7 @@ const Runs = (props: {
         <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
           {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} currentStage={currentStage} />}
           <div class="flex gap-2 justify-end">
-            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected"}>New entry</Button>}
+            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email}>New entry</Button>}
             {props.mode === "lateEntries" && (
               <FlexDropdown
                 value={statusFilter() ?? "All"}
@@ -675,6 +722,7 @@ const Runs = (props: {
           fieldValue={formField}
           isFieldChanged={isFieldFromLateEntry}
           setFieldValue={setFormField}
+          onLoadRegistration={loadRegistration}
           onClose={closeDialog}
           onAccept={acceptDialog}
         />

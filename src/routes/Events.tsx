@@ -88,6 +88,7 @@ function EventsTable() {
             id: id,
             name: undefined,
             date: undefined,
+            stage: undefined,
             owner: "",
             is_local: true,
         };
@@ -306,11 +307,11 @@ function EventsTable() {
   });
 
   // Table columns configuration with sorting - optimized for mobile
-  const columns: TableColumn<EventRecord>[] = [
+  const columns: TableColumn<EventTableRecord>[] = [
     {
       key: "id",
       header: "ID",
-      cell: (rec: EventRecord) => {
+      cell: (rec: EventTableRecord) => {
         return <span class="text-sm">{rec.id}</span>;
       },
       sortable: true,
@@ -320,15 +321,23 @@ function EventsTable() {
     {
       key: "name",
       header: "Name",
-      cell: (rec: EventRecord) => {
+      cell: (rec: EventTableRecord) => {
         return <span class="text-sm" title={rec.name}><a href={`event/${rec.id}`}>{rec.name}</a></span>;
+      },
+      sortable: true,
+    },
+    {
+      key: "stage",
+      header: "Stage",
+      cell: (rec: EventTableRecord) => {
+        return <span class="text-sm" title={rec.stage?.toString()}>{rec.stage ?? "—"}</span>;
       },
       sortable: true,
     },
     {
       key: "date",
       header: "Date",
-      cell: (rec: EventRecord) => {
+      cell: (rec: EventTableRecord) => {
         return <span class="text-sm" title={rec.date}>{formatDateWithoutMilliseconds(rec.date)}</span>;
       },
       sortable: true,
@@ -336,7 +345,7 @@ function EventsTable() {
     {
       key: "owner",
       header: "Owner",
-      cell: (rec: EventRecord) => {
+      cell: (rec: EventTableRecord) => {
         return <span class="text-sm" title={rec.owner}>{rec.owner}</span>;
       },
       sortable: true,
@@ -345,7 +354,7 @@ function EventsTable() {
     {
       key: "is_local",
       header: "Local",
-      cell: (rec: EventRecord) => {
+      cell: (rec: EventTableRecord) => {
         return <span class="text-sm">{rec.is_local ? "local" : "remote"}</span>;
       },
       sortable: true,
@@ -354,7 +363,7 @@ function EventsTable() {
     {
       key: "actions",
       header: "Edit",
-      cell: (rec: EventRecord) => (
+      cell: (rec: EventTableRecord) => (
         <Button
           size="sm"
           variant="outline"
