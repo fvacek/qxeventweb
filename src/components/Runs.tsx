@@ -226,19 +226,12 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
     }
 
     case SqlOperation.Update: {
-      // if (record?.status && record.status !== "Pending") {
-      //   console.log(`processRecChng: [RESOLVED] Removing qxchange data from run with qxchange_id=${id}`);
-      //   // hide required changes on status update, because change is accepted or rejected already
-      //   clearQxChange(runs, id);
-      // }
-
       const lateEntry = parseLateEntryFromRecChng(record);
 
       return runs.map(r =>
         r.qxchange_id === id
           ? {
             ...r,
-            // qxchange_user_id: str(record?.user_id, r.qxchange_user_id),
             qxchange_status: str(record?.status, r.qxchange_status),
             qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
             qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
@@ -501,7 +494,9 @@ const Runs = (props: {
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>(
+    props.mode === "lateEntries" ? "Pending" : undefined,
+  );
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
