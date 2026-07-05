@@ -634,10 +634,10 @@ const Runs = (props: {
   };
 
   const acceptDialog = () => {
-    const run = formLateEntry();
-    const lateEntry = run?.qxchange_data?.LateEntry;
-    if (run && lateEntry) {
-      saveLateEntry(run.qxchange_id, lateEntry);
+    const formRun = formLateEntry();
+    const lateEntry = formRun?.qxchange_data?.LateEntry;
+    if (lateEntry) {
+      saveLateEntry(formRun.qxchange_id, lateEntry);
     }
     closeDialog();
   };
