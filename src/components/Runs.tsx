@@ -274,7 +274,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
   if (mode === "lateEntries") {
     switch (op) {
       case SqlOperation.Delete:
-        return clearQxChange(runs, id);
+        return runs.filter(r => r.qxchange_id !== id);
 
       case SqlOperation.Insert: {
         const lateEntry = parseLateEntryFromRecChng(record);
