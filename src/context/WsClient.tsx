@@ -31,16 +31,48 @@ interface WsClientContextValue {
 }
 
 const WsClientContext = createContext<WsClientContextValue>();
+const AUTO_RECONNECT_INTERVAL_MS = 1000;
 
 export function WsClientProvider(props: { children: JSX.Element }) {
   const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
   const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
 
   let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  let autoReconnectTimer: ReturnType<typeof setInterval> | null = null;
+  let hasConnectedSuccessfully = false;
   let currentClientId = 0; // Track which client is current to ignore old callbacks
 
   const appConfig = useAppConfig();
   let currentBrokerUrl = appConfig.brokerUrl;
+
+  const stopAutoReconnect = () => {
+    if (autoReconnectTimer) {
+      clearInterval(autoReconnectTimer);
+      autoReconnectTimer = null;
+    }
+  };
+
+  const startAutoReconnect = () => {
+    if (!hasConnectedSuccessfully || autoReconnectTimer) {
+      return;
+    }
+
+    autoReconnectTimer = setInterval(() => {
+      if (status() === "Connected") {
+        stopAutoReconnect();
+        return;
+      }
+
+      if (status() === "Connecting" || status() === "AuthError") {
+        return;
+      }
+
+      if (appConfig.debug) {
+        console.log("Auto reconnecting WebSocket");
+      }
+      createConnection();
+    }, AUTO_RECONNECT_INTERVAL_MS);
+  };
 
   const createConnection = () => {
     // Prevent multiple simultaneous connection attempts
@@ -117,6 +149,8 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             connectionTimeout = null;
           }
           console.log("WS CONNECTED");
+          hasConnectedSuccessfully = true;
+          stopAutoReconnect();
           setStatus("Connected");
         },
         onDisconnected: () => {
@@ -132,6 +166,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             connectionTimeout = null;
           }
           setStatus("Disconnected");
+          startAutoReconnect();
         },
         onConnectionFailure: (error: Error) => {
           // Ignore callbacks from old connections
@@ -146,6 +181,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
             connectionTimeout = null;
           }
           console.log(`Connection failed: ${error.message}`);
+          stopAutoReconnect();
           // Check if it's likely an authentication error
           if (
             error.message.toLowerCase().includes("auth") ||
@@ -173,6 +209,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
       }
       console.error("Failed to create WsClient:", error);
       setStatus("Error");
+      startAutoReconnect();
     }
   };
 
@@ -192,6 +229,8 @@ export function WsClientProvider(props: { children: JSX.Element }) {
       console.log("Reconnecting with new URL:", newUrl);
     }
     currentBrokerUrl = newUrl;
+    hasConnectedSuccessfully = false;
+    stopAutoReconnect();
     createConnection();
   };
 
@@ -199,6 +238,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
     if (connectionTimeout) {
       clearTimeout(connectionTimeout);
     }
+    stopAutoReconnect();
     const ws = wsClient();
     if (ws) {
       ws.close();
