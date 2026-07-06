@@ -283,7 +283,7 @@ function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) 
 function createRunColumns(args: {
   mode: RunsMode;
   stageStart: () => Date | undefined;
-  canEdit: () => boolean;
+  canEdit: (run: Run) => boolean;
   canShowOwner: () => boolean;
   onEditRun: (run: Run) => void;
 }): TableColumn<Run>[] {
@@ -386,14 +386,18 @@ function createRunColumns(args: {
     {
       key: "actions",
       header: "Action",
-      cell: (run: Run) => (
-        <Button size="sm" variant="outline"
-          onClick={() => args.onEditRun(run)}
-          disabled={!args.canEdit()}
-        >
-          Edit
-        </Button>
-      ),
+      cell: (run: Run) => {
+        const canEditRun = args.canEdit(run);
+        return (
+          <Button size="sm" variant="outline"
+            onClick={() => args.onEditRun(run)}
+            disabled={!canEditRun}
+            title={canEditRun ? "Edit" : "Only the change owner or an organizer can edit"}
+          >
+            Edit
+          </Button>
+        );
+      },
       sortable: false,
       // width: "80px",
     },
@@ -406,7 +410,7 @@ function RunsTable(props: {
   runs: () => Run[];
   loading: () => boolean;
   mode: RunsMode;
-  canEdit: () => boolean;
+  canEdit: (run: Run) => boolean;
   currentUserIsOrganizer: () => boolean;
   onEditRun: (run: Run) => void;
 }) {
@@ -740,7 +744,7 @@ const Runs = (props: {
           runs={tableRuns}
           loading={loading}
           mode={props.mode}
-          canEdit={() => !!user()}
+          canEdit={(run) => !!user()?.email && (currentUserIsOrganizer() || run.qxchange_user_id === user()?.email || run.qxchange_id == undefined)}
           currentUserIsOrganizer={currentUserIsOrganizer}
           onEditRun={setFormLateEntry}
         />
