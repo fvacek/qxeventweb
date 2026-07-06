@@ -55,19 +55,8 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
       <div ref={hamburgerMenu} class={menuIsOpen() ? "" : "hidden"}>
         <div class="bg-primary bg-opacity-60 dark:bg-primary dark:bg-opacity-60 absolute top-0 right-0 z-10 flex h-full w-full flex-col justify-center p-2 text-4xl font-bold backdrop-blur-xl">
           <div class="flex items-center justify-between">
-            <button
-              onClick={toggleTheme}
-              class="flex h-12 w-12 border-none bg-transparent"
-            >
-              <img
-                src={theme() === "light" ? darkModeIcon : lightModeIcon}
-                alt="change theme"
-                width="40px"
-                height="40px"
-                class="flex self-center"
-              />
-            </button>
             <UserLoginIndicator />
+
 
             <button
               onClick={toggleHamburgerMenu}
@@ -115,22 +104,7 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
             </li>
           );
         })}
-        <li class="ml-4 flex">
-          <WsClientStatusIndicator />
-        </li>
-        <li class="ml-4 flex">
-          <UserLoginIndicator />
-        </li>
-        <li class="flex items-center justify-center">
-          <button onClick={toggleTheme} class="ml-4 flex border-none">
-            <img
-              src={theme() === "light" ? darkModeIcon : lightModeIcon}
-              alt="change theme"
-              width="32px"
-              height="32px"
-            />
-          </button>
-        </li>
+
       </ul>
     );
   };
@@ -141,7 +115,17 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
         <A href="/">QxEvent</A>
       </h1>
 
-      <nav>
+      <nav class="flex items-center gap-3">
+        <WsClientStatusIndicator />
+        <UserLoginIndicator />
+        <button onClick={toggleTheme} class="flex border-none bg-transparent">
+          <img
+            src={theme() === "light" ? darkModeIcon : lightModeIcon}
+            alt="change theme"
+            width="32px"
+            height="32px"
+          />
+        </button>
         <button
           ref={hamburgerButton}
           onClick={toggleHamburgerMenu}

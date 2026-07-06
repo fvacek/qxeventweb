@@ -20,6 +20,21 @@ export default function WsClientStatus() {
     }
   };
 
+  const statusLabel = () => {
+    switch (status()) {
+      case "Connected":
+        return "C";
+      case "Disconnected":
+        return "D";
+      case "Connecting":
+        return "…";
+      case "AuthError":
+        return "A";
+      case "Error":
+        return "E";
+    }
+  };
+
   return (
     <>
       <Badge
@@ -30,8 +45,10 @@ export default function WsClientStatus() {
             : undefined
         }
         onClick={import.meta.env.DEV ? handleClick : undefined}
+        title={status()}
+        aria-label={`WebSocket status: ${status()}`}
       >
-        {status()}
+        {statusLabel()}
       </Badge>
       {BrokerDialog && (
         <BrokerDialog

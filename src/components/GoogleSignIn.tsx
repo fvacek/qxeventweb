@@ -15,6 +15,7 @@ interface GoogleSignInProps {
   buttonText?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
   theme?: 'outline' | 'filled_blue' | 'filled_black'
   size?: 'large' | 'medium' | 'small'
+  width?: number
 }
 
 const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
@@ -116,6 +117,7 @@ const GoogleSignIn: Component<GoogleSignInProps> = (props) => {
           size: props.size || "large",
           text: props.buttonText || "signin_with",
           shape: "rectangular",
+          width: props.width,
         });
       } catch (error) {
         console.error("Failed to render Google sign-in button:", error);

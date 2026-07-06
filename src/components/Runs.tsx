@@ -63,6 +63,31 @@ type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
 const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
 
+function StatusIcon(props: { status?: string }) {
+  switch (props.status) {
+    case "Rejected":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold" title="Rejected" aria-label="Rejected">
+          R
+        </span>
+      );
+    case "Accepted":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-green-600 text-white text-sm font-bold" title="Accepted" aria-label="Accepted">
+          A
+        </span>
+      );
+    case "Pending":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-orange-500 text-white text-sm font-bold" title="Pending" aria-label="Pending">
+          P
+        </span>
+      );
+    default:
+      return <span class="text-muted-foreground">—</span>;
+  }
+}
+
 function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
 }
@@ -295,8 +320,13 @@ function createRunColumns(args: {
   const qxChangeStatusColumn: TableColumn<Run> = {
     key: "qxchange_status",
     header: "Status",
+    cell: (run: Run) => (
+      <span class="inline-flex w-full justify-center">
+        <StatusIcon status={run.qxchange_status} />
+      </span>
+    ),
     sortable: true,
-    // width: "100px",
+    width: "56px",
   };
 
   const ownerColumn: TableColumn<Run> = {

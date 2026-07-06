@@ -63,9 +63,10 @@ const UserLoginIndicator: Component = () => {
         </>
       ) : (
         <GoogleSignIn
-          buttonText="signin_with"
+          buttonText="signin"
           theme="outline"
-          size="large"
+          size="medium"
+          width={120}
         />
       )}
     </div>
