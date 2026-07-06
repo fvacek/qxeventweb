@@ -16,6 +16,7 @@ import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
+import { run } from "node:test";
 
 const LateEntryIdSchema = object({
   RunId: optional(number()),
@@ -221,53 +222,99 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
   }
 
   if (table !== "qxchanges") return runs;
+  if (mode === "runs") {
+    switch (op) {
+      case SqlOperation.Delete:
+        return clearQxChange(runs, id);
 
-  switch (op) {
-    case SqlOperation.Delete:
-      return clearQxChange(runs, id);
+      case SqlOperation.Insert: {
+        const lateEntry = parseLateEntryFromRecChng(record);
+        const userId = str(record?.user_id);
+        const runId = lateEntry?.id.RunId;
 
-    case SqlOperation.Insert: {
-      const lateEntry = parseLateEntryFromRecChng(record);
-      const userId = str(record?.user_id);
-      const runId = lateEntry?.id.RunId;
+        if (!userId || !lateEntry || !runId) {
+          console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
+          return runs;
+        }
 
-      if (!userId || !lateEntry || !runId) {
-        console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
-        return runs;
+        return runs.map(r =>
+          r.run_id === runId
+            ? {
+              ...r,
+              qxchange_id: id,
+              qxchange_user_id: userId,
+              qxchange_status: str(record?.status, r.qxchange_status),
+              qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+              qxchange_data: { LateEntry: lateEntry },
+            }
+            : r
+        );
       }
 
-      return runs.map(r =>
-        r.run_id === runId
-          ? {
-            ...r,
-            qxchange_id: id,
-            qxchange_user_id: userId,
-            qxchange_status: str(record?.status, r.qxchange_status),
-            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
-            qxchange_data: { LateEntry: lateEntry },
-          }
-          : r
-      );
+      case SqlOperation.Update: {
+        if (record?.status !== "Pending") {
+          return clearQxChange(runs, id);
+        }
+        const lateEntry = parseLateEntryFromRecChng(record);
+        return runs.map(r =>
+          r.qxchange_id === id
+            ? {
+              ...r,
+              qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+              qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
+            }
+            : r
+        );
+      }
+      default:
+        return runs;
     }
-
-    case SqlOperation.Update: {
-      const lateEntry = parseLateEntryFromRecChng(record);
-
-      return runs.map(r =>
-        r.qxchange_id === id
-          ? {
-            ...r,
-            qxchange_status: str(record?.status, r.qxchange_status),
-            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
-            qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
-          }
-          : r
-      );
-    }
-
-    default:
-      return runs;
   }
+
+  if (mode === "lateEntries") {
+    switch (op) {
+      case SqlOperation.Delete:
+        return clearQxChange(runs, id);
+
+      case SqlOperation.Insert: {
+        const lateEntry = parseLateEntryFromRecChng(record);
+        const userId = str(record?.user_id);
+
+        if (!lateEntry || !userId) {
+          console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
+          return runs;
+        }
+        const runId = lateEntry?.id.RunId;
+        const updatedRun = {
+          ...runs.find(r => r.run_id === runId),
+          qxchange_id: id,
+          qxchange_user_id: userId,
+          qxchange_status: str(record?.status),
+          qxchange_status_message: str(record?.status_message),
+          qxchange_data: { LateEntry: lateEntry },
+        };
+        return [...runs, updatedRun];
+      }
+
+      case SqlOperation.Update: {
+        const lateEntry = parseLateEntryFromRecChng(record);
+        return runs.map(r =>
+          r.qxchange_id === id
+            ? {
+              ...r,
+              qxchange_status: str(record?.status, r.qxchange_status),
+              qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+              qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
+            }
+            : r
+        );
+      }
+      default:
+        return runs;
+    }
+  }
+
+  return runs;
 }
 
 function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
