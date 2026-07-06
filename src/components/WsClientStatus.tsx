@@ -1,7 +1,10 @@
-import { createSignal } from "solid-js";
+import { createSignal, lazy } from "solid-js";
 import { useWsClient } from "~/context/WsClient";
 import { Badge } from "./ui/badge";
-import BrokerDialog from "./BrokerDialog";
+
+const BrokerDialog = import.meta.env.DEV
+  ? lazy(() => import("./BrokerDialog"))
+  : undefined;
 
 export default function WsClientStatus() {
   const { status } = useWsClient();
@@ -12,22 +15,30 @@ export default function WsClientStatus() {
   };
 
   const handleClick = () => {
-    setIsDialogOpen(true);
+    if (import.meta.env.DEV) {
+      setIsDialogOpen(true);
+    }
   };
 
   return (
     <>
       <Badge
         variant={getVariant()}
-        class="cursor-pointer hover:opacity-80 transition-opacity"
-        onClick={handleClick}
+        class={
+          import.meta.env.DEV
+            ? "cursor-pointer hover:opacity-80 transition-opacity"
+            : undefined
+        }
+        onClick={import.meta.env.DEV ? handleClick : undefined}
       >
         {status()}
       </Badge>
-      <BrokerDialog
-        open={isDialogOpen()}
-        onOpenChange={setIsDialogOpen}
-      />
+      {BrokerDialog && (
+        <BrokerDialog
+          open={isDialogOpen()}
+          onOpenChange={setIsDialogOpen}
+        />
+      )}
     </>
   );
 }

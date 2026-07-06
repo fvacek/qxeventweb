@@ -25,10 +25,10 @@ const NavHeader = (props?: { currentStage?: Accessor<number> }): JSX.Element => 
     to: string;
     file?: string;
   }> = [
-    {
-      name: "Home",
-      to: "/",
-    },
+    // {
+    //   name: "Home",
+    //   to: "/",
+    // },
     // {
     //   name: "Table Demo",
     //   to: "/table-demo",

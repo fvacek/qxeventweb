@@ -120,14 +120,6 @@ function EventsTable() {
       });
     }
     setLoading(false);
-
-    // // Update data with fresh timestamps and randomized data
-    // const refreshedEntries = tableRecords().map((entry) => ({
-    //   ...entry,
-    // }));
-
-    // setTableRecords(refreshedEntries);
-    // setLoading(false);
   };
 
   const createEvent = async () => {

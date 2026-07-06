@@ -35,13 +35,7 @@ const WsClientContext = createContext<WsClientContextValue>();
 export function WsClientProvider(props: { children: JSX.Element }) {
   const [status, setStatus] = createSignal<WsClientStatus>("Disconnected");
   const [wsClient, setWsClient] = createSignal<WsClient | null>(null);
-  // const [recChng, setRecChng] = createSignal<RecChng>({
-  //     table: "",
-  //     id: 0,
-  //     record: {},
-  //     op: SqlOperation.Update,
-  //     issuer: ""
-  // });
+
   let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   let currentClientId = 0; // Track which client is current to ignore old callbacks
 
