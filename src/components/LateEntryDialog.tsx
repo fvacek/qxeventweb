@@ -11,9 +11,10 @@ import {
   TextFieldInput,
   TextFieldLabel,
 } from "~/components/ui/text-field";
+import { SwitchField } from "~/components/ui/switch";
 
-export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems";
-export type LateEntryDialogValue = string | number | undefined;
+export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems" | "paid";
+export type LateEntryDialogValue = string | number | boolean | undefined;
 export type LateEntryDialogDateValue = Date | string | number | undefined;
 
 function formatDateTime(value: LateEntryDialogDateValue): string {
@@ -43,10 +44,14 @@ function LateEntryDialog(props: {
   fieldValue: (field: LateEntryDialogField) => LateEntryDialogValue;
   isFieldChanged: (field: LateEntryDialogField) => boolean;
   setFieldValue: (field: LateEntryDialogField, value: LateEntryDialogValue) => void;
+  canEdit: () => boolean;
+  canEditPaid: () => boolean;
   onLoadRegistration: () => void;
   onClose: () => void;
   onAccept: () => void;
 }) {
+  const isEditable = () => props.canEdit();
+
   return (
     <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose(); }}>
       <DialogContent class="max-w-md">
@@ -64,7 +69,7 @@ function LateEntryDialog(props: {
             <span class="text-right">created: <span class="font-medium text-foreground">{formatDateTime(props.qxchangeCreated())}</span></span>
           </div>
 
-          {(props.status() || props.statusMessage()) && (
+          {(!isEditable() || props.status() || props.statusMessage()) && (
             <div class="rounded-md border border-border bg-accent/40 px-3 py-2 text-sm">
               <div class="flex items-center justify-between gap-3">
                 <span class="font-medium text-muted-foreground">Status</span>
@@ -84,11 +89,12 @@ function LateEntryDialog(props: {
                 type="text"
                 class={props.isFieldChanged("registration") ? "text-highlight font-semibold" : ""}
                 onInput={(e) => props.setFieldValue("registration", e.currentTarget.value)}
+                disabled={!isEditable()}
               />
               <Button
                 variant="outline"
                 onClick={props.onLoadRegistration}
-                disabled={!props.fieldValue("registration")}
+                disabled={!isEditable() || !props.fieldValue("registration")}
               >
                 Load
               </Button>
@@ -102,6 +108,7 @@ function LateEntryDialog(props: {
               type="text"
               class={props.isFieldChanged("firstname") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("firstname", e.currentTarget.value)}
+              disabled={!isEditable()}
             />
           </TextField>
 
@@ -112,6 +119,7 @@ function LateEntryDialog(props: {
               type="text"
               class={props.isFieldChanged("lastname") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("lastname", e.currentTarget.value)}
+              disabled={!isEditable()}
             />
           </TextField>
 
@@ -122,6 +130,7 @@ function LateEntryDialog(props: {
               type="number"
               class={props.isFieldChanged("siid") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("siid", e.currentTarget.value ? parseInt(e.currentTarget.value) : undefined)}
+              disabled={!isEditable()}
             />
           </TextField>
 
@@ -131,6 +140,7 @@ function LateEntryDialog(props: {
               value={props.fieldValue("starttimems")?.toString() || ""}
               class={`w-full rounded-md border border-border bg-input px-3 py-2 text-sm ${props.isFieldChanged("starttimems") ? "text-highlight font-semibold" : ""}`}
               onChange={(e) => props.setFieldValue("starttimems", e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
+              disabled={!isEditable()}
             >
               <option value="">—</option>
               {props.possibleStartTimes().map((starttimems) => (
@@ -148,13 +158,23 @@ function LateEntryDialog(props: {
               type="text"
               class={props.isFieldChanged("note") ? "text-highlight font-semibold" : ""}
               onInput={(e) => props.setFieldValue("note", e.currentTarget.value)}
+              disabled={!isEditable()}
             />
           </TextField>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={props.onClose}>Cancel</Button>
-          <Button onClick={props.onAccept} disabled={!(props.status() === "Pending" || props.status() === undefined)}>{"Save Changes"}</Button>
+        <DialogFooter class="items-center justify-between sm:justify-between sm:space-x-0">
+          <SwitchField
+            label="Paid"
+            checked={props.fieldValue("paid") === true}
+            onChange={(checked) => props.setFieldValue("paid", checked)}
+            disabled={!isEditable() || !props.canEditPaid()}
+            class={props.isFieldChanged("paid") ? "text-highlight font-semibold" : ""}
+          />
+          <div class="flex gap-2">
+            <Button variant="outline" onClick={props.onClose}>{isEditable() ? "Cancel" : "Close"}</Button>
+            <Button onClick={props.onAccept} disabled={!isEditable() || !(props.status() === "Pending" || props.status() === undefined)}>{"Save Changes"}</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

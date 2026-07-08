@@ -99,6 +99,7 @@ type TableProps<T extends ValidComponent = "table"> = {
   globalFilter?: boolean
   onSortChange?: (sort: SortState | null) => void
   initialSort?: SortState
+  onRowClick?: (item: any, index: number) => void
 } & VariantProps<typeof tableVariants>
 
 interface TableColumn<T> {
@@ -129,7 +130,8 @@ const Table = <T extends ValidComponent = "table">(
     "sortable",
     "globalFilter",
     "onSortChange",
-    "initialSort"
+    "initialSort",
+    "onRowClick"
   ])
 
   // Internal sorting state and global filter
@@ -311,7 +313,7 @@ const Table = <T extends ValidComponent = "table">(
                 ) : (
                   <For each={filteredAndSortedData()}>
                     {(item, index) => (
-                      <TableRow>
+                      <TableRow onClick={local.onRowClick ? () => local.onRowClick?.(item, index()) : undefined}>
                         <For each={local.columns}>
                           {(column) => {
                             const hiddenClass = typeof column.hidden === 'string' ? column.hidden :

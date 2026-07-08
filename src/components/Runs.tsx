@@ -10,8 +10,7 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, optional } from "valibot";
-import { copyRecordChanges as copyValidFieldsToRpcMap } from "~/lib/utils";
+import { object, number, string, parse, type InferOutput, optional, boolean } from "valibot";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
@@ -31,6 +30,7 @@ export const LateEntrySchema = object({
   siid: optional(number()),
   note: optional(string()),
   starttimems: optional(number()),
+  paid: optional(boolean()),
 });
 
 type LateEntry = InferOutput<typeof LateEntrySchema>;
@@ -336,6 +336,14 @@ function createRunColumns(args: {
 }): TableColumn<Run>[] {
   const isLateEntriesMode = args.mode === "lateEntries";
 
+  const qxChangeIdColumn: TableColumn<Run> = {
+    key: "qxchange_id",
+    header: "ID",
+    sortable: true,
+    width: "64px",
+    hidden: "hidden lg:table-cell",
+  };
+
   const classNameColumn: TableColumn<Run> = {
     key: "class_name",
     header: "Class",
@@ -366,7 +374,7 @@ function createRunColumns(args: {
 
   const qxChangeStatusColumn: TableColumn<Run> = {
     key: "qxchange_status",
-    header: "Status",
+    header: "St",
     cell: (run: Run) => (
       <span class="inline-flex w-full justify-center">
         <StatusIcon status={run.qxchange_status} />
@@ -384,7 +392,7 @@ function createRunColumns(args: {
   };
 
   return [
-    ...(isLateEntriesMode ? [operationColumn, classNameColumn] : []),
+    ...(isLateEntriesMode ? [qxChangeIdColumn, operationColumn, qxChangeStatusColumn, classNameColumn] : []),
     {
       key: "starttimems",
       header: "Start Time",
@@ -429,8 +437,7 @@ function createRunColumns(args: {
       // width: "100px",
     },
     ...(isLateEntriesMode && args.canShowOwner() ? [ownerColumn] : []),
-    ...(isLateEntriesMode ? [qxChangeStatusColumn] : []),
-    {
+    ...(!isLateEntriesMode ? [{
       key: "actions",
       header: "Action",
       cell: (run: Run) => {
@@ -446,8 +453,8 @@ function createRunColumns(args: {
         );
       },
       sortable: false,
-      // width: "80px",
-    },
+      width: "80px",
+    }] : []),
   ];
 }
 
@@ -479,6 +486,7 @@ function RunsTable(props: {
         variant="striped"
         sortable={true}
         globalFilter={true}
+        onRowClick={props.mode === "lateEntries" ? props.onEditRun : undefined}
       />
     </div>
   );
@@ -584,6 +592,15 @@ const Runs = (props: {
 
   const currentUserIsOrganizer = () => props.eventConfig().members?.[user()?.email ?? ""] === "Organizer";
 
+  const canEditRun = (run: Run | undefined) => {
+    const email = user()?.email;
+    if (!email || !run) return false;
+    if (run.qxchange_status !== undefined && run.qxchange_status !== "Pending") return false;
+    return currentUserIsOrganizer() || run.qxchange_user_id === email || run.qxchange_id === undefined;
+  };
+
+  const canEditFormRun = () => canEditRun(formLateEntry());
+
   const openNewEntryDialog = () => setFormLateEntry({
     run_id: 0,
     competitor_id: 0,
@@ -632,12 +649,15 @@ const Runs = (props: {
 
   const formField = (field: LateEntryDialogField): LateEntryDialogValue => {
     const run = formLateEntry();
-    return run?.qxchange_data?.LateEntry?.[field] ?? run?.[field];
+    const originalValue = field === "paid" ? undefined : run?.[field];
+    return run?.qxchange_data?.LateEntry?.[field] ?? originalValue;
   };
 
   const setFormField = (field: LateEntryDialogField, value: LateEntryDialogValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
+
+      const originalValue = field === "paid" ? undefined : prev[field];
 
       return {
         ...prev,
@@ -645,7 +665,7 @@ const Runs = (props: {
           ...prev.qxchange_data,
           LateEntry: {
             ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classDef()?.id } }),
-            [field]: value === prev[field] ? undefined : value,
+            [field]: value === originalValue ? undefined : value,
           },
         },
       };
@@ -791,7 +811,7 @@ const Runs = (props: {
           runs={tableRuns}
           loading={loading}
           mode={props.mode}
-          canEdit={(run) => !!user()?.email && (currentUserIsOrganizer() || run.qxchange_user_id === user()?.email || run.qxchange_id == undefined)}
+          canEdit={canEditRun}
           currentUserIsOrganizer={currentUserIsOrganizer}
           onEditRun={setFormLateEntry}
         />
@@ -808,6 +828,8 @@ const Runs = (props: {
           fieldValue={formField}
           isFieldChanged={isFieldFromLateEntry}
           setFieldValue={setFormField}
+          canEdit={canEditFormRun}
+          canEditPaid={currentUserIsOrganizer}
           onLoadRegistration={loadRegistration}
           onClose={closeDialog}
           onAccept={acceptDialog}
