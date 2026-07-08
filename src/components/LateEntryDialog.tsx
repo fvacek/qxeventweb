@@ -51,6 +51,7 @@ function LateEntryDialog(props: {
   onAccept: () => void;
 }) {
   const isEditable = () => props.canEdit();
+  const canSave = () => isEditable() || props.canEditPaid();
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose(); }}>
@@ -75,6 +76,13 @@ function LateEntryDialog(props: {
                 <span class="font-medium text-muted-foreground">Status</span>
                 <span class="font-semibold">{props.status() || "—"}</span>
               </div>
+              {!isEditable() && (
+                <p class="mt-1 text-muted-foreground">
+                  {props.canEditPaid()
+                    ? "Only the Paid field can be edited for this entry."
+                    : "Read-only: only the change owner or an organizer can edit pending entries."}
+                </p>
+              )}
               {props.statusMessage() && (
                 <p class="mt-1 text-muted-foreground">{props.statusMessage()}</p>
               )}
@@ -168,12 +176,12 @@ function LateEntryDialog(props: {
             label="Paid"
             checked={props.fieldValue("paid") === true}
             onChange={(checked) => props.setFieldValue("paid", checked)}
-            disabled={!isEditable() || !props.canEditPaid()}
+            disabled={!props.canEditPaid()}
             class={props.isFieldChanged("paid") ? "text-highlight font-semibold" : ""}
           />
           <div class="flex gap-2">
             <Button variant="outline" onClick={props.onClose}>{isEditable() ? "Cancel" : "Close"}</Button>
-            <Button onClick={props.onAccept} disabled={!isEditable() || !(props.status() === "Pending" || props.status() === undefined)}>{"Save Changes"}</Button>
+            <Button onClick={props.onAccept} disabled={!canSave()}>{"Save Changes"}</Button>
           </div>
         </DialogFooter>
       </DialogContent>
