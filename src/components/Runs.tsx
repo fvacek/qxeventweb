@@ -492,7 +492,7 @@ function RunsTable(props: {
   );
 }
 
-type ClassDef = {
+export type ClassDef = {
   id: number;
   name: string;
   start: number;
@@ -500,7 +500,7 @@ type ClassDef = {
   mapCount: number;
 };
 
-function ClassSelector(props: {
+export function ClassSelector(props: {
   className: () => string;
   setClassName: (name: string) => void;
   setClassDef: (cd: ClassDef) => void;

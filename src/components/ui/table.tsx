@@ -202,10 +202,15 @@ const Table = <T extends ValidComponent = "table">(
     })
   })
 
+  const isColumnSortable = (column: TableColumn<any>) => {
+    if (column.sortable === false) return false
+    return column.sortable === true || local.sortable === true
+  }
+
   // Sort handler
   const handleSort = (columnKey: string) => {
     const column = local.columns?.find(col => col.key === columnKey)
-    if (!column?.sortable && !local.sortable) return
+    if (!column || !isColumnSortable(column)) return
 
     const currentSort = sortState()
     let newSort: SortState | null
@@ -266,7 +271,7 @@ const Table = <T extends ValidComponent = "table">(
                         >
                           <div>
                             {/* Column header with sorting */}
-                            {(column.sortable !== false && (column.sortable || local.sortable)) ? (
+                            {isColumnSortable(column) ? (
                               <button
                                 onClick={() => handleSort(column.key)}
                                 class={cn(
