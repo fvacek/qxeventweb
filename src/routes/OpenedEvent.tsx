@@ -12,6 +12,7 @@ import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 import Runs from "../components/Runs";
 import { useAuth } from "~/context/AuthContext";
+import ResultsTab from "~/components/ResultsTab";
 
 export type StageConfig = {
   stageStart?: Date;
@@ -31,6 +32,8 @@ export class EventConfig {
 interface EventProps {
   event_id_str: string;
 }
+
+
 
 const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
@@ -190,6 +193,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     }
   });
 
+
   return (
     <div class="flex w-full flex-col items-center justify-center p-4">
       <div class="flex flex-row w-full mb-6 justify-between">
@@ -213,6 +217,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
           <Tabs value={activeTab()} onChange={setActiveTab} class="w-full">
             <TabsList class="flex w-full flex-row">
               <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="results">Results</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
               <TabsTrigger value="late_entries" disabled={!user()}>Late entries</TabsTrigger>
             </TabsList>
@@ -230,6 +235,10 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
                 mode="runs"
                 onNewLateEntrySaved={() => setActiveTab("late_entries")}
               />
+            </TabsContent>
+
+            <TabsContent value="results" class="space-y-4">
+              <ResultsTab eventId={eventId()} eventConfig={() => eventConfig} />
             </TabsContent>
 
             <TabsContent value="late_entries" class="space-y-4">
