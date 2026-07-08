@@ -54,8 +54,9 @@ export default function ResultsTab(props: {
   const bestTimems = createMemo(() => results().find(row => !row.disqualified)?.timems);
 
   const formatLoss = (row: ResultRow): string => {
+    if (row.disqualified) return "DISQ";
     const best = bestTimems();
-    if (row.disqualified || best === undefined || row.timems === best) return "";
+    if (best === undefined || row.timems === best) return "";
     return `+${formatResultTime(row.timems - best)}`;
   };
 
@@ -65,7 +66,7 @@ export default function ResultsTab(props: {
       header: "#",
       cell: (row) => row.order === undefined ? "" : `${row.order}.`,
       sortable: false,
-      width: "50px",
+      width: "40px",
       align: "right",
     },
     {
@@ -94,13 +95,6 @@ export default function ResultsTab(props: {
       cell: formatLoss,
       sortable: false,
       align: "right",
-      width: "64px",
-    },
-    {
-      key: "disqualified",
-      header: "DSQ",
-      cell: (row) => row.disqualified ? "DSQ" : "",
-      sortable: false,
       width: "64px",
     },
   ];
