@@ -92,7 +92,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
         "SELECT * FROM config",
       ]);
       const stages_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
-        "SELECT startdateTime FROM stages",
+        "SELECT startdateTime FROM stages ORDER BY id",
       ]);
       const eventConfig = parseEventConfig(event_config_result, stages_result, eventRecord);
       await syncEventConfig(eventConfig, eventRecord);
