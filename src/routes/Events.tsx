@@ -202,14 +202,20 @@ function EventsTable() {
       return next;
     });
   };
-
+  const eventUrl = () => {
+    const eventId = formData()?.id;
+    if (!eventId) return "";
+    return `https://qxqx.org/event/${eventId}`;
+  };
   const [qrCodeDataURL, setQrCodeDataURL] = createSignal<string>("");
 
   // Regenerate QR code only when api_token changes
   createEffect(() => {
-    const token = formData()?.api_token;
-    if (!token) { setQrCodeDataURL(""); return; }
-    QRCode.toDataURL(`https://qxqx.org/event?api_token=${token}`, {
+    const url = eventUrl();
+    if (!url) {
+      setQrCodeDataURL(""); return;
+    }
+    QRCode.toDataURL(url, {
       width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' }
     }).then(setQrCodeDataURL).catch(() => setQrCodeDataURL(""));
   });
@@ -409,7 +415,7 @@ function EventsTable() {
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <TextField>
               <TextFieldLabel>ID</TextFieldLabel>
-              <TextFieldInput value={formData()?.id.toString() ?? ""} type="number" readOnly />
+              <TextFieldInput value={formData()?.id.toString() ?? ""} type="text" readOnly />
             </TextField>
 
             <TextField>
@@ -421,6 +427,11 @@ function EventsTable() {
                 class={!isFormValid() ? "border-red-500" : ""}
               />
               {!isFormValid() && <div class="text-sm text-red-500 mt-1">Name is required</div>}
+            </TextField>
+
+            <TextField>
+              <TextFieldLabel>Stage</TextFieldLabel>
+              <TextFieldInput value={formData()?.stage?.toString() ?? ""} type="text" readOnly />
             </TextField>
 
             <DateTimeField
@@ -438,7 +449,7 @@ function EventsTable() {
               <div class="flex flex-col items-center space-y-2">
                 <img src={qrCodeDataURL()} alt="Event QR Code" class="border rounded-lg shadow-sm" />
                 <div class="text-xs text-gray-500 text-center max-w-xs break-all">
-                  {`https://qxqx.org/event?api_token=${formData()?.api_token}`}
+                  {eventUrl()}
                 </div>
               </div>
             )}
