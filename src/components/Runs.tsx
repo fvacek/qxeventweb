@@ -179,7 +179,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
                 WHERE qxchanges.stage_id = ${currentStage}
                   ${ownerFilter}
-                ORDER BY qxchanges.id ASC`;
+                ORDER BY qxchanges.id DESC`;
 }
 
 function parseLateEntryFromRecChng(record: RecChng["record"]): LateEntry | undefined {
