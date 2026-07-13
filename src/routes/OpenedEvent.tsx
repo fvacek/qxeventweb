@@ -1,4 +1,4 @@
-import { createSignal, createEffect } from "solid-js";
+import { For, createSignal, createEffect, createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
 import { RpcValue, makeMap, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
@@ -41,6 +41,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   const { user } = useAuth();
 
   const [eventId, _setEventId] = createSignal<number>(parseInt(initialEventId));
+  const [currentStage, setCurrentStage] = createSignal<number | undefined>(undefined);
+  const [workingStage, setWorkingStage] = createSignal<number | undefined>(undefined);
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>("");
@@ -95,8 +97,10 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
         "SELECT startdateTime FROM stages ORDER BY id",
       ]);
       const eventConfig = parseEventConfig(event_config_result, stages_result, eventRecord);
-      await syncEventConfig(eventConfig, eventRecord);
+      // await syncEventConfig(eventConfig, eventRecord);
       setEventConfig(eventConfig);
+      setCurrentStage(eventConfig.currentStage);
+      setWorkingStage(prev => prev ?? eventConfig.currentStage);
     } catch (error) {
       console.error("Failed to load event config:", error);
       setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -133,7 +137,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
 
     // Parse stage count safely
     const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
-    const currentStage = Math.max(1, parseInt(currentStageStr, 10) || 1);
+    const currentStage = Math.min(stageCount, Math.max(1, parseInt(currentStageStr, 10) || 1));
 
     const stages_table = createSqlTable(stagesResult);
 
@@ -163,18 +167,18 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     };
   }
 
-  async function syncEventConfig(eventConfig: EventConfig, eventRecord: EventRecord) {
-    // Find undefined fields in event_config and set their value from event_record
-    const changes: Partial<EventConfig> = {};
-    if (eventConfig.name !== undefined && eventRecord.name === undefined) changes.name = eventConfig.name;
-    if (Object.keys(changes).length > 0) {
-      const params: Record<string, any> = {};
-      params.table = "events";
-      params.id = eventRecord.id;
-      params.record = changes;
-      await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "update", makeMap(params));
-    }
-  }
+  // async function syncEventConfig(eventConfig: EventConfig, eventRecord: EventRecord) {
+  //   // Find undefined fields in event_config and set their value from event_record
+  //   const changes: Partial<EventConfig> = {};
+  //   if (eventConfig.name !== undefined && eventRecord.name === undefined) changes.name = eventConfig.name;
+  //   if (Object.keys(changes).length > 0) {
+  //     const params: Record<string, any> = {};
+  //     params.table = "events";
+  //     params.id = eventRecord.id;
+  //     params.record = changes;
+  //     await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "update", makeMap(params));
+  //   }
+  // }
 
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
@@ -198,7 +202,22 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     <div class="flex w-full flex-col items-center justify-center p-4">
       <div class="flex flex-row w-full mb-6 justify-between">
         <p class="text-3xl font-bold">{eventConfig.name}</p>
-        <StageControl currentStage={() => eventConfig.currentStage} />
+        <div class="flex items-center gap-3">
+          <StageControl currentStage={() => currentStage() ?? eventConfig.currentStage} />
+          <label class="flex items-center gap-2 text-sm font-medium">
+            Working stage
+            <select
+              value={workingStage()?.toString()}
+              onChange={(e) => setWorkingStage(Number(e.currentTarget.value))}
+              disabled={loading() || status() !== "Connected"}
+              class="rounded-md border border-border bg-input px-3 py-2 text-sm"
+            >
+              <For each={Array.from({ length: eventConfig.stageCount }, (_, index) => index + 1)}>{stage => (
+                <option value={stage.toString()}>{stage}</option>
+              )}</For>
+            </select>
+          </label>
+        </div>
       </div>
 
 
@@ -231,6 +250,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}
+                workingStage={workingStage()}
                 recchngReceived={recchngReceived}
                 mode="runs"
                 onNewLateEntrySaved={() => setActiveTab("late_entries")}
@@ -246,6 +266,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 currentStage={eventConfig.currentStage}
+                workingStage={workingStage()}
                 recchngReceived={recchngReceived}
                 mode="lateEntries"
               />

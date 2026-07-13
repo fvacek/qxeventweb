@@ -7,7 +7,7 @@ export function StageControl(props: {
 
   return (
     <div class="flex items-center gap-4">
-      <span class="outline rounded px-2 py-1">Stage {props.currentStage()}</span>
+      <span class="outline rounded px-2 py-1">Current stage {props.currentStage()}</span>
     </div>
   );
 }

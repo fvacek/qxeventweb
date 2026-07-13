@@ -150,7 +150,7 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
   return transformedRuns;
 }
 
-function createRunsQuery(mode: RunsMode, className: string, currentStage: number, userId: string, currentUserIsOrganizer: boolean): string {
+function createRunsQuery(mode: RunsMode, className: string, workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const fields = `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
               qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
@@ -165,7 +165,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 LEFT JOIN qxchanges ON runs.id = qxchanges.foreign_id  AND qxchanges.foreign_table = 'runs'
                   AND qxchanges.data_type = 'LateEntry'
                   AND qxchanges.status = 'Pending'
-                WHERE runs.stageid = ${currentStage}
+                WHERE runs.stageid = ${workingStage}
                   AND runs.isRunning = true
                 ORDER BY runs.starttimems ASC`;
   }
@@ -177,7 +177,7 @@ function createRunsQuery(mode: RunsMode, className: string, currentStage: number
                 LEFT JOIN competitors ON runs.competitorid = competitors.id
                 LEFT JOIN classes ON competitors.classid = classes.id
                 LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
-                WHERE qxchanges.stage_id = ${currentStage}
+                WHERE qxchanges.stage_id = ${workingStage}
                   ${ownerFilter}
                 ORDER BY qxchanges.id DESC`;
 }
@@ -570,6 +570,7 @@ const Runs = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
   currentStage: number,
+  workingStage: number | undefined,
   recchngReceived: () => RecChng | null,
   mode: RunsMode,
   onNewLateEntrySaved?: () => void,
@@ -752,7 +753,7 @@ const Runs = (props: {
     if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const query = createRunsQuery(props.mode, className(), props.currentStage, user()?.email ?? "", currentUserIsOrganizer());
+      const query = createRunsQuery(props.mode, className(), props.workingStage ?? 0, user()?.email ?? "", currentUserIsOrganizer());
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
