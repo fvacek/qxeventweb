@@ -459,8 +459,7 @@ function createRunColumns(args: {
 }
 
 function RunsTable(props: {
-  eventConfig: () => EventConfig;
-  currentStage: () => number;
+  stageStart: () => Date | undefined;
   runs: () => Run[];
   loading: () => boolean;
   mode: RunsMode;
@@ -470,7 +469,7 @@ function RunsTable(props: {
 }) {
   const columns = createMemo(() => createRunColumns({
     mode: props.mode,
-    stageStart: () => props.eventConfig().stages[props.currentStage() - 1]?.stageStart,
+    stageStart: props.stageStart,
     canEdit: props.canEdit,
     canShowOwner: props.currentUserIsOrganizer,
     onEditRun: props.onEditRun,
@@ -505,7 +504,7 @@ export function ClassSelector(props: {
   setClassName: (name: string) => void;
   setClassDef: (cd: ClassDef) => void;
   eventId: () => number;
-  currentStage: () => number;
+  workingStage: () => number | undefined;
 }) {
   const { wsClient, status } = useWsClient();
   const appConfig = useAppConfig();
@@ -520,7 +519,7 @@ export function ClassSelector(props: {
         [`SELECT classes.id, classes.name,
           classdefs.startTimeMin, classdefs.startIntervalMin, classdefs.mapCount
           FROM classes, classdefs
-          WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.currentStage()}
+          WHERE classdefs.classid = classes.id AND classdefs.stageid = ${props.workingStage() ?? 0}
           ORDER BY classes.name`],
       );
       const table = createSqlTable(result);
@@ -569,7 +568,7 @@ export function ClassSelector(props: {
 const Runs = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
-  currentStage: number,
+  currentStage: number | undefined,
   workingStage: number | undefined,
   recchngReceived: () => RecChng | null,
   mode: RunsMode,
@@ -590,12 +589,17 @@ const Runs = (props: {
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
+  const workingStage = () => props.workingStage;
 
   const currentUserIsOrganizer = () => props.eventConfig().members?.[user()?.email ?? ""] === "Organizer";
 
+  const canEditRunRecords = () => {
+    return (workingStage() ?? 0) >= (currentStage() ?? 1);
+  };
+
   const canEditRun = (run: Run | undefined) => {
     const email = user()?.email;
-    if (!email || !run) return false;
+    if (!email || !run || !canEditRunRecords()) return false;
     if (run.qxchange_status !== undefined && run.qxchange_status !== "Pending") return false;
     return currentUserIsOrganizer() || run.qxchange_user_id === email || run.qxchange_id === undefined;
   };
@@ -753,7 +757,7 @@ const Runs = (props: {
     if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const query = createRunsQuery(props.mode, className(), props.workingStage ?? 0, user()?.email ?? "", currentUserIsOrganizer());
+      const query = createRunsQuery(props.mode, className(), workingStage() ?? 0, user()?.email ?? "", currentUserIsOrganizer());
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
@@ -779,18 +783,24 @@ const Runs = (props: {
 
   createEffect(() => {
     if (status() !== "Connected") return;
+    if (workingStage() === undefined) return;
     if (props.mode === "runs" && !className()) return;
     reloadTable();
   });
+
+  const stageStart = () => {
+    const stage = workingStage();
+    return stage === undefined ? undefined : props.eventConfig().stages[stage - 1]?.stageStart;
+  };
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
       <h1 class="mt-7 mb-7 text-3xl font-bold">{props.mode === "lateEntries" ? "Late Entries" : "Runs"}</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
-          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} currentStage={currentStage} />}
+          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />}
           <div class="flex gap-2 justify-end">
-            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email}>New entry</Button>}
+            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email || !canEditRunRecords()}>New entry</Button>}
             {props.mode === "lateEntries" && (
               <FlexDropdown
                 value={statusFilter() ?? "All"}
@@ -807,8 +817,7 @@ const Runs = (props: {
           </div>
         </div>
         <RunsTable
-          eventConfig={props.eventConfig}
-          currentStage={currentStage}
+          stageStart={stageStart}
           runs={tableRuns}
           loading={loading}
           mode={props.mode}
@@ -820,7 +829,7 @@ const Runs = (props: {
         <LateEntryDialog
           open={!!formLateEntry()}
           className={formClassName}
-          stageStart={() => props.eventConfig().stages[props.currentStage - 1]?.stageStart}
+          stageStart={stageStart}
           possibleStartTimes={possibleStartTimes}
           qxchangeId={() => formLateEntry()?.qxchange_id}
           qxchangeCreated={() => formLateEntry()?.qxchange_created}

@@ -249,7 +249,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
               <Runs
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
-                currentStage={eventConfig.currentStage}
+                currentStage={currentStage()}
                 workingStage={workingStage()}
                 recchngReceived={recchngReceived}
                 mode="runs"
@@ -265,7 +265,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
               <Runs
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
-                currentStage={eventConfig.currentStage}
+                currentStage={currentStage()}
                 workingStage={workingStage()}
                 recchngReceived={recchngReceived}
                 mode="lateEntries"
