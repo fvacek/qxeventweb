@@ -39,7 +39,7 @@ function toBoolean(value: unknown): boolean {
 
 export default function ResultsTab(props: {
   eventId: number;
-  eventConfig: () => EventConfig;
+  workingStage: () => number | undefined;
 }) {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
@@ -50,7 +50,7 @@ export default function ResultsTab(props: {
   const [resultsLoading, setResultsLoading] = createSignal(false);
   const [resultsError, setResultsError] = createSignal("");
 
-  const currentStage = () => props.eventConfig().currentStage;
+  const workingStage = () => props.workingStage();
   const bestTimems = createMemo(() => results().find(row => !row.disqualified)?.timems);
 
   const formatLoss = (row: ResultRow): string => {
@@ -111,7 +111,7 @@ export default function ResultsTab(props: {
           FROM runs
           INNER JOIN competitors ON runs.competitorid = competitors.id
           INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(selectedClass)}
-          WHERE runs.stageid = ${currentStage()}
+          WHERE runs.stageid = ${workingStage()}
             AND runs.isRunning = true AND runs.timems > 0
           ORDER BY runs.disqualified, runs.timems ASC`,
       ]);
@@ -145,7 +145,7 @@ export default function ResultsTab(props: {
     if (status() !== "Connected") return;
     const selectedClass = className();
     if (!selectedClass) return;
-    currentStage();
+    workingStage();
     loadResults(selectedClass);
   });
 
@@ -157,7 +157,7 @@ export default function ResultsTab(props: {
           setClassName={setClassName}
           setClassDef={setClassDef}
           eventId={() => props.eventId}
-          currentStage={currentStage}
+          workingStage={workingStage}
         />
       </div>
 
