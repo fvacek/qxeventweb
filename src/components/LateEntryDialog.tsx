@@ -100,7 +100,7 @@ function LateEntryDialog(props: {
                 disabled={!isEditable()}
               />
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={props.onLoadRegistration}
                 disabled={!isEditable() || !props.fieldValue("registration")}
               >

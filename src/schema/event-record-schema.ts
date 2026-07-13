@@ -16,26 +16,18 @@ export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
   date: v.optional(v.string()),
-  stage: v.number(),
+  stage_count: v.number(),
   api_token: v.string(),
   owner: v.string(),
   is_local: BooleanFromSqlite,
   config: v.optional(EventConfigSchema),
 });
 
-export const EventRecordChangeSchema = v.object({
-  name: v.optional(v.string()),
-  date: v.optional(v.string()),
-  stage: v.optional(v.number()),
-  api_token: v.optional(v.string()),
-  is_local: v.optional(v.boolean()),
-});
-
 export const EventTableRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
   date: v.optional(v.string()),
-  stage: v.optional(v.number()),
+  stage_count: v.optional(v.number()),
   owner: v.string(),
   is_local: BooleanFromSqlite,
 });

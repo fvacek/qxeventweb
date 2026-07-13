@@ -88,7 +88,7 @@ function EventsTable() {
             id: id,
             name: undefined,
             date: undefined,
-            stage: undefined,
+            stage_count: undefined,
             owner: "",
             is_local: true,
         };
@@ -325,10 +325,10 @@ function EventsTable() {
       sortable: true,
     },
     {
-      key: "stage",
-      header: "Stage",
+      key: "stage_count",
+      header: "Stages",
       cell: (rec: EventTableRecord) => {
-        return <span class="text-sm" title={rec.stage?.toString()}>{rec.stage ?? "—"}</span>;
+        return <span class="text-sm" title={rec.stage_count?.toString()}>{rec.stage_count ?? "—"}</span>;
       },
       sortable: true,
     },
@@ -430,8 +430,17 @@ function EventsTable() {
             </TextField>
 
             <TextField>
-              <TextFieldLabel>Stage</TextFieldLabel>
-              <TextFieldInput value={formData()?.stage?.toString() ?? ""} type="text" readOnly />
+              <TextFieldLabel>Stage count</TextFieldLabel>
+              <TextFieldInput
+                value={formData()?.stage_count?.toString() ?? ""}
+                type="number"
+                min="1"
+                step="1"
+                onInput={(e) => {
+                  const stage_count = e.currentTarget.valueAsNumber;
+                  setFormData(prev => prev ? { ...prev, stage_count: Number.isFinite(stage_count) ? stage_count : 0 } : null);
+                }}
+              />
             </TextField>
 
             <DateTimeField
