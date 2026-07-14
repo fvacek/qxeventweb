@@ -9,34 +9,34 @@ interface DateTimeFieldProps {
   class?: string
 }
 
-/** Splits an ISO datetime string into the date part (YYYY-MM-DD) for the date input. */
-function toDatePart(iso: string | undefined): string {
-  if (!iso) return ""
-  // native Date gives us local-time parts — but the stored string already carries
-  // the offset, so we just slice the date portion directly from the string itself.
-  const match = iso.match(/^(\d{4}-\d{2}-\d{2})/)
-  return match ? match[1] : ""
+/** Returns local date and time values suitable for native input elements. */
+function toLocalParts(iso: string | undefined): { date: string; time: string } {
+  if (!iso) return { date: "", time: "" }
+
+  const value = new Date(iso)
+  if (Number.isNaN(value.getTime())) return { date: "", time: "" }
+
+  const date = [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-")
+  const time = [value.getHours(), value.getMinutes()]
+    .map(part => String(part).padStart(2, "0"))
+    .join(":")
+
+  return { date, time }
 }
 
-/** Extracts HH:MM from an ISO datetime string. */
-function toTimePart(iso: string | undefined): string {
-  if (!iso) return ""
-  const match = iso.match(/T(\d{2}:\d{2})/)
-  return match ? match[1] : ""
-}
-
-/** Returns the UTC offset suffix from an ISO string, e.g. "+02:00". Falls back to "Z". */
-function toOffsetPart(iso: string | undefined): string {
-  if (!iso) return "Z"
-  const match = iso.match(/(Z|[+-]\d{2}:\d{2})$/)
-  return match ? match[1] : "Z"
-}
-
-/** Combines date, time and offset parts back into an ISO string. */
-function fromParts(date: string, time: string, offset: string): string | undefined {
+/** Converts a local date and time entered in the field to a UTC ISO instant. */
+function fromParts(date: string, time: string): string | undefined {
   if (!date) return undefined
-  const t = time || "00:00"
-  return `${date}T${t}:00${offset}`
+
+  const [year, month, day] = date.split("-").map(Number)
+  const [hours, minutes] = (time || "00:00").split(":").map(Number)
+  const value = new Date(year, month - 1, day, hours, minutes)
+
+  return Number.isNaN(value.getTime()) ? undefined : value.toISOString()
 }
 
 const inputClass = "flex h-10 rounded-md border border-border bg-input px-3 py-2 text-sm " +
@@ -44,18 +44,18 @@ const inputClass = "flex h-10 rounded-md border border-border bg-input px-3 py-2
   "disabled:cursor-not-allowed disabled:opacity-50"
 
 const DateTimeField: Component<DateTimeFieldProps> = (props) => {
-  const datePart = () => toDatePart(props.value)
-  const timePart = () => toTimePart(props.value)
-  const offsetPart = () => toOffsetPart(props.value)
+  const localParts = () => toLocalParts(props.value)
+  const datePart = () => localParts().date
+  const timePart = () => localParts().time
 
   const handleDateChange = (e: Event) => {
     const newDate = (e.currentTarget as HTMLInputElement).value
-    props.onChange(fromParts(newDate, timePart(), offsetPart()))
+    props.onChange(fromParts(newDate, timePart()))
   }
 
   const handleTimeChange = (e: Event) => {
     const newTime = (e.currentTarget as HTMLInputElement).value
-    props.onChange(fromParts(datePart(), newTime, offsetPart()))
+    props.onChange(fromParts(datePart(), newTime))
   }
 
   return (
