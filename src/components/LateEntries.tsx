@@ -16,7 +16,6 @@ import {
   STATUS_FILTERS,
   StatusIcon,
   applyRecChngToRuns,
-  createLateEntriesQuery,
   createLateEntryDialogController,
   formatStartTime,
   fullName,
@@ -24,6 +23,24 @@ import {
   type LateEntryStatusFilter,
   type Run,
 } from "~/components/Runs";
+
+function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
+  const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = '${userId.replaceAll("'", "''")}'`;
+  return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
+                  competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
+                  qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
+                  qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
+                  qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id,
+                  COALESCE(classes.name, qxclasses.name) AS class_name
+                FROM qxchanges
+                LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
+                LEFT JOIN competitors ON runs.competitorid = competitors.id
+                LEFT JOIN classes ON competitors.classid = classes.id
+                LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
+                WHERE qxchanges.stage_id = ${workingStage}
+                  ${ownerFilter}
+                ORDER BY qxchanges.id DESC`;
+}
 
 function LateEntriesTable(props: {
   stageStart: () => Date | undefined;

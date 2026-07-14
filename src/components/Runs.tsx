@@ -150,16 +150,12 @@ export function parseRunsQueryResult(result: RpcValue): Run[] {
   return transformedRuns;
 }
 
-function runSelectFields(): string {
-  return `runs.id as run_id, runs.siid, runs.starttimems,
-              competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-              qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
-              qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
-              qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
-}
-
 function createRunsQuery(className: string, workingStage: number): string {
-  return `SELECT ${runSelectFields()},
+  return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
+                  competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
+                  qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
+                  qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
+                  qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id,
                   classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
@@ -172,19 +168,7 @@ function createRunsQuery(className: string, workingStage: number): string {
                 ORDER BY runs.starttimems ASC`;
 }
 
-export function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
-  const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
-  return `SELECT ${runSelectFields()},
-                  COALESCE(classes.name, qxclasses.name) AS class_name
-                FROM qxchanges
-                LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
-                LEFT JOIN competitors ON runs.competitorid = competitors.id
-                LEFT JOIN classes ON competitors.classid = classes.id
-                LEFT JOIN classes AS qxclasses ON qxclasses.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'classes' AND qxchanges.data_type = 'LateEntry'
-                WHERE qxchanges.stage_id = ${workingStage}
-                  ${ownerFilter}
-                ORDER BY qxchanges.id DESC`;
-}
+
 
 function parseLateEntryFromRecChng(record: RecChng["record"]): LateEntry | undefined {
   if (!record || typeof record.data !== "string") return undefined;
