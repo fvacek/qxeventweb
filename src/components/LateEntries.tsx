@@ -6,21 +6,17 @@ import { showToast } from "~/components/ui/toast";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { createSqlTable } from "~/lib/SqlTable";
 import { callRpcMethod } from "~/lib/rpc";
 import { RecChng } from "~/schema/rpc-sql-schema";
 import { EventConfig } from "~/routes/OpenedEvent";
-import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
+import LateEntryDialog from "~/components/LateEntryDialog";
 import {
   STATUS_FILTERS,
   RunsTable,
   applyRecChngToRuns,
   createLateEntriesQuery,
-  lateEntryRpcParams,
+  createLateEntryDialogController,
   parseRunsQueryResult,
-  sqlQuotedString,
-  type ClassDef,
-  type LateEntry,
   type LateEntryStatusFilter,
   type Run,
 } from "~/components/Runs";
@@ -38,8 +34,6 @@ const LateEntries = (props: {
 
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
-  const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
-  const [classDef] = createSignal<ClassDef | undefined>(undefined);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
 
   const currentStage = () => props.currentStage;
@@ -54,129 +48,14 @@ const LateEntries = (props: {
     return currentUserIsOrganizer() || run.qxchange_user_id === email || run.qxchange_id === undefined;
   };
 
-  const canEditFormRun = () => canEditRun(formLateEntry());
-  const closeDialog = () => setFormLateEntry(undefined);
-
-  const formClassName = (): string => formLateEntry()?.class_name ?? "";
-  const stageStart = () => {
-    const stage = workingStage();
-    return stage === undefined ? undefined : props.eventConfig().stages[stage - 1]?.stageStart;
-  };
-
-  const possibleStartTimes = () => {
-    const cd = classDef();
-    if (!cd || !cd.interval) return [];
-
-    const startTimes = new Set(
-      runs()
-        .map(run => run.qxchange_data?.LateEntry?.starttimems === undefined ? run.starttimems : run.qxchange_data?.LateEntry?.starttimems)
-        .filter((starttimems): starttimems is number => starttimems !== undefined),
-    );
-    const startSlots = [];
-    for (let i = 0; i < cd.mapCount; i++) {
-      const startTime = (cd.start + i * cd.interval) * 60 * 1000;
-      if (startTimes.has(startTime)) continue;
-      startSlots.push(startTime);
-    }
-    return startSlots;
-  };
-
-  const isFieldFromLateEntry = (field: LateEntryDialogField) =>
-    formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
-
-  const formField = (field: LateEntryDialogField): LateEntryDialogValue => {
-    const run = formLateEntry();
-    const originalValue = field === "paid" ? undefined : run?.[field];
-    return run?.qxchange_data?.LateEntry?.[field] ?? originalValue;
-  };
-
-  const setFormField = (field: LateEntryDialogField, value: LateEntryDialogValue) => {
-    setFormLateEntry(prev => {
-      if (!prev) return undefined;
-
-      const originalValue = field === "paid" ? undefined : prev[field];
-
-      return {
-        ...prev,
-        qxchange_data: {
-          ...prev.qxchange_data,
-          LateEntry: {
-            ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classDef()?.id } }),
-            [field]: value === originalValue ? undefined : value,
-          },
-        },
-      };
-    });
-  };
-
-  const loadRegistration = async () => {
-    const registration = formField("registration")?.toString().trim().toUpperCase();
-    if (!registration) return;
-
-    try {
-      const result = await callRpcMethod(
-        wsClient()!,
-        appConfig.eventSqlApiPath(props.eventId),
-        "query",
-        [`SELECT * FROM registrations WHERE registrations.registration = ${sqlQuotedString(registration)}`],
-      );
-      const table = createSqlTable(result);
-      if (table.rowCount() === 0) {
-        showToast({ title: "Registration not found", description: `No record found for registration ${registration}`, variant: "destructive" });
-        return;
-      }
-      if (table.rowCount() > 1) {
-        showToast({ title: "Registration not found", description: `Multiple records found for registration ${registration}`, variant: "destructive" });
-        return;
-      }
-
-      const regrec = table.recordAt(0);
-      const regFirstname = regrec.firstname?.toString();
-      const regLastname = regrec.lastname?.toString();
-      const regSiid = regrec.siid === undefined || regrec.siid === null ? undefined : Number(regrec.siid);
-
-      setFormLateEntry(prev => {
-        if (!prev) return undefined;
-        return {
-          ...prev,
-          qxchange_data: {
-            ...prev.qxchange_data,
-            LateEntry: {
-              ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: classDef()?.id } }),
-              registration: registration,
-              firstname: regFirstname === undefined ? prev.firstname : regFirstname,
-              lastname: regLastname === undefined ? prev.lastname : regLastname,
-              siid: regSiid === undefined ? prev.siid : regSiid,
-            },
-          },
-        };
-      });
-    } catch (error) {
-      showToast({ title: "Load registration error", description: (error as Error).message, variant: "destructive" });
-    }
-  };
-
-  const saveLateEntry = async (changeId: number | undefined, lateEntry: LateEntry): Promise<boolean> => {
-    try {
-      const params = lateEntryRpcParams(changeId, lateEntry);
-      await callRpcMethod(wsClient()!, appConfig.eventApiPath(props.eventId), "updateLateEntry", params);
-      showToast({ title: "Update late entry success" });
-      return true;
-    } catch (error) {
-      showToast({ title: "Update late entry error", description: (error as Error).message, variant: "destructive" });
-      return false;
-    }
-  };
-
-  const acceptDialog = async () => {
-    const formRun = formLateEntry();
-    const lateEntry = formRun?.qxchange_data?.LateEntry;
-
-    if (lateEntry) {
-      await saveLateEntry(formRun.qxchange_id, lateEntry);
-    }
-    closeDialog();
-  };
+  const lateEntryDialog = createLateEntryDialogController({
+    eventId: () => props.eventId,
+    eventConfig: props.eventConfig,
+    workingStage,
+    classDef: () => undefined,
+    runs,
+    canEditRun,
+  });
 
   const reloadTable = async () => {
     if (status() !== "Connected" || workingStage() === undefined) return;
@@ -233,32 +112,32 @@ const LateEntries = (props: {
         </div>
 
         <RunsTable
-          stageStart={stageStart}
+          stageStart={lateEntryDialog.stageStart}
           runs={tableRuns}
           loading={loading}
           mode="lateEntries"
           canEdit={canEditRun}
           currentUserIsOrganizer={currentUserIsOrganizer}
-          onEditRun={setFormLateEntry}
+          onEditRun={lateEntryDialog.setFormLateEntry}
         />
 
         <LateEntryDialog
-          open={!!formLateEntry()}
-          className={formClassName}
-          stageStart={stageStart}
-          possibleStartTimes={possibleStartTimes}
-          qxchangeId={() => formLateEntry()?.qxchange_id}
-          qxchangeCreated={() => formLateEntry()?.qxchange_created}
-          status={() => formLateEntry()?.qxchange_status}
-          statusMessage={() => formLateEntry()?.qxchange_status_message}
-          fieldValue={formField}
-          isFieldChanged={isFieldFromLateEntry}
-          setFieldValue={setFormField}
-          canEdit={canEditFormRun}
+          open={!!lateEntryDialog.formLateEntry()}
+          className={lateEntryDialog.formClassName}
+          stageStart={lateEntryDialog.stageStart}
+          possibleStartTimes={lateEntryDialog.possibleStartTimes}
+          qxchangeId={() => lateEntryDialog.formLateEntry()?.qxchange_id}
+          qxchangeCreated={() => lateEntryDialog.formLateEntry()?.qxchange_created}
+          status={() => lateEntryDialog.formLateEntry()?.qxchange_status}
+          statusMessage={() => lateEntryDialog.formLateEntry()?.qxchange_status_message}
+          fieldValue={lateEntryDialog.formField}
+          isFieldChanged={lateEntryDialog.isFieldFromLateEntry}
+          setFieldValue={lateEntryDialog.setFormField}
+          canEdit={lateEntryDialog.canEditFormRun}
           canEditPaid={currentUserIsOrganizer}
-          onLoadRegistration={loadRegistration}
-          onClose={closeDialog}
-          onAccept={acceptDialog}
+          onLoadRegistration={lateEntryDialog.loadRegistration}
+          onClose={lateEntryDialog.closeDialog}
+          onAccept={lateEntryDialog.acceptDialog}
         />
       </div>
     </div>
