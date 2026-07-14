@@ -15,7 +15,7 @@ import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig } from "~/routes/OpenedEvent";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
-import { run } from "node:test";
+
 
 const LateEntryIdSchema = object({
   RunId: optional(number()),
@@ -33,12 +33,12 @@ export const LateEntrySchema = object({
   paid: optional(boolean()),
 });
 
-type LateEntry = InferOutput<typeof LateEntrySchema>;
+export type LateEntry = InferOutput<typeof LateEntrySchema>;
 
 const QxChangeDataSchema = object({
   LateEntry: optional(LateEntrySchema),
 });
-type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
+export type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
 const RunSchema = object({
   run_id: optional(number()),
@@ -58,11 +58,11 @@ const RunSchema = object({
   qxchange_data: optional(QxChangeDataSchema),
 });
 
-type Run = InferOutput<typeof RunSchema>;
-type RunsMode = "runs" | "lateEntries";
-type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
+export type Run = InferOutput<typeof RunSchema>;
+export type RunsMode = "runs" | "lateEntries";
+export type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
-const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
+export const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
 
 function StatusIcon(props: { status?: string }) {
   switch (props.status) {
@@ -93,7 +93,7 @@ function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
 }
 
-function sqlQuotedString(value: string): string {
+export function sqlQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
@@ -137,7 +137,7 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   };
 }
 
-function parseRunsQueryResult(result: RpcValue): Run[] {
+export function parseRunsQueryResult(result: RpcValue): Run[] {
   const table = createSqlTable(result);
   const transformedRuns: Run[] = [];
   for (let i = 0; i < table.rowCount(); i++) {
@@ -150,14 +150,16 @@ function parseRunsQueryResult(result: RpcValue): Run[] {
   return transformedRuns;
 }
 
-function createRunsQuery(mode: RunsMode, className: string, workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
-  const fields = `runs.id as run_id, runs.siid, runs.starttimems,
+function runSelectFields(): string {
+  return `runs.id as run_id, runs.siid, runs.starttimems,
               competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
               qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
               qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
               qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id`;
-  if (mode === "runs") {
-    return `SELECT ${fields},
+}
+
+function createRunsQuery(className: string, workingStage: number): string {
+  return `SELECT ${runSelectFields()},
                   classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
@@ -168,9 +170,11 @@ function createRunsQuery(mode: RunsMode, className: string, workingStage: number
                 WHERE runs.stageid = ${workingStage}
                   AND runs.isRunning = true
                 ORDER BY runs.starttimems ASC`;
-  }
+}
+
+export function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
-  return `SELECT ${fields},
+  return `SELECT ${runSelectFields()},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
@@ -204,7 +208,7 @@ function clearQxChange(runs: Run[], changeId: number): Run[] {
 const str = (value: unknown, fallback?: string): string | undefined =>
   typeof value === "string" ? value : fallback;
 
-function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[] {
+export function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[] {
   const { table, id, record, op } = recchng;
   console.log("processRecChng: received change", { table, id, record, op });
 
@@ -317,7 +321,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode): Run[
   return runs;
 }
 
-function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
+export function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
   return makeMap({
     change_id: changeId,
     late_entry: makeMap({
@@ -458,7 +462,7 @@ function createRunColumns(args: {
   ];
 }
 
-function RunsTable(props: {
+export function RunsTable(props: {
   stageStart: () => Date | undefined;
   runs: () => Run[];
   loading: () => boolean;
@@ -571,7 +575,6 @@ const Runs = (props: {
   currentStage: number | undefined,
   workingStage: number | undefined,
   recchngReceived: () => RecChng | null,
-  mode: RunsMode,
   onNewLateEntrySaved?: () => void,
 }) => {
   const { wsClient, status } = useWsClient();
@@ -583,9 +586,6 @@ const Runs = (props: {
   const [runs, setRuns] = createSignal<Run[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>(
-    props.mode === "lateEntries" ? "Pending" : undefined,
-  );
 
   const eventId = () => props.eventId;
   const currentStage = () => props.currentStage;
@@ -757,7 +757,7 @@ const Runs = (props: {
     if (status() !== "Connected") return;
     setLoading(true);
     try {
-      const query = createRunsQuery(props.mode, className(), workingStage() ?? 0, user()?.email ?? "", currentUserIsOrganizer());
+      const query = createRunsQuery(className(), workingStage() ?? 0);
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
       setRuns(parseRunsQueryResult(result));
     } catch (error) {
@@ -767,24 +767,15 @@ const Runs = (props: {
     }
   };
 
-  const tableRuns = () => {
-    const filter = statusFilter();
-    return filter ? runs().filter(run => run.qxchange_status === filter) : runs();
-  };
-
-  const selectStatusFilter = (filter: string) => {
-    setStatusFilter(filter === "All" ? undefined : filter as LateEntryStatusFilter);
-  };
-
   createEffect(() => {
     const recchng = props.recchngReceived();
-    if (recchng) setRuns(prev => applyRecChngToRuns(prev, recchng, props.mode));
+    if (recchng) setRuns(prev => applyRecChngToRuns(prev, recchng, "runs"));
   });
 
   createEffect(() => {
     if (status() !== "Connected") return;
     if (workingStage() === undefined) return;
-    if (props.mode === "runs" && !className()) return;
+    if (!className()) return;
     reloadTable();
   });
 
@@ -795,32 +786,22 @@ const Runs = (props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">{props.mode === "lateEntries" ? "Late Entries" : "Runs"}</h1>
+      <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
       <div class="w-full max-w-7xl space-y-4">
-        <div class={`flex items-center ${props.mode === "runs" ? "justify-between" : "justify-end"}`}>
-          {props.mode === "runs" && <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />}
+        <div class="flex items-center justify-between">
+          <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />
           <div class="flex gap-2 justify-end">
-            {props.mode === "runs" && <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email || !canEditRunRecords()}>New entry</Button>}
-            {props.mode === "lateEntries" && (
-              <FlexDropdown
-                value={statusFilter() ?? "All"}
-                options={["All", ...STATUS_FILTERS]}
-                onSelect={selectStatusFilter}
-                disabled={status() !== "Connected"}
-                variant="outline"
-                size="sm"
-              />
-            )}
-            <Button variant="outline" onClick={reloadTable} disabled={loading() || (props.mode === "runs" && !className()) || status() !== "Connected"}>
+            <Button onClick={openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email || !canEditRunRecords()}>New entry</Button>
+            <Button variant="outline" onClick={reloadTable} disabled={loading() || !className() || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
           </div>
         </div>
         <RunsTable
           stageStart={stageStart}
-          runs={tableRuns}
+          runs={runs}
           loading={loading}
-          mode={props.mode}
+          mode="runs"
           canEdit={canEditRun}
           currentUserIsOrganizer={currentUserIsOrganizer}
           onEditRun={setFormLateEntry}

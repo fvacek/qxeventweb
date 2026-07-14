@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
 import Runs from "../components/Runs";
+import LateEntries from "~/components/LateEntries";
 import { useAuth } from "~/context/AuthContext";
 import ResultsTab from "~/components/ResultsTab";
 
@@ -252,7 +253,6 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
                 currentStage={currentStage()}
                 workingStage={workingStage()}
                 recchngReceived={recchngReceived}
-                mode="runs"
                 onNewLateEntrySaved={() => setActiveTab("late_entries")}
               />
             </TabsContent>
@@ -262,13 +262,12 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
             </TabsContent>
 
             <TabsContent value="late_entries" class="space-y-4">
-              <Runs
+              <LateEntries
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 currentStage={currentStage()}
                 workingStage={workingStage()}
                 recchngReceived={recchngReceived}
-                mode="lateEntries"
               />
             </TabsContent>
           </Tabs>
