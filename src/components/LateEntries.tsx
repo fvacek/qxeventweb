@@ -8,18 +8,19 @@ import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { callRpcMethod } from "~/lib/rpc";
-import { RecChng } from "~/schema/rpc-sql-schema";
+import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { EventConfig } from "~/routes/OpenedEvent";
 import LateEntryDialog from "~/components/LateEntryDialog";
 import {
   ChangedValue,
-  applyRecChngToRuns,
+  LateEntrySchema,
   createLateEntryDialogController,
   formatStartTime,
   fullName,
   parseRunsQueryResult,
   type Run,
 } from "~/components/Runs";
+import { parse } from "valibot";
 
 type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
@@ -47,6 +48,81 @@ function StatusIcon(props: { status?: string }) {
       );
     default:
       return <span class="text-muted-foreground">—</span>;
+  }
+}
+
+const str = (value: unknown, fallback?: string): string | undefined =>
+  typeof value === "string" ? value : fallback;
+
+function parseLateEntryFromRecChng(record: RecChng["record"]) {
+  if (!record || typeof record.data !== "string") return undefined;
+
+  try {
+    return parse(LateEntrySchema, JSON.parse(record.data).LateEntry);
+  } catch (error) {
+    console.warn("Invalid qxchange LateEntry data:", error, record.data);
+    return undefined;
+  }
+}
+
+function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
+  const { table, id, record, op } = recchng;
+
+  if (table === "runs") {
+    if (op === SqlOperation.Update) {
+      return runs.map(r => r.run_id === id ? { ...r, ...record } : r);
+    }
+    if (op === SqlOperation.Delete) {
+      return runs.filter(r => r.run_id !== id);
+    }
+  }
+
+  if (table === "competitors" && op === SqlOperation.Update) {
+    return runs.map(r => r.competitor_id === id ? { ...r, ...record } : r);
+  }
+
+  if (table !== "qxchanges") return runs;
+
+  switch (op) {
+    case SqlOperation.Delete:
+      return runs.filter(r => r.qxchange_id !== id);
+
+    case SqlOperation.Insert: {
+      const lateEntry = parseLateEntryFromRecChng(record);
+      const userId = str(record?.user_id);
+
+      if (!lateEntry || !userId) {
+        console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
+        return runs;
+      }
+      const runId = lateEntry.id.RunId;
+      const updatedRun = {
+        ...runs.find(r => r.run_id === runId),
+        qxchange_id: id,
+        qxchange_user_id: userId,
+        qxchange_status: str(record?.status),
+        qxchange_status_message: str(record?.status_message),
+        qxchange_data: { LateEntry: lateEntry },
+      };
+      return [...runs, updatedRun];
+    }
+
+    case SqlOperation.Update: {
+      const lateEntry = parseLateEntryFromRecChng(record);
+      return runs.map(r =>
+        r.qxchange_id === id
+          ? {
+            ...r,
+            qxchange_status: str(record?.status, r.qxchange_status),
+            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+            qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
+          }
+          : r
+      );
+    }
+
+    default:
+      return runs;
   }
 }
 
@@ -242,7 +318,7 @@ const LateEntries = (props: {
 
   createEffect(() => {
     const recchng = props.recchngReceived();
-    if (recchng) setRuns(prev => applyRecChngToRuns(prev, recchng, "lateEntries"));
+    if (recchng) setRuns(prev => applyRecChngToLateEntries(prev, recchng));
   });
 
   createEffect(() => {
