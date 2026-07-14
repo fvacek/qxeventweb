@@ -64,7 +64,7 @@ export type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
 export const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
 
-function StatusIcon(props: { status?: string }) {
+export function StatusIcon(props: { status?: string }) {
   switch (props.status) {
     case "Rejected":
       return (
@@ -89,7 +89,7 @@ function StatusIcon(props: { status?: string }) {
   }
 }
 
-function fullName(lastname?: string, firstname?: string): string {
+export function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
 }
 
@@ -97,7 +97,7 @@ export function sqlQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-function ChangedValue(props: { original: string; changed?: string }) {
+export function ChangedValue(props: { original: string; changed?: string }) {
   if (props.changed === undefined) return <span>{props.original || "—"}</span>;
 
   return (
@@ -108,7 +108,7 @@ function ChangedValue(props: { original: string; changed?: string }) {
   );
 }
 
-function formatStartTime(msec: number | undefined, start: Date | undefined): string {
+export function formatStartTime(msec: number | undefined, start: Date | undefined): string {
   if (msec === undefined || !start) return "";
   const date = new Date(start.getTime() + msec);
   const hh = date.getHours().toString().padStart(2, "0");
@@ -332,71 +332,11 @@ export function lateEntryRpcParams(changeId: number | undefined, lateEntry: Late
 }
 
 function createRunColumns(args: {
-  mode: RunsMode;
   stageStart: () => Date | undefined;
   canEdit: (run: Run) => boolean;
-  canShowOwner: () => boolean;
   onEditRun: (run: Run) => void;
 }): TableColumn<Run>[] {
-  const isLateEntriesMode = args.mode === "lateEntries";
-
-  const qxChangeIdColumn: TableColumn<Run> = {
-    key: "qxchange_id",
-    header: "ID",
-    sortable: true,
-    width: "64px",
-    hidden: "hidden lg:table-cell",
-  };
-
-  const classNameColumn: TableColumn<Run> = {
-    key: "class_name",
-    header: "Class",
-    sortable: true,
-    // width: "120px",
-  };
-
-  const operationColumn: TableColumn<Run> = {
-    key: "operation",
-    header: "Op",
-    cell: (run: Run) => {
-      const isChange = (run.qxchange_data?.LateEntry?.id?.RunId ?? 0) > 0;
-      const label = isChange ? "Change" : "New";
-      return (
-        <span class="inline-flex w-full justify-center">
-          <span
-            title={label}
-            aria-label={label}
-            class="inline-flex size-6 items-center justify-center rounded-md bg-highlight text-background text-lg font-bold"
-          >
-            {isChange ? "✎" : "+"}
-          </span>
-        </span>
-      );
-    },
-    width: "20px",
-  };
-
-  const qxChangeStatusColumn: TableColumn<Run> = {
-    key: "qxchange_status",
-    header: "St",
-    cell: (run: Run) => (
-      <span class="inline-flex w-full justify-center">
-        <StatusIcon status={run.qxchange_status} />
-      </span>
-    ),
-    sortable: true,
-    width: "56px",
-  };
-
-  const ownerColumn: TableColumn<Run> = {
-    key: "qxchange_user_id",
-    header: "Owner",
-    sortable: true,
-    // width: "100px",
-  };
-
   return [
-    ...(isLateEntriesMode ? [qxChangeIdColumn, operationColumn, qxChangeStatusColumn, classNameColumn] : []),
     {
       key: "starttimems",
       header: "Start Time",
@@ -409,7 +349,6 @@ function createRunColumns(args: {
         />
       ),
       sortable: true,
-      // width: "120px",
     },
     {
       key: "name",
@@ -424,24 +363,20 @@ function createRunColumns(args: {
       },
       sortable: true,
       sortFn: (a: Run, b: Run) => fullName(a.lastname, a.firstname).localeCompare(fullName(b.lastname, b.firstname)),
-      // width: "200px",
     },
     {
       key: "registration",
       header: "Reg",
       cell: (run: Run) => <ChangedValue original={run.registration || ""} changed={run.qxchange_data?.LateEntry?.registration} />,
       sortable: true,
-      // width: "100px",
     },
     {
       key: "siid",
       header: "SI",
       cell: (run: Run) => <ChangedValue original={run.siid?.toString() || ""} changed={run.qxchange_data?.LateEntry?.siid?.toString()} />,
       sortable: false,
-      // width: "100px",
     },
-    ...(isLateEntriesMode && args.canShowOwner() ? [ownerColumn] : []),
-    ...(!isLateEntriesMode ? [{
+    {
       key: "actions",
       header: "Action",
       cell: (run: Run) => {
@@ -458,24 +393,20 @@ function createRunColumns(args: {
       },
       sortable: false,
       width: "80px",
-    }] : []),
+    },
   ];
 }
 
-export function RunsTable(props: {
+function RunsTable(props: {
   stageStart: () => Date | undefined;
   runs: () => Run[];
   loading: () => boolean;
-  mode: RunsMode;
   canEdit: (run: Run) => boolean;
-  currentUserIsOrganizer: () => boolean;
   onEditRun: (run: Run) => void;
 }) {
   const columns = createMemo(() => createRunColumns({
-    mode: props.mode,
     stageStart: props.stageStart,
     canEdit: props.canEdit,
-    canShowOwner: props.currentUserIsOrganizer,
     onEditRun: props.onEditRun,
   }));
 
@@ -489,7 +420,7 @@ export function RunsTable(props: {
         variant="striped"
         sortable={true}
         globalFilter={true}
-        onRowClick={props.mode === "lateEntries" ? props.onEditRun : undefined}
+
       />
     </div>
   );
@@ -841,9 +772,7 @@ const Runs = (props: {
           stageStart={lateEntryDialog.stageStart}
           runs={runs}
           loading={loading}
-          mode="runs"
           canEdit={canEditRun}
-          currentUserIsOrganizer={currentUserIsOrganizer}
           onEditRun={lateEntryDialog.setFormLateEntry}
         />
 
