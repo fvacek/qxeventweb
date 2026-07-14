@@ -13,16 +13,42 @@ import { EventConfig } from "~/routes/OpenedEvent";
 import LateEntryDialog from "~/components/LateEntryDialog";
 import {
   ChangedValue,
-  STATUS_FILTERS,
-  StatusIcon,
   applyRecChngToRuns,
   createLateEntryDialogController,
   formatStartTime,
   fullName,
   parseRunsQueryResult,
-  type LateEntryStatusFilter,
   type Run,
 } from "~/components/Runs";
+
+type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
+
+const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
+
+function StatusIcon(props: { status?: string }) {
+  switch (props.status) {
+    case "Rejected":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold" title="Rejected" aria-label="Rejected">
+          R
+        </span>
+      );
+    case "Accepted":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-green-600 text-white text-sm font-bold" title="Accepted" aria-label="Accepted">
+          A
+        </span>
+      );
+    case "Pending":
+      return (
+        <span class="inline-flex size-6 items-center justify-center rounded-full bg-orange-500 text-white text-sm font-bold" title="Pending" aria-label="Pending">
+          P
+        </span>
+      );
+    default:
+      return <span class="text-muted-foreground">—</span>;
+  }
+}
 
 function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = '${userId.replaceAll("'", "''")}'`;

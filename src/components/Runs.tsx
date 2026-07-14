@@ -33,12 +33,12 @@ export const LateEntrySchema = object({
   paid: optional(boolean()),
 });
 
-export type LateEntry = InferOutput<typeof LateEntrySchema>;
+type LateEntry = InferOutput<typeof LateEntrySchema>;
 
 const QxChangeDataSchema = object({
   LateEntry: optional(LateEntrySchema),
 });
-export type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
+type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
 
 const RunSchema = object({
   run_id: optional(number()),
@@ -59,41 +59,13 @@ const RunSchema = object({
 });
 
 export type Run = InferOutput<typeof RunSchema>;
-export type RunsMode = "runs" | "lateEntries";
-export type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
-
-export const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
-
-export function StatusIcon(props: { status?: string }) {
-  switch (props.status) {
-    case "Rejected":
-      return (
-        <span class="inline-flex size-6 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold" title="Rejected" aria-label="Rejected">
-          R
-        </span>
-      );
-    case "Accepted":
-      return (
-        <span class="inline-flex size-6 items-center justify-center rounded-full bg-green-600 text-white text-sm font-bold" title="Accepted" aria-label="Accepted">
-          A
-        </span>
-      );
-    case "Pending":
-      return (
-        <span class="inline-flex size-6 items-center justify-center rounded-full bg-orange-500 text-white text-sm font-bold" title="Pending" aria-label="Pending">
-          P
-        </span>
-      );
-    default:
-      return <span class="text-muted-foreground">—</span>;
-  }
-}
+type RunsMode = "runs" | "lateEntries";
 
 export function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
 }
 
-export function sqlQuotedString(value: string): string {
+function sqlQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
@@ -305,7 +277,7 @@ export function applyRecChngToRuns(runs: Run[], recchng: RecChng, mode: RunsMode
   return runs;
 }
 
-export function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
+function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
   return makeMap({
     change_id: changeId,
     late_entry: makeMap({
