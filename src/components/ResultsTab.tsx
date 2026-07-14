@@ -4,7 +4,7 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { callRpcMethod } from "~/lib/rpc";
 import { Table, type TableColumn } from "~/components/ui/table";
-import { ClassSelector, type ClassDef } from "~/components/Runs";
+import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import type { EventConfig } from "~/routes/OpenedEvent";
 
 type ResultRow = {
