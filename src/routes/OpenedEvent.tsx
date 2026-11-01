@@ -6,7 +6,8 @@ import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
-import { EventMembers, EventRecord, EventRecordSchema } from "~/schema/event-record-schema";
+import { EventIdParamSchema, EventMembers, EventRecord, EventRecordSchema, OpenEventResultSchema } from "~/schema/event-record-schema";
+import { makeMapRecursive, rpcMapToObject } from "~/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
 import EventInfo from "~/components/EventInfo";
@@ -79,16 +80,15 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
 
     try {
       // open event
-      let event_api_shv_path = await callRpcMethod(`${appConfig.eventCtlApiPath()}`, "openEvent", event_id );
-      console.log("Loading event_mount_point:", event_api_shv_path);
-      if (typeof event_api_shv_path !== 'string') {
-        throw new Error(`Cannot open event: ${event_api_shv_path}`);
-      }
+      const eventIdParam = makeMapRecursive(parse(EventIdParamSchema, { event_id }));
+      const open_event_result = await callRpcMethod(`${appConfig.eventCtlApiPath()}`, "openEvent", eventIdParam);
+      const { mount_point } = parse(OpenEventResultSchema, rpcMapToObject(open_event_result));
+      console.log("Loading event_mount_point:", mount_point);
 
       const eventApiPath = appConfig.eventCtlApiPath();
-      let eventData = await callRpcMethod(eventApiPath, "eventData", event_id);
+      let eventData = await callRpcMethod(eventApiPath, "eventData", eventIdParam);
 
-      let eventRecord = parse(EventRecordSchema, eventData);
+      let eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
 
       // Then get detailed config and stages
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [

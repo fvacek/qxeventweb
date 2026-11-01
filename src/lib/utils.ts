@@ -62,7 +62,9 @@ export function rpcMapToObject(value: unknown): Record<string, unknown> {
   const map = value as Record<string, unknown>;
   const ret: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(map)) {
-    if (item && typeof item === "object" && !Array.isArray(item)) {
+    if (item instanceof Date) {
+      ret[key] = item;
+    } else if (item && typeof item === "object" && !Array.isArray(item)) {
       ret[key] = rpcMapToObject(item);
     } else if (Array.isArray(item)) {
       ret[key] = item.map(entry =>

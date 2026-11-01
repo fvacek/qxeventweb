@@ -33,11 +33,17 @@ import {
 } from "~/lib/utils";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
-import { SwitchField } from "~/components/ui/switch";
 import { DateTimeField } from "~/components/ui/date-time-field";
 import {
+  ApiTokenParamSchema,
+  CreateEventParamSchema,
+  CreateEventResultSchema,
+  EventIdParamSchema,
   EventRecordSchema,
   EventRecordTableSchema,
+  SetEventDbModeParamSchema,
+  UpdateEventRecordParamSchema,
+  type EventDbMode,
   type EventRecord,
   type EventTableRecord,
 } from "~/schema/event-record-schema";
@@ -90,7 +96,7 @@ function EventsTable() {
             date: undefined,
             stage_count: undefined,
             owner: "",
-            use_local_db: true,
+            db_mode: "Replica",
         };
         const updatedEvent = { ...originalEvent, ...record };
         setTableRecords(prev => [...prev, updatedEvent]);
@@ -129,19 +135,15 @@ function EventsTable() {
         wsClient(),
         `${appConfig.eventCtlApiPath()}`,
         "createEvent",
-        currentUser?.email || "",
+        makeMapRecursive(parse(CreateEventParamSchema, { owner: currentUser?.email || "" })),
       );
-      if (Array.isArray(result)) {
-        if (typeof result[0] === 'number') {
-          const eventId = result[0];
-          showToast({
-            title: `Create event ${eventId} success`,
-          });
-          // Reload table to show new record
-          // await reloadTable(); recchng will do this
-          openEditRecordDialog(eventId, true);
-        }
-      }
+      const { event_id: eventId } = parse(CreateEventResultSchema, rpcMapToObject(result));
+      showToast({
+        title: `Create event ${eventId} success`,
+      });
+      // Reload table to show new record
+      // await reloadTable(); recchng will do this
+      openEditRecordDialog(eventId, true);
     } catch (error) {
       showToast({
         title: "Create event error",
@@ -221,7 +223,12 @@ function EventsTable() {
   });
 
   const getEventRecord = async (id: number) : Promise<EventRecord> => {
-    const eventData = await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "readEventRecord", id);
+    const eventData = await callRpcMethod(
+      wsClient()!,
+      appConfig.eventCtlApiPath(),
+      "readEventRecord",
+      makeMapRecursive(parse(EventIdParamSchema, { event_id: id })),
+    );
     return parse(EventRecordSchema, rpcMapToObject(eventData));
   };
 
@@ -260,10 +267,20 @@ function EventsTable() {
     const original = tableRecords().find(r => r.id === record.id);
     if (!original) return;
     try {
-      const recChanges = copyValidFieldsToRpcMap(original, record);
+      // db_mode cannot be changed by updateEventRecord, it has its own RPC method
+      const { db_mode, ...fields } = record;
+      const recChanges = copyValidFieldsToRpcMap(original, fields);
+      const isDbModeChanged = db_mode !== original.db_mode;
       if (!isRecordEmpty(recChanges)) {
-        const params = [record.id, makeMapRecursive(recChanges)];
+        const { event_id, change } = parse(UpdateEventRecordParamSchema, { event_id: record.id, change: recChanges });
+        const params = makeMapRecursive({ event_id, change: makeMapRecursive(change) });
         await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "updateEventRecord", params);
+      }
+      if (isDbModeChanged) {
+        const params = makeMapRecursive(parse(SetEventDbModeParamSchema, { event_id: record.id, db_mode }));
+        await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "setEventDbMode", params);
+      }
+      if (!isRecordEmpty(recChanges) || isDbModeChanged) {
         showToast({ title: "Update event success" });
       }
     } catch (error) {
@@ -277,7 +294,7 @@ function EventsTable() {
         wsClient(),
         appConfig.eventCtlApiPath(),
         "deleteEvent",
-        api_token,
+        makeMapRecursive(parse(ApiTokenParamSchema, { api_token })),
       );
       if (res) {
         showToast({
@@ -350,10 +367,10 @@ function EventsTable() {
       hidden: "hidden sm:table-cell",
     },
     {
-      key: "use_local_db",
+      key: "db_mode",
       header: "Db",
       cell: (rec: EventTableRecord) => {
-        return <span class="text-sm">{rec.use_local_db ? "cloud" : "QE"}</span>;
+        return <span class="text-sm">{rec.db_mode}</span>;
       },
       sortable: true,
       hidden: "hidden sm:table-cell",
@@ -471,11 +488,23 @@ function EventsTable() {
                 onInput={(e) => setFormData(prev => prev ? { ...prev, owner: e.currentTarget.value } : null)}
               />
             </TextField>
-            <SwitchField
-              label="Use Local Event DB"
-              checked={Boolean(formData()?.use_local_db)}
-              onChange={(checked) => setFormData(prev => prev ? { ...prev, use_local_db: checked } : null)}
-            />
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium leading-none">Event DB mode</label>
+              <select
+                value={formData()?.db_mode}
+                onChange={(e) => {
+                  const db_mode = e.currentTarget.value as EventDbMode;
+                  setFormData(prev => prev ? { ...prev, db_mode } : null);
+                }}
+                aria-label="Event DB mode"
+                class="min-w-0 rounded-md border border-border bg-input px-3 py-2 text-sm"
+              >
+                <option value="Archived">Archived</option>
+                <option value="ReadOnly">ReadOnly</option>
+                <option value="Master">Master</option>
+                <option value="Replica">Replica</option>
+              </select>
+            </div>
 
             <div class="space-y-3 rounded-md border border-border p-3 md:col-span-2">
               <div class="flex items-start justify-between gap-3">
