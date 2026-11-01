@@ -90,7 +90,7 @@ function EventsTable() {
             date: undefined,
             stage_count: undefined,
             owner: "",
-            is_local: true,
+            use_local_db: true,
         };
         const updatedEvent = { ...originalEvent, ...record };
         setTableRecords(prev => [...prev, updatedEvent]);
@@ -350,10 +350,10 @@ function EventsTable() {
       hidden: "hidden sm:table-cell",
     },
     {
-      key: "is_local",
-      header: "Local",
+      key: "use_local_db",
+      header: "Db",
       cell: (rec: EventTableRecord) => {
-        return <span class="text-sm">{rec.is_local ? "local" : "remote"}</span>;
+        return <span class="text-sm">{rec.use_local_db ? "cloud" : "QE"}</span>;
       },
       sortable: true,
       hidden: "hidden sm:table-cell",
@@ -472,9 +472,9 @@ function EventsTable() {
               />
             </TextField>
             <SwitchField
-              label="Local Event DB"
-              checked={Boolean(formData()?.is_local)}
-              onChange={(checked) => setFormData(prev => prev ? { ...prev, is_local: checked } : null)}
+              label="Use Local Event DB"
+              checked={Boolean(formData()?.use_local_db)}
+              onChange={(checked) => setFormData(prev => prev ? { ...prev, use_local_db: checked } : null)}
             />
 
             <div class="space-y-3 rounded-md border border-border p-3 md:col-span-2">

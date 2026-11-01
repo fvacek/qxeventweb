@@ -94,10 +94,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
         "SELECT * FROM config",
       ]);
-      const stages_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
-        "SELECT startdateTime FROM stages ORDER BY id",
-      ]);
-      const eventConfig = parseEventConfig(event_config_result, stages_result, eventRecord);
+      const eventConfig = parseEventConfig(event_config_result, eventRecord);
       // await syncEventConfig(eventConfig, eventRecord);
       setEventConfig(eventConfig);
       setCurrentStage(eventConfig.currentStage);
@@ -110,7 +107,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     }
   };
 
-  function parseEventConfig(event_config: RpcValue, stagesResult: RpcValue, eventRecord: EventRecord): EventConfig {
+  function parseEventConfig(event_config: RpcValue, eventRecord: EventRecord): EventConfig {
     const data = createSqlTable(event_config);
 
     // Helper to find a config value by key
@@ -140,20 +137,12 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
     const currentStage = Math.min(stageCount, Math.max(1, parseInt(currentStageStr, 10) || 1));
 
-    const stages_table = createSqlTable(stagesResult);
-
     let stages: StageConfig[] = [];
     for (let i = 0; i < stageCount; i++) {
-      if (i < stages_table.rowCount()) {
-        const s = stages_table.get(i, "startdatetime");
-        stages.push({
-          stageStart: parseDate(s?.toString() || ""),
-        });
-      } else {
-        stages.push({
-          stageStart: new Date(),
-        });
-      }
+      const stageStart = getValue(`stage${i + 1}.startdatetime`);
+      stages.push({
+        stageStart: parseDate(stageStart?.toString() || ""),
+      });
     }
 
     return {
