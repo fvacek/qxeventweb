@@ -55,8 +55,10 @@ function normalizeMemberRole(role: string): MemberRole {
   return role === "Banned" ? "Banned" : "Organizer";
 }
 
-function formatDateWithoutMilliseconds(date?: string): string {
-  return date?.replace(/\.\d+(?=Z|[+-]\d{2}:?\d{2}|$)/, "") ?? "";
+function formatLocalDateTime(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function EventsTable() {
@@ -353,7 +355,7 @@ function EventsTable() {
       key: "date",
       header: "Date",
       cell: (rec: EventTableRecord) => {
-        return <span class="text-sm" title={rec.date}>{formatDateWithoutMilliseconds(rec.date)}</span>;
+        return <span class="text-sm" title={rec.date}>{formatLocalDateTime(rec.date)}</span>;
       },
       sortable: true,
     },
