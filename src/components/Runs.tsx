@@ -162,8 +162,13 @@ function clearQxChange(runs: Run[], changeId: number): Run[] {
 const str = (value: unknown, fallback?: string): string | undefined =>
   typeof value === "string" ? value : fallback;
 
+function lowercaseKeys<T>(record: Record<string, T> | undefined): Record<string, T> | undefined {
+  return record && Object.fromEntries(Object.entries(record).map(([k, v]) => [k.toLowerCase(), v]));
+}
+
 function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
-  const { table, id, record, op } = recchng;
+  const { table, id, op } = recchng;
+  const record = lowercaseKeys(recchng.record);
   console.log("processRecChng: received change", { table, id, record, op });
 
   if (table === "runs") {

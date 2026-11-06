@@ -27,10 +27,12 @@ export class SqlTable {
   private fieldIndexMap: Map<string, number>;
 
   constructor(data: TableJson) {
-    this.fields = data.fields;
+    // Field names are lowercased, so callers don't depend on DB column name casing
+    // (e.g. QuickEvent's `firstName`, `startTimeMs`).
+    this.fields = data.fields.map(field => ({ ...field, name: field.name.toLowerCase() }));
     this.rows = data.rows;
     this.fieldIndexMap = new Map(
-      this.fields.map((field, index) => [field.name.toLowerCase(), index]),
+      this.fields.map((field, index) => [field.name, index]),
     );
   }
 
