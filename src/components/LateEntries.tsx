@@ -95,7 +95,7 @@ function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
         console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
         return runs;
       }
-      const runId = lateEntry.id.Update?.run_id;
+      const runId = lateEntry.id.Update?.runId;
       const updatedRun = {
         ...runs.find(r => r.run_id === runId),
         qxchange_id: id,
@@ -163,7 +163,7 @@ function LateEntriesTable(props: {
       key: "operation",
       header: "Op",
       cell: (run: Run) => {
-        const isChange = (run.qxchange_data?.LateEntry?.id?.Update?.run_id ?? 0) > 0;
+        const isChange = (run.qxchange_data?.LateEntry?.id?.Update?.runId ?? 0) > 0;
         const label = isChange ? "Change" : "New";
         return (
           <span class="inline-flex w-full justify-center">

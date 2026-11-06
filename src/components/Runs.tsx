@@ -18,8 +18,8 @@ import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue }
 
 
 // Mirrors qxeventd `LateEntryKind` (serde externally tagged enum):
-// `{ Update: { run_id } }` for a change of an existing run,
-// `{ NewEntry: { class_id } }` for a new competitor in a class.
+// `{ Update: { runId } }` for a change of an existing run,
+// `{ NewEntry: { classId } }` for a new competitor in a class.
 const LateEntryKindSchema = object({
   Update: optional(object({ runId: number() })),
   NewEntry: optional(object({ classId: number() })),
@@ -106,7 +106,7 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   if (!lateEntry) return record;
 
   // Two wire shapes exist: a legacy one carrying `{ run_id, record: {...} }`,
-  // and the current one that already matches LateEntrySchema (`{ id: { Update: { run_id } }, ... }`).
+  // and the current one that already matches LateEntrySchema (`{ id: { Update: { runId } }, ... }`).
   const normalizedLateEntry = lateEntry.record
     ? { id: lateEntryKind(lateEntry.run_id, undefined), ...lateEntry.record }
     : lateEntry;
@@ -245,8 +245,9 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
   }
 }
 
-function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) {
+function lateEntryRpcParams(stageId: number, changeId: number | undefined, lateEntry: LateEntry) {
   return makeMap({
+    stage_id: stageId,
     change_id: changeId,
     late_entry: makeMap({
       ...lateEntry,
@@ -505,8 +506,13 @@ export function createLateEntryDialogController(args: {
   };
 
   const saveLateEntry = async (changeId: number | undefined, lateEntry: LateEntry): Promise<boolean> => {
+    const stageId = args.workingStage();
+    if (stageId === undefined) {
+      showToast({ title: args.updateErrorTitle ?? "Update late entry error", description: "Working stage is not set", variant: "destructive" });
+      return false;
+    }
     try {
-      const params = lateEntryRpcParams(changeId, lateEntry);
+      const params = lateEntryRpcParams(stageId, changeId, lateEntry);
       await callRpcMethod(wsClient()!, appConfig.eventApiPath(args.eventId()), "updateLateEntry", params);
       showToast({ title: "Update late entry success" });
       return true;
