@@ -139,7 +139,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
 
     let stages: StageConfig[] = [];
     for (let i = 0; i < stageCount; i++) {
-      const stageStart = getValue(`stage${i + 1}.startdatetime`);
+      const stageStart = getValue(`stage.${i + 1}.startDateTime`);
       stages.push({
         stageStart: parseDate(stageStart?.toString() || ""),
       });
