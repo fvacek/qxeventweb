@@ -225,7 +225,10 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
     }
 
     case SqlOperation.Update: {
-      if (record?.status !== "Pending") {
+      // Update signals are partial: a data-only change carries no `status`.
+      // Only a status that left Pending means the change is resolved.
+      const status = str(record?.status);
+      if (status !== undefined && status !== "Pending") {
         return clearQxChange(runs, id);
       }
       const lateEntry = parseLateEntryFromRecChng(record);
