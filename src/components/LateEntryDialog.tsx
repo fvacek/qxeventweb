@@ -150,9 +150,9 @@ function LateEntryDialog(props: {
               onChange={(e) => props.setFieldValue("starttimems", e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
               disabled={!isEditable()}
             >
-              <option value="">—</option>
+              <option value="" selected={props.fieldValue("starttimems") === undefined}>—</option>
               {props.possibleStartTimes().map((starttimems) => (
-                <option value={starttimems.toString()}>
+                <option value={starttimems.toString()} selected={props.fieldValue("starttimems") === starttimems}>
                   {formatStartTimeInput(starttimems, props.stageStart())}
                 </option>
               ))}

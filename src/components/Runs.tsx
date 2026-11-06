@@ -396,8 +396,11 @@ export function createLateEntryDialogController(args: {
     const cd = args.classDef();
     if (!cd || !cd.interval) return [];
 
+    const formRun = formLateEntry();
+    const isFormRun = (run: Run) => !!formRun?.run_id && run.run_id === formRun.run_id;
     const startTimes = new Set(
       args.runs()
+        .filter(run => !isFormRun(run))
         .map(run => run.qxchange_data?.LateEntry?.starttimems === undefined ? run.starttimems : run.qxchange_data?.LateEntry?.starttimems)
         .filter((starttimems): starttimems is number => starttimems !== undefined),
     );
@@ -407,7 +410,11 @@ export function createLateEntryDialogController(args: {
       if (startTimes.has(startTime)) continue;
       startSlots.push(startTime);
     }
-    return startSlots;
+    // Always offer the entry's own original and edited start times, even if off-grid.
+    for (const own of [formRun?.starttimems, formRun?.qxchange_data?.LateEntry?.starttimems]) {
+      if (own !== undefined && !startSlots.includes(own)) startSlots.push(own);
+    }
+    return startSlots.sort((a, b) => a - b);
   };
 
   const isFieldFromLateEntry = (field: LateEntryDialogField) =>
