@@ -1,4 +1,4 @@
-import { For, createSignal, createEffect, createMemo } from "solid-js";
+import { For, createSignal, createEffect, createMemo, onCleanup } from "solid-js";
 import { createStore } from "solid-js/store";
 import { RpcValue, makeMap, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
@@ -179,11 +179,18 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       const client = wsClient()!;
       // Subscribe to event SQL path (used by LateEntries)
       console.log("Subscribing SQL recchng", appConfig.eventSqlApiPath(eid));
-      client.subscribe("qxeventweb", ShvRI.fromPathMethodSignal(appConfig.eventSqlApiPath(eid), "", "recchng"), (path: string, signal: string, param?: RpcValue) => {
-        // console.log("SUBSCRIBED ======>", path, signal, param);
-        const recchng: RecChng = parse(RecChngSchema, param);
-        setRecchngReceived(recchng);
+      const ri = ShvRI.fromPathMethodSignal(appConfig.eventSqlApiPath(eid), "", "recchng");
+      client.subscribe("qxeventweb", ri, (path: string, signal: string, param?: RpcValue) => {
+        try {
+          setRecchngReceived(parse(RecChngSchema, param));
+        } catch (error) {
+          console.error("Error parsing event recchng:", error, param);
+        }
       });
+      // libshv-js ignores a repeated subscribe for the same subscriber/path/signal and keeps
+      // the first callback, so a remounted OpenedEvent would never get signals unless the
+      // previous instance unsubscribes.
+      onCleanup(() => { void client.unsubscribe("qxeventweb", ri); });
     }
   });
 
