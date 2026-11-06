@@ -1,5 +1,5 @@
 import { makeMap, type RpcValue } from "libshv-js";
-import { createSignal, createEffect, createMemo } from "solid-js";
+import { createSignal, createEffect, createMemo, Show } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Table, TableColumn } from "~/components/ui/table";
@@ -249,8 +249,9 @@ function createRunColumns(args: {
   stageStart: () => Date | undefined;
   canEdit: (run: Run) => boolean;
   onEditRun: (run: Run) => void;
+  showActions: boolean;
 }): TableColumn<Run>[] {
-  return [
+  const columns: TableColumn<Run>[] = [
     {
       key: "starttimems",
       header: "Start Time",
@@ -290,6 +291,9 @@ function createRunColumns(args: {
       cell: (run: Run) => <ChangedValue original={run.siid?.toString() || ""} changed={run.qxchange_data?.LateEntry?.siid?.toString()} />,
       sortable: false,
     },
+  ];
+  if (!args.showActions) return columns;
+  columns.push(
     {
       key: "actions",
       header: "Action",
@@ -308,7 +312,8 @@ function createRunColumns(args: {
       sortable: false,
       width: "80px",
     },
-  ];
+  );
+  return columns;
 }
 
 function RunsTable(props: {
@@ -317,11 +322,13 @@ function RunsTable(props: {
   loading: () => boolean;
   canEdit: (run: Run) => boolean;
   onEditRun: (run: Run) => void;
+  showActions: () => boolean;
 }) {
   const columns = createMemo(() => createRunColumns({
     stageStart: props.stageStart,
     canEdit: props.canEdit,
     onEditRun: props.onEditRun,
+    showActions: props.showActions(),
   }));
 
   return (
@@ -602,7 +609,9 @@ const Runs = (props: {
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />
           <div class="flex gap-2 justify-end">
-            <Button onClick={lateEntryDialog.openNewEntryDialog} disabled={!className() || status() !== "Connected" || !user()?.email || !canEditRunRecords()}>New entry</Button>
+            <Show when={user()?.email}>
+              <Button onClick={lateEntryDialog.openNewEntryDialog} disabled={!className() || status() !== "Connected" || !canEditRunRecords()}>New entry</Button>
+            </Show>
             <Button variant="outline" onClick={reloadTable} disabled={loading() || !className() || status() !== "Connected"}>
               {loading() ? "Loading..." : "Refresh"}
             </Button>
@@ -614,6 +623,7 @@ const Runs = (props: {
           loading={loading}
           canEdit={canEditRun}
           onEditRun={lateEntryDialog.setFormLateEntry}
+          showActions={() => !!user()?.email}
         />
 
         <LateEntryDialog
