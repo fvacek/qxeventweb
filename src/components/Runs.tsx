@@ -17,13 +17,23 @@ import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
 
 
-const LateEntryIdSchema = object({
-  RunId: optional(number()),
-  ClassId: optional(number()),
+// Mirrors qxeventd `LateEntryKind` (serde externally tagged enum):
+// `{ Update: { run_id } }` for a change of an existing run,
+// `{ NewEntry: { class_id } }` for a new competitor in a class.
+const LateEntryKindSchema = object({
+  Update: optional(object({ runId: number() })),
+  NewEntry: optional(object({ classId: number() })),
 });
+type LateEntryKind = InferOutput<typeof LateEntryKindSchema>;
+
+export function lateEntryKind(runId: number | undefined, classId: number | undefined): LateEntryKind {
+  if (runId) return { Update: { runId } };
+  if (classId !== undefined) return { NewEntry: { classId } };
+  return {};
+}
 
 export const LateEntrySchema = object({
-  id: LateEntryIdSchema,
+  id: LateEntryKindSchema,
   firstname: optional(string()),
   lastname: optional(string()),
   registration: optional(string()),
@@ -96,9 +106,9 @@ function normalizeRunRecord(record: Record<string, unknown>): Record<string, unk
   if (!lateEntry) return record;
 
   // Two wire shapes exist: a legacy one carrying `{ run_id, record: {...} }`,
-  // and the current one that already matches LateEntrySchema (`{ id: { RunId }, ... }`).
+  // and the current one that already matches LateEntrySchema (`{ id: { Update: { run_id } }, ... }`).
   const normalizedLateEntry = lateEntry.record
-    ? { id: { RunId: lateEntry.run_id }, ...lateEntry.record }
+    ? { id: lateEntryKind(lateEntry.run_id, undefined), ...lateEntry.record }
     : lateEntry;
 
   return {
@@ -193,7 +203,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
     case SqlOperation.Insert: {
       const lateEntry = parseLateEntryFromRecChng(record);
       const userId = str(record?.user_id);
-      const runId = lateEntry?.id.RunId;
+      const runId = lateEntry?.id.Update?.runId;
 
       if (!userId || !lateEntry || !runId) {
         console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
@@ -240,7 +250,9 @@ function lateEntryRpcParams(changeId: number | undefined, lateEntry: LateEntry) 
     change_id: changeId,
     late_entry: makeMap({
       ...lateEntry,
-      id: makeMap(lateEntry.id),
+      id: makeMap(Object.fromEntries(
+        Object.entries(lateEntry.id).map(([variant, fields]) => [variant, makeMap(fields)]),
+      )),
     }),
   });
 }
@@ -437,7 +449,7 @@ export function createLateEntryDialogController(args: {
         qxchange_data: {
           ...prev.qxchange_data,
           LateEntry: {
-            ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: args.classDef()?.id } }),
+            ...(prev.qxchange_data?.LateEntry ?? { id: lateEntryKind(prev.run_id, args.classDef()?.id) }),
             [field]: value === originalValue ? undefined : value,
           },
         },
@@ -478,7 +490,7 @@ export function createLateEntryDialogController(args: {
           qxchange_data: {
             ...prev.qxchange_data,
             LateEntry: {
-              ...(prev.qxchange_data?.LateEntry ?? { id: prev.run_id ? { RunId: prev.run_id } : { ClassId: args.classDef()?.id } }),
+              ...(prev.qxchange_data?.LateEntry ?? { id: lateEntryKind(prev.run_id, args.classDef()?.id) }),
               registration: registration,
               firstname: regFirstname === undefined ? prev.firstname : regFirstname,
               lastname: regLastname === undefined ? prev.lastname : regLastname,
