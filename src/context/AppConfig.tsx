@@ -14,9 +14,24 @@ export type AppConfig = {
   // eventCtlEventSqlApiPath: (event_id: number) => string,
 };
 
+// When the broker URL points to localhost but the page is opened from another
+// host (e.g. a mobile device on the LAN), localhost would resolve to the client
+// device itself. Use the page's hostname instead.
+function resolveBrokerUrl(url: string): string {
+  if (typeof window === "undefined") return url;
+  const parsed = URL.parse(url);
+  const pageHost = window.location.hostname;
+  const isLocal = (h: string) => h === "localhost" || h === "127.0.0.1" || h === "[::1]";
+  if (parsed && isLocal(parsed.hostname) && !isLocal(pageHost)) {
+    parsed.hostname = pageHost;
+    return parsed.toString();
+  }
+  return url;
+}
+
 // Non-reactive config object
 export const config: AppConfig = {
-    brokerUrl: import.meta.env.VITE_QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test",
+    brokerUrl: resolveBrokerUrl(import.meta.env.VITE_QXEVENT_BROKER_URL || "ws://localhost:3777?user=test&password=test"),
     qxeventdPath: import.meta.env.VITE_QXEVENTD_PATH || "test/qx/qxeventd",
     // eventsPath: import.meta.env.VITE_QXEVENT_DB_PATH || "test/qx/eventdb",
     theme: "dark",
