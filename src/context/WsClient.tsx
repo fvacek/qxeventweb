@@ -14,6 +14,7 @@ import { RpcValue, WsClient } from "libshv-js";
 import { useAppConfig } from "./AppConfig";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
+import { showToast } from "~/components/ui/toast";
 
 type WsClientStatus =
   | "Connecting"
@@ -39,11 +40,27 @@ export function WsClientProvider(props: { children: JSX.Element }) {
 
   let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   let autoReconnectTimer: ReturnType<typeof setInterval> | null = null;
+  // Auto-reconnect only runs (and failure toasts are suppressed) once we have connected at least once
   let hasConnectedSuccessfully = false;
-  let currentClientId = 0; // Track which client is current to ignore old callbacks
 
   const appConfig = useAppConfig();
   let currentBrokerUrl = appConfig.brokerUrl;
+
+  const clearConnectionTimeout = () => {
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+      connectionTimeout = null;
+    }
+  };
+
+  const reportFailure = (newStatus: "Error" | "AuthError", message: string) => {
+    console.log(`Connection failed: ${message}`);
+    setStatus(newStatus);
+    // Don't spam a toast on every auto-reconnect attempt
+    if (!hasConnectedSuccessfully) {
+      showToast({ title: "Connection failed", description: message, variant: "destructive" });
+    }
+  };
 
   const stopAutoReconnect = () => {
     if (autoReconnectTimer) {
@@ -87,20 +104,10 @@ export function WsClientProvider(props: { children: JSX.Element }) {
       console.log("Starting connection attempt to:", currentBrokerUrl);
     }
 
-    // Clear any existing timeout
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-    }
-
-    // Increment client ID to invalidate callbacks from old connection
-    currentClientId++;
-    const thisClientId = currentClientId;
+    clearConnectionTimeout();
 
     // Close existing connection if it exists
-    const existingSocket = wsClient();
-    if (existingSocket) {
-      existingSocket.close();
-    }
+    wsClient()?.close();
 
     // Batch the state updates to prevent race conditions
     batch(() => {
@@ -111,10 +118,7 @@ export function WsClientProvider(props: { children: JSX.Element }) {
     // Set timeout to prevent infinite connecting state
     connectionTimeout = setTimeout(() => {
       if (status() === "Connecting") {
-        setStatus("Error");
-        console.error(
-          "Connection timeout: Failed to connect within 10 seconds",
-        );
+        reportFailure("Error", "Failed to connect within 10 seconds");
       }
     }, 10000);
 
@@ -124,8 +128,11 @@ export function WsClientProvider(props: { children: JSX.Element }) {
         throw new Error("Invalid broker URL");
       }
 
+      // Callbacks from a replaced (old) client must be ignored
+      const isCurrent = () => wsClient() === ws;
+
       const token = broker_url.searchParams.get("token") || ""
-      const ws = new WsClient({
+      const ws: WsClient = new WsClient({
         logDebug: appConfig.debug ? console.debug : () => {},
         wsUri: currentBrokerUrl.toString(),
         login: token ? {
@@ -137,61 +144,35 @@ export function WsClientProvider(props: { children: JSX.Element }) {
           password: broker_url.searchParams.get("password") || "",
         },
         onConnected: () => {
-          // Ignore callbacks from old connections
-          if (thisClientId !== currentClientId) {
-            if (appConfig.debug) {
-              console.log("Ignoring onConnected from old connection");
-            }
-            return;
-          }
-          if (connectionTimeout) {
-            clearTimeout(connectionTimeout);
-            connectionTimeout = null;
-          }
+          if (!isCurrent()) return;
+          clearConnectionTimeout();
           console.log("WS CONNECTED");
           hasConnectedSuccessfully = true;
           stopAutoReconnect();
           setStatus("Connected");
         },
         onDisconnected: () => {
-          // Ignore callbacks from old connections
-          if (thisClientId !== currentClientId) {
-            if (appConfig.debug) {
-              console.log("Ignoring onDisconnected from old connection");
-            }
-            return;
+          if (!isCurrent()) return;
+          clearConnectionTimeout();
+          const st = status();
+          if (st === "Connected") {
+            setStatus("Disconnected");
+            startAutoReconnect();
+          } else if (st === "Connecting") {
+            // The socket closed before login succeeded, e.g. the server is unreachable.
+            // libshv-js reports this only as a close, not via onConnectionFailure.
+            reportFailure("Error", `Cannot connect to broker ${broker_url.host}`);
           }
-          if (connectionTimeout) {
-            clearTimeout(connectionTimeout);
-            connectionTimeout = null;
-          }
-          setStatus("Disconnected");
-          startAutoReconnect();
+          // "Error" / "AuthError": already reported by onConnectionFailure or the timeout
         },
         onConnectionFailure: (error: Error) => {
-          // Ignore callbacks from old connections
-          if (thisClientId !== currentClientId) {
-            if (appConfig.debug) {
-              console.log("Ignoring onConnectionFailure from old connection");
-            }
-            return;
-          }
-          if (connectionTimeout) {
-            clearTimeout(connectionTimeout);
-            connectionTimeout = null;
-          }
-          console.log(`Connection failed: ${error.message}`);
+          if (!isCurrent()) return;
+          clearConnectionTimeout();
           stopAutoReconnect();
           // Check if it's likely an authentication error
-          if (
-            error.message.toLowerCase().includes("auth") ||
-            error.message.toLowerCase().includes("login") ||
-            error.message.toLowerCase().includes("credential")
-          ) {
-            setStatus("AuthError");
-          } else {
-            setStatus("Error");
-          }
+          const msg = error.message.toLowerCase();
+          const isAuthError = msg.includes("auth") || msg.includes("login") || msg.includes("credential");
+          reportFailure(isAuthError ? "AuthError" : "Error", error.message);
         },
         onRequest: (shvPath: string) => {
           if (appConfig.debug) {
@@ -203,12 +184,8 @@ export function WsClientProvider(props: { children: JSX.Element }) {
 
       setWsClient(ws);
     } catch (error) {
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
-      console.error("Failed to create WsClient:", error);
-      setStatus("Error");
+      clearConnectionTimeout();
+      reportFailure("Error", (error as Error).message);
       startAutoReconnect();
     }
   };
