@@ -13,8 +13,8 @@ import {
 } from "~/components/ui/text-field";
 import { SwitchField } from "~/components/ui/switch";
 
-export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems" | "paid";
-export type LateEntryDialogValue = string | number | boolean | undefined;
+export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems";
+export type LateEntryDialogValue = string | number | undefined;
 export type LateEntryDialogDateValue = Date | string | number | undefined;
 
 function formatDateTime(value: LateEntryDialogDateValue): string {
@@ -45,13 +45,12 @@ function LateEntryDialog(props: {
   isFieldChanged: (field: LateEntryDialogField) => boolean;
   setFieldValue: (field: LateEntryDialogField, value: LateEntryDialogValue) => void;
   canEdit: () => boolean;
-  canEditPaid: () => boolean;
+  paid: () => boolean | undefined;
   onLoadRegistration: () => void;
   onClose: () => void;
   onAccept: () => void;
 }) {
   const isEditable = () => props.canEdit();
-  const canSave = () => isEditable() || props.canEditPaid();
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose(); }}>
@@ -167,14 +166,13 @@ function LateEntryDialog(props: {
         <DialogFooter class="items-center justify-between sm:justify-between sm:space-x-0">
           <SwitchField
             label="Paid"
-            checked={props.fieldValue("paid") === true}
-            onChange={(checked) => props.setFieldValue("paid", checked)}
-            disabled={!props.canEditPaid()}
-            class={props.isFieldChanged("paid") ? "text-highlight font-semibold" : ""}
+            checked={props.paid() === true}
+            onChange={() => {}}
+            disabled={true}
           />
           <div class="flex gap-2">
             <Button variant="outline" onClick={props.onClose}>{isEditable() ? "Cancel" : "Close"}</Button>
-            <Button onClick={props.onAccept} disabled={!canSave()}>{"Save Changes"}</Button>
+            <Button onClick={props.onAccept} disabled={!isEditable()}>{"Save Changes"}</Button>
           </div>
         </DialogFooter>
       </DialogContent>

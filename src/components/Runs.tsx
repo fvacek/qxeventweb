@@ -1,4 +1,3 @@
-import { makeMap, type RpcValue } from "libshv-js";
 import { createSignal, createEffect, createMemo, Show } from "solid-js";
 
 import { Button } from "~/components/ui/button";
@@ -9,70 +8,28 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, optional, boolean, union, pipe, transform } from "valibot";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
+import {
+  applyRunRecChng,
+  lateEntryKind,
+  lateEntryRpcParams,
+  normalizedRecChngRecord,
+  paidValue,
+  parseLateEntryFromRecChng,
+  parseRunsQueryResult,
+  sqlQuotedString,
+  str,
+  type LateEntry,
+  type Run,
+} from "~/lib/lateEntry";
 
 
-const LateEntryKindSchema = object({
-  Update: optional(object({ runId: number() })),
-  NewEntry: optional(object({ classId: number() })),
-  DeleteEntry: optional(object({ runId: number() })),
-});
-type LateEntryKind = InferOutput<typeof LateEntryKindSchema>;
-
-export function lateEntryKind(runId: number | undefined, classId: number | undefined): LateEntryKind {
-  if (runId) return { Update: { runId } };
-  if (classId !== undefined) return { NewEntry: { classId } };
-  return {};
-}
-
-export const LateEntrySchema = object({
-  kind: LateEntryKindSchema,
-  firstname: optional(string()),
-  lastname: optional(string()),
-  registration: optional(string()),
-  siid: optional(number()),
-  note: optional(string()),
-  starttimems: optional(number()),
-});
-
-type LateEntry = InferOutput<typeof LateEntrySchema>;
-
-const QxChangeDataSchema = object({
-  LateEntry: optional(LateEntrySchema),
-});
-type QxChangeData = InferOutput<typeof QxChangeDataSchema>;
-
-const RunSchema = object({
-  run_id: optional(number()),
-  competitor_id: optional(number()),
-  class_name: optional(string()),
-  firstname: optional(string()),
-  lastname: optional(string()),
-  registration: optional(string()),
-  siid: optional(number()),
-  note: optional(string()),
-  starttimems: optional(number()),
-  qxchange_id: optional(number()),
-  qxchange_created: optional(string()),
-  qxchange_user_id: optional(string()),
-  qxchange_status: optional(string()),
-  qxchange_status_message: optional(string()),
-  qxchange_paid: optional(pipe(union([boolean(), number()]), transform(v => Boolean(v)))),
-  qxchange_data: optional(QxChangeDataSchema),
-});
-
-export type Run = InferOutput<typeof RunSchema>;
 export function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
-}
-
-function sqlQuotedString(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }
 
 export function ChangedValue(props: { original: string; changed?: string }) {
@@ -95,30 +52,12 @@ export function formatStartTime(msec: number | undefined, start: Date | undefine
   return `${hh}:${mm}:${ss}`;
 }
 
-function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
-  const rawChange = record.qxchange_data;
-  if (typeof rawChange !== "string") return record;
-  return { ...record, qxchange_data: JSON.parse(rawChange) };
-}
-
-export function parseRunsQueryResult(result: RpcValue): Run[] {
-  const table = createSqlTable(result);
-  const transformedRuns: Run[] = [];
-  for (let i = 0; i < table.rowCount(); i++) {
-    try {
-      transformedRuns.push(parse(RunSchema, normalizeRunRecord(table.recordAt(i))));
-    } catch (error) {
-      console.warn(`Skipping invalid row ${i}:`, error);
-    }
-  }
-  return transformedRuns;
-}
-
 function createRunsQuery(className: string, workingStage: number): string {
   return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
                   competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                   qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
                   qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
+                  qxchanges.paid as qxchange_paid,
                   qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id,
                   classes.name AS class_name
                 FROM runs
@@ -132,52 +71,29 @@ function createRunsQuery(className: string, workingStage: number): string {
                 ORDER BY runs.starttimems ASC`;
 }
 
-
-
-function parseLateEntryFromRecChng(record: RecChng["record"]): LateEntry | undefined {
-  if (!record || typeof record.data !== "string") return undefined;
-
-  try {
-    return parse(QxChangeDataSchema, JSON.parse(record.data)).LateEntry;
-  } catch (error) {
-    console.warn("Invalid qxchange LateEntry data:", error, record.data);
-    return undefined;
-  }
-}
-
 function clearQxChange(runs: Run[], changeId: number): Run[] {
   return runs.map(r =>
     r.qxchange_id === changeId
-      ? { ...r, qxchange_id: undefined, qxchange_user_id: undefined, qxchange_status: undefined, qxchange_status_message: undefined, qxchange_data: undefined }
+      ? {
+        ...r,
+        qxchange_id: undefined,
+        qxchange_created: undefined,
+        qxchange_user_id: undefined,
+        qxchange_status: undefined,
+        qxchange_status_message: undefined,
+        qxchange_paid: undefined,
+        qxchange_data: undefined,
+      }
       : r
   );
 }
 
-const str = (value: unknown, fallback?: string): string | undefined =>
-  typeof value === "string" ? value : fallback;
-
-function lowercaseKeys<T>(record: Record<string, T> | undefined): Record<string, T> | undefined {
-  return record && Object.fromEntries(Object.entries(record).map(([k, v]) => [k.toLowerCase(), v]));
-}
-
 function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
   const { table, id, op } = recchng;
-  const record = lowercaseKeys(recchng.record);
-  console.log("processRecChng: received change", { table, id, record, op });
+  const record = normalizedRecChngRecord(recchng);
 
-  if (table === "runs") {
-    if (op === SqlOperation.Update) {
-      return runs.map(r => r.run_id === id ? { ...r, ...record } : r);
-    }
-    if (op === SqlOperation.Delete) {
-      return runs.filter(r => r.run_id !== id);
-    }
-  }
-
-  if (table === "competitors" && op === SqlOperation.Update) {
-    return runs.map(r => r.competitor_id === id ? { ...r, ...record } : r);
-  }
-
+  const runsChanged = applyRunRecChng(runs, recchng, record);
+  if (runsChanged) return runsChanged;
   if (table !== "qxchanges") return runs;
 
   switch (op) {
@@ -199,9 +115,11 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
           ? {
             ...r,
             qxchange_id: id,
+            qxchange_created: str(record?.created),
             qxchange_user_id: userId,
             qxchange_status: str(record?.status, r.qxchange_status),
             qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+            qxchange_paid: paidValue(record?.paid, false),
             qxchange_data: { LateEntry: lateEntry },
           }
           : r
@@ -221,6 +139,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
           ? {
             ...r,
             qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+            qxchange_paid: paidValue(record?.paid, r.qxchange_paid),
             qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
           }
           : r
@@ -230,19 +149,6 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
     default:
       return runs;
   }
-}
-
-function lateEntryRpcParams(stageId: number, changeId: number | undefined, lateEntry: LateEntry) {
-  return makeMap({
-    stage_id: stageId,
-    change_id: changeId,
-    late_entry: makeMap({
-      ...lateEntry,
-      kind: makeMap(Object.fromEntries(
-        Object.entries(lateEntry.kind).map(([variant, fields]) => [variant, makeMap(fields)]),
-      )),
-    }),
-  });
 }
 
 function createRunColumns(args: {
@@ -368,8 +274,9 @@ export function createLateEntryDialogController(args: {
   const { wsClient } = useWsClient();
   const appConfig = useAppConfig();
   const [formLateEntry, setFormLateEntry] = createSignal<Run | undefined>(undefined);
+  const openEditDialog = (run: Run) => setFormLateEntry(run);
 
-  const openNewEntryDialog = () => setFormLateEntry({
+  const openNewEntryDialog = () => openEditDialog({
     run_id: 0,
     competitor_id: 0,
     class_name: args.className?.() ?? "",
@@ -425,21 +332,16 @@ export function createLateEntryDialogController(args: {
   };
 
   const isFieldFromLateEntry = (field: LateEntryDialogField) =>
-    field !== "paid" && formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
+    formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
   const formField = (field: LateEntryDialogField): LateEntryDialogValue => {
     const run = formLateEntry();
-    if (field === "paid") return run?.qxchange_paid;
     return run?.qxchange_data?.LateEntry?.[field] ?? run?.[field];
   };
 
   const setFormField = (field: LateEntryDialogField, value: LateEntryDialogValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
-
-      if (field === "paid") {
-        return { ...prev, qxchange_paid: typeof value === "boolean" ? value : undefined };
-      }
 
       const originalValue = prev[field];
 
@@ -503,19 +405,20 @@ export function createLateEntryDialogController(args: {
     }
   };
 
+  const errorTitle = () => args.updateErrorTitle ?? "Update late entry error";
+
   const saveLateEntry = async (changeId: number | undefined, lateEntry: LateEntry): Promise<boolean> => {
     const stageId = args.workingStage();
     if (stageId === undefined) {
-      showToast({ title: args.updateErrorTitle ?? "Update late entry error", description: "Working stage is not set", variant: "destructive" });
+      showToast({ title: errorTitle(), description: "Working stage is not set", variant: "destructive" });
       return false;
     }
     try {
       const params = lateEntryRpcParams(stageId, changeId, lateEntry);
       await callRpcMethod(wsClient()!, appConfig.eventApiPath(args.eventId()), "updateLateEntry", params);
-      showToast({ title: "Update late entry success" });
       return true;
     } catch (error) {
-      showToast({ title: args.updateErrorTitle ?? "Update late entry error", description: (error as Error).message, variant: "destructive" });
+      showToast({ title: errorTitle(), description: (error as Error).message, variant: "destructive" });
       return false;
     }
   };
@@ -524,21 +427,18 @@ export function createLateEntryDialogController(args: {
     const formRun = formLateEntry();
     const lateEntry = formRun?.qxchange_data?.LateEntry;
     const isNewLateEntry = formRun?.qxchange_id === undefined;
-    let saved = false;
-
-    if (lateEntry) {
-      saved = await saveLateEntry(formRun.qxchange_id, lateEntry);
-    }
     closeDialog();
+    if (!lateEntry) return;
 
-    if (saved && isNewLateEntry) {
-      args.onNewLateEntrySaved?.();
-    }
+    const saved = await saveLateEntry(formRun.qxchange_id, lateEntry);
+    if (!saved) return;
+    showToast({ title: "Update late entry success" });
+    if (isNewLateEntry) args.onNewLateEntrySaved?.();
   };
 
   return {
     formLateEntry,
-    setFormLateEntry,
+    openEditDialog,
     openNewEntryDialog,
     formClassName,
     stageStart,
@@ -645,7 +545,7 @@ const Runs = (props: {
           runs={runs}
           loading={loading}
           canEdit={canEditRun}
-          onEditRun={lateEntryDialog.setFormLateEntry}
+          onEditRun={lateEntryDialog.openEditDialog}
           showActions={() => !!user()?.email}
         />
 
@@ -662,7 +562,7 @@ const Runs = (props: {
           isFieldChanged={lateEntryDialog.isFieldFromLateEntry}
           setFieldValue={lateEntryDialog.setFormField}
           canEdit={lateEntryDialog.canEditFormRun}
-          canEditPaid={currentUserIsOrganizer}
+          paid={() => lateEntryDialog.formLateEntry()?.qxchange_paid}
           onLoadRegistration={lateEntryDialog.loadRegistration}
           onClose={lateEntryDialog.closeDialog}
           onAccept={lateEntryDialog.acceptDialog}

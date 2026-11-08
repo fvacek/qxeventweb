@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
@@ -13,14 +13,19 @@ import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
 import LateEntryDialog from "~/components/LateEntryDialog";
 import {
   ChangedValue,
-  LateEntrySchema,
   createLateEntryDialogController,
   formatStartTime,
   fullName,
-  parseRunsQueryResult,
-  type Run,
 } from "~/components/Runs";
-import { parse } from "valibot";
+import {
+  applyRunRecChng,
+  normalizedRecChngRecord,
+  paidValue,
+  parseLateEntryFromRecChng,
+  parseRunsQueryResult,
+  str,
+  type Run,
+} from "~/lib/lateEntry";
 
 type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
@@ -61,36 +66,22 @@ function PaidIcon(props: { paid?: boolean }) {
     : <span class="text-muted-foreground" title="Unpaid" aria-label="Unpaid">—</span>;
 }
 
-const str = (value: unknown, fallback?: string): string | undefined =>
-  typeof value === "string" ? value : fallback;
-
-function parseLateEntryFromRecChng(record: RecChng["record"]) {
-  if (!record || typeof record.data !== "string") return undefined;
-
-  try {
-    return parse(LateEntrySchema, JSON.parse(record.data).LateEntry);
-  } catch (error) {
-    console.warn("Invalid qxchange LateEntry data:", error, record.data);
-    return undefined;
-  }
+// Run and competitor fields of a row, i.e. everything except the qxchange part.
+function runFields(run: Run | undefined): Partial<Run> {
+  if (!run) return {};
+  const { run_id, competitor_id, class_name, firstname, lastname, registration, siid, note, starttimems } = run;
+  return { run_id, competitor_id, class_name, firstname, lastname, registration, siid, note, starttimems };
 }
 
-function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
-  const { table, id, record, op } = recchng;
+/**
+ * @param ownerId when set, inserted changes of other users are ignored, the same way the query filters them.
+ */
+function applyRecChngToLateEntries(runs: Run[], recchng: RecChng, ownerId: string | undefined): Run[] {
+  const { table, id, op } = recchng;
+  const record = normalizedRecChngRecord(recchng);
 
-  if (table === "runs") {
-    if (op === SqlOperation.Update) {
-      return runs.map(r => r.run_id === id ? { ...r, ...record } : r);
-    }
-    if (op === SqlOperation.Delete) {
-      return runs.filter(r => r.run_id !== id);
-    }
-  }
-
-  if (table === "competitors" && op === SqlOperation.Update) {
-    return runs.map(r => r.competitor_id === id ? { ...r, ...record } : r);
-  }
-
+  const runsChanged = applyRunRecChng(runs, recchng, record);
+  if (runsChanged) return runsChanged;
   if (table !== "qxchanges") return runs;
 
   switch (op) {
@@ -105,16 +96,27 @@ function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
         console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
         return runs;
       }
-      const runId = lateEntry.kind.Update?.runId;
-      const updatedRun = {
-        ...runs.find(r => r.run_id === runId),
+      if (ownerId !== undefined && userId !== ownerId) return runs;
+
+      const runId = lateEntry.kind.Update?.runId ?? lateEntry.kind.DeleteEntry?.runId;
+      const classId = lateEntry.kind.NewEntry?.classId;
+      // Take the original run data from another change of the same run, a new entry
+      // has no run, only the class name from another new entry in the same class.
+      const base = runId !== undefined
+        ? runFields(runs.find(r => r.run_id === runId))
+        : { class_name: runs.find(r => classId !== undefined && r.qxchange_data?.LateEntry?.kind.NewEntry?.classId === classId)?.class_name };
+      const insertedRun: Run = {
+        ...base,
         qxchange_id: id,
+        qxchange_created: str(record?.created),
         qxchange_user_id: userId,
         qxchange_status: str(record?.status),
         qxchange_status_message: str(record?.status_message),
+        qxchange_paid: paidValue(record?.paid, false),
         qxchange_data: { LateEntry: lateEntry },
       };
-      return [...runs, updatedRun];
+      // The query orders by qxchanges.id DESC.
+      return [insertedRun, ...runs];
     }
 
     case SqlOperation.Update: {
@@ -125,7 +127,7 @@ function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
             ...r,
             qxchange_status: str(record?.status, r.qxchange_status),
             qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
-            qxchange_paid: typeof record?.paid === "boolean" || typeof record?.paid === "number" ? Boolean(record.paid) : r.qxchange_paid,
+            qxchange_paid: paidValue(record?.paid, r.qxchange_paid),
             qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
           }
           : r
@@ -341,7 +343,10 @@ const LateEntries = (props: {
 
   createEffect(() => {
     const recchng = props.recchngReceived();
-    if (recchng) setRuns(prev => applyRecChngToLateEntries(prev, recchng));
+    if (!recchng) return;
+    // Untracked, re-running on user / config change would apply the same recchng twice.
+    const ownerId = untrack(() => currentUserIsOrganizer() ? undefined : user()?.email ?? "");
+    setRuns(prev => applyRecChngToLateEntries(prev, recchng, ownerId));
   });
 
   createEffect(() => {
@@ -375,7 +380,7 @@ const LateEntries = (props: {
           runs={tableLateEntries}
           loading={loading}
           canShowOwner={currentUserIsOrganizer}
-          onEditRun={lateEntryDialog.setFormLateEntry}
+          onEditRun={lateEntryDialog.openEditDialog}
         />
 
         <LateEntryDialog
@@ -391,7 +396,7 @@ const LateEntries = (props: {
           isFieldChanged={lateEntryDialog.isFieldFromLateEntry}
           setFieldValue={lateEntryDialog.setFormField}
           canEdit={lateEntryDialog.canEditFormRun}
-          canEditPaid={currentUserIsOrganizer}
+          paid={() => lateEntryDialog.formLateEntry()?.qxchange_paid}
           onLoadRegistration={lateEntryDialog.loadRegistration}
           onClose={lateEntryDialog.closeDialog}
           onAccept={lateEntryDialog.acceptDialog}
