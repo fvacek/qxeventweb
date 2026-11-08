@@ -1,3 +1,4 @@
+import type { RpcValue } from "libshv-js";
 import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
@@ -10,21 +11,25 @@ import { useAppConfig } from "~/context/AppConfig";
 import { callRpcMethod } from "~/lib/rpc";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
-import LateEntryDialog from "~/components/LateEntryDialog";
 import {
-  ChangedValue,
+  changedValueColumns,
+  compareOptional,
   createLateEntryDialogController,
-  formatStartTime,
-  fullName,
+  LateEntryControllerDialog,
 } from "~/components/Runs";
 import {
   applyRunRecChng,
+  canEditLateEntry,
+  changeFromRecChng,
+  changeFromSqlRow,
+  changeRunId,
   normalizedRecChngRecord,
-  paidValue,
-  parseLateEntryFromRecChng,
-  parseRunsQueryResult,
-  str,
-  type Run,
+  parseSqlRows,
+  patchChange,
+  runInfoFromSqlRow,
+  type LateEntryRowBase,
+  type QxChange,
+  type RunInfo,
 } from "~/lib/lateEntry";
 
 type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
@@ -66,76 +71,63 @@ function PaidIcon(props: { paid?: boolean }) {
     : <span class="text-muted-foreground" title="Unpaid" aria-label="Unpaid">—</span>;
 }
 
-// Run and competitor fields of a row, i.e. everything except the qxchange part.
-function runFields(run: Run | undefined): Partial<Run> {
-  if (!run) return {};
-  const { run_id, competitor_id, class_name, firstname, lastname, registration, siid, note, starttimems } = run;
-  return { run_id, competitor_id, class_name, firstname, lastname, registration, siid, note, starttimems };
+/** Late entries table row: a change, with the run it applies to, if any (a new entry has none). */
+type LateEntryRow = {
+  run?: RunInfo;
+  class_name?: string;
+  change: QxChange;
+};
+
+function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
+  return parseSqlRows(result).flatMap(row => {
+    const change = changeFromSqlRow(row);
+    if (!change) return [];
+    return [{ run: runInfoFromSqlRow(row), class_name: row.class_name, change }];
+  });
 }
 
 /**
  * @param ownerId when set, inserted changes of other users are ignored, the same way the query filters them.
  */
-function applyRecChngToLateEntries(runs: Run[], recchng: RecChng, ownerId: string | undefined): Run[] {
+function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng, ownerId: string | undefined): LateEntryRow[] {
   const { table, id, op } = recchng;
   const record = normalizedRecChngRecord(recchng);
 
-  const runsChanged = applyRunRecChng(runs, recchng, record);
+  // A deleted run keeps its changes, e.g. an accepted DeleteEntry, only the run data is gone.
+  const runsChanged = applyRunRecChng(rows, recchng, record, row => ({ ...row, run: undefined }));
   if (runsChanged) return runsChanged;
-  if (table !== "qxchanges") return runs;
+  if (table !== "qxchanges") return rows;
 
   switch (op) {
     case SqlOperation.Delete:
-      return runs.filter(r => r.qxchange_id !== id);
+      return rows.filter(r => r.change.id !== id);
 
     case SqlOperation.Insert: {
-      const lateEntry = parseLateEntryFromRecChng(record);
-      const userId = str(record?.user_id);
+      const change = changeFromRecChng(id, record);
+      if (!change) return rows;
+      if (ownerId !== undefined && change.user_id !== ownerId) return rows;
 
-      if (!lateEntry || !userId) {
-        console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
-        return runs;
-      }
-      if (ownerId !== undefined && userId !== ownerId) return runs;
-
-      const runId = lateEntry.kind.Update?.runId ?? lateEntry.kind.DeleteEntry?.runId;
-      const classId = lateEntry.kind.NewEntry?.classId;
       // Take the original run data from another change of the same run, a new entry
       // has no run, only the class name from another new entry in the same class.
+      const runId = changeRunId(change.lateEntry);
+      const classId = change.lateEntry.kind.NewEntry?.classId;
       const base = runId !== undefined
-        ? runFields(runs.find(r => r.run_id === runId))
-        : { class_name: runs.find(r => classId !== undefined && r.qxchange_data?.LateEntry?.kind.NewEntry?.classId === classId)?.class_name };
-      const insertedRun: Run = {
-        ...base,
-        qxchange_id: id,
-        qxchange_created: str(record?.created),
-        qxchange_user_id: userId,
-        qxchange_status: str(record?.status),
-        qxchange_status_message: str(record?.status_message),
-        qxchange_paid: paidValue(record?.paid, false),
-        qxchange_data: { LateEntry: lateEntry },
+        ? rows.find(r => r.run?.run_id === runId)
+        : rows.find(r => classId !== undefined && r.change.lateEntry.kind.NewEntry?.classId === classId);
+      const inserted: LateEntryRow = {
+        run: runId !== undefined ? base?.run : undefined,
+        class_name: base?.class_name,
+        change,
       };
       // The query orders by qxchanges.id DESC.
-      return [insertedRun, ...runs];
+      return [inserted, ...rows];
     }
 
-    case SqlOperation.Update: {
-      const lateEntry = parseLateEntryFromRecChng(record);
-      return runs.map(r =>
-        r.qxchange_id === id
-          ? {
-            ...r,
-            qxchange_status: str(record?.status, r.qxchange_status),
-            qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
-            qxchange_paid: paidValue(record?.paid, r.qxchange_paid),
-            qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
-          }
-          : r
-      );
-    }
+    case SqlOperation.Update:
+      return rows.map(r => r.change.id === id ? { ...r, change: patchChange(r.change, record) } : r);
 
     default:
-      return runs;
+      return rows;
   }
 }
 
@@ -160,25 +152,27 @@ function createLateEntriesQuery(workingStage: number, userId: string, currentUse
 
 function LateEntriesTable(props: {
   stageStart: () => Date | undefined;
-  runs: () => Run[];
+  rows: () => LateEntryRow[];
   loading: () => boolean;
   canShowOwner: () => boolean;
-  onEditRun: (run: Run) => void;
+  onEditRow: (row: LateEntryRow) => void;
 }) {
-  const columns = createMemo<TableColumn<Run>[]>(() => [
+  const columns = createMemo<TableColumn<LateEntryRow>[]>(() => [
     {
-      key: "qxchange_id",
+      key: "id",
       header: "ID",
+      cell: (row: LateEntryRow) => row.change.id.toString(),
       sortable: true,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => a.change.id - b.change.id,
       width: "64px",
       hidden: "hidden lg:table-cell",
     },
     {
       key: "operation",
       header: "Op",
-      cell: (run: Run) => {
-        const kind = run.qxchange_data?.LateEntry?.kind;
-        const [label, icon] = kind?.DeleteEntry ? ["Delete", "✕"] : kind?.Update ? ["Change", "✎"] : ["New", "+"];
+      cell: (row: LateEntryRow) => {
+        const kind = row.change.lateEntry.kind;
+        const [label, icon] = kind.DeleteEntry ? ["Delete", "✕"] : kind.Update ? ["Change", "✎"] : ["New", "+"];
         return (
           <span class="inline-flex w-full justify-center">
             <span
@@ -194,89 +188,56 @@ function LateEntriesTable(props: {
       width: "20px",
     },
     {
-      key: "qxchange_status",
+      key: "status",
       header: "St",
-      cell: (run: Run) => (
+      cell: (row: LateEntryRow) => (
         <span class="inline-flex w-full justify-center">
-          <StatusIcon status={run.qxchange_status} />
+          <StatusIcon status={row.change.status} />
         </span>
       ),
       sortable: true,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => a.change.status.localeCompare(b.change.status),
       width: "56px",
     },
     {
       key: "class_name",
       header: "Class",
       sortable: true,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.class_name, b.class_name),
     },
+    ...changedValueColumns<LateEntryRow>(props.stageStart),
     {
-      key: "starttimems",
-      header: "Start Time",
-      cell: (run: Run) => (
-        <ChangedValue
-          original={formatStartTime(run.starttimems, props.stageStart())}
-          changed={run.qxchange_data?.LateEntry?.starttimems !== undefined
-            ? formatStartTime(run.qxchange_data.LateEntry.starttimems, props.stageStart())
-            : undefined}
-        />
-      ),
-      sortable: true,
-    },
-    {
-      key: "name",
-      header: "Name",
-      cell: (run: Run) => {
-        const le = run.qxchange_data?.LateEntry;
-        const changedName = le?.firstname !== undefined || le?.lastname !== undefined
-          ? fullName(le?.lastname ?? run.lastname, le?.firstname ?? run.firstname)
-          : undefined;
-
-        return <ChangedValue original={fullName(run.lastname, run.firstname)} changed={changedName} />;
-      },
-      sortable: true,
-      sortFn: (a: Run, b: Run) => fullName(a.lastname, a.firstname).localeCompare(fullName(b.lastname, b.firstname)),
-    },
-    {
-      key: "registration",
-      header: "Reg",
-      cell: (run: Run) => <ChangedValue original={run.registration || ""} changed={run.qxchange_data?.LateEntry?.registration} />,
-      sortable: true,
-    },
-    {
-      key: "siid",
-      header: "SI",
-      cell: (run: Run) => <ChangedValue original={run.siid?.toString() || ""} changed={run.qxchange_data?.LateEntry?.siid?.toString()} />,
-      sortable: false,
-    },
-    {
-      key: "qxchange_paid",
+      key: "paid",
       header: "Paid",
-      cell: (run: Run) => (
+      cell: (row: LateEntryRow) => (
         <span class="inline-flex w-full justify-center">
-          <PaidIcon paid={run.qxchange_paid} />
+          <PaidIcon paid={row.change.paid} />
         </span>
       ),
       sortable: true,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => Number(a.change.paid) - Number(b.change.paid),
       width: "56px",
     },
     ...(props.canShowOwner() ? [{
-      key: "qxchange_user_id",
+      key: "owner",
       header: "Owner",
+      cell: (row: LateEntryRow) => row.change.user_id ?? "",
       sortable: true,
-    } satisfies TableColumn<Run>] : []),
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change.user_id, b.change.user_id),
+    } satisfies TableColumn<LateEntryRow>] : []),
   ]);
 
   return (
     <div class="rounded-md table-border">
       <Table
-        data={props.runs()}
+        data={props.rows()}
         columns={columns()}
         loading={props.loading()}
         emptyMessage="No entries found"
         variant="striped"
         sortable={true}
         globalFilter={true}
-        onRowClick={props.onEditRun}
+        onRowClick={props.onEditRow}
       />
     </div>
   );
@@ -293,7 +254,7 @@ const LateEntries = (props: {
   const appConfig = useAppConfig();
   const { user } = useAuth();
 
-  const [runs, setRuns] = createSignal<Run[]>([]);
+  const [rows, setRows] = createSignal<LateEntryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
 
@@ -302,20 +263,14 @@ const LateEntries = (props: {
   const currentUserIsOrganizer = () => isEventOrganizer(props.eventConfig(), user()?.email);
   const canEditRunRecords = () => (workingStage() ?? 0) >= (currentStage() ?? 1);
 
-  const canEditRun = (run: Run | undefined) => {
-    const email = user()?.email;
-    if (!email || !run || !canEditRunRecords()) return false;
-    if (run.qxchange_status !== undefined && run.qxchange_status !== "Pending") return false;
-    return currentUserIsOrganizer() || run.qxchange_user_id === email || run.qxchange_id === undefined;
-  };
+  const canEdit = (row: LateEntryRowBase | undefined) =>
+    canEditRunRecords() && canEditLateEntry(row, user()?.email, currentUserIsOrganizer());
 
   const lateEntryDialog = createLateEntryDialogController({
     eventId: () => props.eventId,
     eventConfig: props.eventConfig,
     workingStage,
-    classDef: () => undefined,
-    runs,
-    canEditRun,
+    canEdit,
   });
 
   const reloadTable = async () => {
@@ -324,7 +279,7 @@ const LateEntries = (props: {
     try {
       const query = createLateEntriesQuery(workingStage() ?? 0, user()?.email ?? "", currentUserIsOrganizer());
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
-      setRuns(parseRunsQueryResult(result));
+      setRows(parseLateEntryRows(result));
     } catch (error) {
       showToast({ title: "Reload late entries error", description: (error as Error).message, variant: "destructive" });
     } finally {
@@ -332,9 +287,9 @@ const LateEntries = (props: {
     }
   };
 
-  const tableLateEntries = () => {
+  const tableRows = () => {
     const filter = statusFilter();
-    return filter ? runs().filter(run => run.qxchange_status === filter) : runs();
+    return filter ? rows().filter(row => row.change.status === filter) : rows();
   };
 
   const selectStatusFilter = (filter: string) => {
@@ -346,7 +301,7 @@ const LateEntries = (props: {
     if (!recchng) return;
     // Untracked, re-running on user / config change would apply the same recchng twice.
     const ownerId = untrack(() => currentUserIsOrganizer() ? undefined : user()?.email ?? "");
-    setRuns(prev => applyRecChngToLateEntries(prev, recchng, ownerId));
+    setRows(prev => applyRecChngToLateEntries(prev, recchng, ownerId));
   });
 
   createEffect(() => {
@@ -377,30 +332,13 @@ const LateEntries = (props: {
 
         <LateEntriesTable
           stageStart={lateEntryDialog.stageStart}
-          runs={tableLateEntries}
+          rows={tableRows}
           loading={loading}
           canShowOwner={currentUserIsOrganizer}
-          onEditRun={lateEntryDialog.openEditDialog}
+          onEditRow={lateEntryDialog.openEditDialog}
         />
 
-        <LateEntryDialog
-          open={!!lateEntryDialog.formLateEntry()}
-          className={lateEntryDialog.formClassName}
-          stageStart={lateEntryDialog.stageStart}
-          possibleStartTimes={lateEntryDialog.possibleStartTimes}
-          qxchangeId={() => lateEntryDialog.formLateEntry()?.qxchange_id}
-          qxchangeCreated={() => lateEntryDialog.formLateEntry()?.qxchange_created}
-          status={() => lateEntryDialog.formLateEntry()?.qxchange_status}
-          statusMessage={() => lateEntryDialog.formLateEntry()?.qxchange_status_message}
-          fieldValue={lateEntryDialog.formField}
-          isFieldChanged={lateEntryDialog.isFieldFromLateEntry}
-          setFieldValue={lateEntryDialog.setFormField}
-          canEdit={lateEntryDialog.canEditFormRun}
-          paid={() => lateEntryDialog.formLateEntry()?.qxchange_paid}
-          onLoadRegistration={lateEntryDialog.loadRegistration}
-          onClose={lateEntryDialog.closeDialog}
-          onAccept={lateEntryDialog.acceptDialog}
-        />
+        <LateEntryControllerDialog controller={lateEntryDialog} />
       </div>
     </div>
   );

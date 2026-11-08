@@ -115,6 +115,13 @@ interface TableColumn<T> {
 
 // Removed ColumnFilter component since we only use global search
 
+/** Primitive values of a row, including those of nested objects, for the global filter. */
+function searchableValues(value: unknown): unknown[] {
+  if (value === null || value === undefined) return []
+  if (typeof value !== "object" || value instanceof Date) return [value]
+  return Object.values(value).flatMap(searchableValues)
+}
+
 const Table = <T extends ValidComponent = "table">(
   props: PolymorphicProps<T, TableProps<T>>
 ) => {
@@ -179,7 +186,7 @@ const Table = <T extends ValidComponent = "table">(
     // Apply global filter if enabled and has value
     if (globalFilter && local.globalFilter) {
       return data.filter(item => {
-        const searchableText = Object.values(item)
+        const searchableText = searchableValues(item)
           .join(" ")
           .toLowerCase()
         return searchableText.includes(globalFilter)
