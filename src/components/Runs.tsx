@@ -9,7 +9,7 @@ import { useAuth } from "~/context/AuthContext";
 import { showToast } from "~/components/ui/toast";
 import { useAppConfig } from "~/context/AppConfig";
 import { createSqlTable } from "~/lib/SqlTable";
-import { object, number, string, parse, type InferOutput, optional, boolean } from "valibot";
+import { object, number, string, parse, type InferOutput, optional, boolean, union, pipe, transform } from "valibot";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
 import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
@@ -17,10 +17,6 @@ import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
 
 
-// Mirrors qxeventd `LateEntryKind` (serde externally tagged enum):
-// `{ Update: { runId } }` for a change of an existing run,
-// `{ NewEntry: { classId } }` for a new competitor in a class,
-// `{ DeleteEntry: { runId } }` for removal of an existing run.
 const LateEntryKindSchema = object({
   Update: optional(object({ runId: number() })),
   NewEntry: optional(object({ classId: number() })),
@@ -42,7 +38,6 @@ export const LateEntrySchema = object({
   siid: optional(number()),
   note: optional(string()),
   starttimems: optional(number()),
-  paid: optional(boolean()),
 });
 
 type LateEntry = InferOutput<typeof LateEntrySchema>;
@@ -67,6 +62,7 @@ const RunSchema = object({
   qxchange_user_id: optional(string()),
   qxchange_status: optional(string()),
   qxchange_status_message: optional(string()),
+  qxchange_paid: optional(pipe(union([boolean(), number()]), transform(v => Boolean(v)))),
   qxchange_data: optional(QxChangeDataSchema),
 });
 
@@ -429,19 +425,23 @@ export function createLateEntryDialogController(args: {
   };
 
   const isFieldFromLateEntry = (field: LateEntryDialogField) =>
-    formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
+    field !== "paid" && formLateEntry()?.qxchange_data?.LateEntry?.[field] !== undefined;
 
   const formField = (field: LateEntryDialogField): LateEntryDialogValue => {
     const run = formLateEntry();
-    const originalValue = field === "paid" ? undefined : run?.[field];
-    return run?.qxchange_data?.LateEntry?.[field] ?? originalValue;
+    if (field === "paid") return run?.qxchange_paid;
+    return run?.qxchange_data?.LateEntry?.[field] ?? run?.[field];
   };
 
   const setFormField = (field: LateEntryDialogField, value: LateEntryDialogValue) => {
     setFormLateEntry(prev => {
       if (!prev) return undefined;
 
-      const originalValue = field === "paid" ? undefined : prev[field];
+      if (field === "paid") {
+        return { ...prev, qxchange_paid: typeof value === "boolean" ? value : undefined };
+      }
+
+      const originalValue = prev[field];
 
       return {
         ...prev,

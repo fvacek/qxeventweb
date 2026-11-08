@@ -51,6 +51,16 @@ function StatusIcon(props: { status?: string }) {
   }
 }
 
+function PaidIcon(props: { paid?: boolean }) {
+  return props.paid
+    ? (
+      <span class="inline-flex size-6 items-center justify-center rounded-full bg-green-600 text-white text-sm font-bold" title="Paid" aria-label="Paid">
+        ✓
+      </span>
+    )
+    : <span class="text-muted-foreground" title="Unpaid" aria-label="Unpaid">—</span>;
+}
+
 const str = (value: unknown, fallback?: string): string | undefined =>
   typeof value === "string" ? value : fallback;
 
@@ -115,6 +125,7 @@ function applyRecChngToLateEntries(runs: Run[], recchng: RecChng): Run[] {
             ...r,
             qxchange_status: str(record?.status, r.qxchange_status),
             qxchange_status_message: str(record?.status_message, r.qxchange_status_message),
+            qxchange_paid: typeof record?.paid === "boolean" || typeof record?.paid === "number" ? Boolean(record.paid) : r.qxchange_paid,
             qxchange_data: lateEntry !== undefined ? { LateEntry: lateEntry } : r.qxchange_data,
           }
           : r
@@ -132,6 +143,7 @@ function createLateEntriesQuery(workingStage: number, userId: string, currentUse
                   competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
                   qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
                   qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
+                  qxchanges.paid as qxchange_paid,
                   qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id,
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
@@ -234,6 +246,17 @@ function LateEntriesTable(props: {
       cell: (run: Run) => <ChangedValue original={run.siid?.toString() || ""} changed={run.qxchange_data?.LateEntry?.siid?.toString()} />,
       sortable: false,
     },
+    {
+      key: "qxchange_paid",
+      header: "Paid",
+      cell: (run: Run) => (
+        <span class="inline-flex w-full justify-center">
+          <PaidIcon paid={run.qxchange_paid} />
+        </span>
+      ),
+      sortable: true,
+      width: "56px",
+    },
     ...(props.canShowOwner() ? [{
       key: "qxchange_user_id",
       header: "Owner",
@@ -307,7 +330,7 @@ const LateEntries = (props: {
     }
   };
 
-  const tableRuns = () => {
+  const tableLateEntries = () => {
     const filter = statusFilter();
     return filter ? runs().filter(run => run.qxchange_status === filter) : runs();
   };
@@ -349,7 +372,7 @@ const LateEntries = (props: {
 
         <LateEntriesTable
           stageStart={lateEntryDialog.stageStart}
-          runs={tableRuns}
+          runs={tableLateEntries}
           loading={loading}
           canShowOwner={currentUserIsOrganizer}
           onEditRun={lateEntryDialog.setFormLateEntry}
