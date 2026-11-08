@@ -19,10 +19,12 @@ import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue }
 
 // Mirrors qxeventd `LateEntryKind` (serde externally tagged enum):
 // `{ Update: { runId } }` for a change of an existing run,
-// `{ NewEntry: { classId } }` for a new competitor in a class.
+// `{ NewEntry: { classId } }` for a new competitor in a class,
+// `{ DeleteEntry: { runId } }` for removal of an existing run.
 const LateEntryKindSchema = object({
   Update: optional(object({ runId: number() })),
   NewEntry: optional(object({ classId: number() })),
+  DeleteEntry: optional(object({ runId: number() })),
 });
 type LateEntryKind = InferOutput<typeof LateEntryKindSchema>;
 
@@ -33,7 +35,7 @@ export function lateEntryKind(runId: number | undefined, classId: number | undef
 }
 
 export const LateEntrySchema = object({
-  id: LateEntryKindSchema,
+  kind: LateEntryKindSchema,
   firstname: optional(string()),
   lastname: optional(string()),
   registration: optional(string()),
@@ -100,21 +102,7 @@ export function formatStartTime(msec: number | undefined, start: Date | undefine
 function normalizeRunRecord(record: Record<string, unknown>): Record<string, unknown> {
   const rawChange = record.qxchange_data;
   if (typeof rawChange !== "string") return record;
-
-  const parsed = JSON.parse(rawChange);
-  const lateEntry = parsed?.LateEntry;
-  if (!lateEntry) return record;
-
-  // Two wire shapes exist: a legacy one carrying `{ run_id, record: {...} }`,
-  // and the current one that already matches LateEntrySchema (`{ id: { Update: { runId } }, ... }`).
-  const normalizedLateEntry = lateEntry.record
-    ? { id: lateEntryKind(lateEntry.run_id, undefined), ...lateEntry.record }
-    : lateEntry;
-
-  return {
-    ...record,
-    qxchange_data: { LateEntry: normalizedLateEntry },
-  };
+  return { ...record, qxchange_data: JSON.parse(rawChange) };
 }
 
 export function parseRunsQueryResult(result: RpcValue): Run[] {
@@ -203,7 +191,7 @@ function applyRecChngToRuns(runs: Run[], recchng: RecChng): Run[] {
     case SqlOperation.Insert: {
       const lateEntry = parseLateEntryFromRecChng(record);
       const userId = str(record?.user_id);
-      const runId = lateEntry?.id.Update?.runId;
+      const runId = lateEntry?.kind.Update?.runId;
 
       if (!userId || !lateEntry || !runId) {
         console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
@@ -254,8 +242,8 @@ function lateEntryRpcParams(stageId: number, changeId: number | undefined, lateE
     change_id: changeId,
     late_entry: makeMap({
       ...lateEntry,
-      id: makeMap(Object.fromEntries(
-        Object.entries(lateEntry.id).map(([variant, fields]) => [variant, makeMap(fields)]),
+      kind: makeMap(Object.fromEntries(
+        Object.entries(lateEntry.kind).map(([variant, fields]) => [variant, makeMap(fields)]),
       )),
     }),
   });
@@ -268,6 +256,13 @@ function createRunColumns(args: {
   showActions: boolean;
 }): TableColumn<Run>[] {
   const columns: TableColumn<Run>[] = [
+    {
+      key: "run_id",
+      header: "ID",
+      cell: (run: Run) => run.run_id?.toString() ?? "",
+      sortable: true,
+      hidden: "hidden lg:table-cell",
+    },
     {
       key: "starttimems",
       header: "Start Time",
@@ -453,7 +448,7 @@ export function createLateEntryDialogController(args: {
         qxchange_data: {
           ...prev.qxchange_data,
           LateEntry: {
-            ...(prev.qxchange_data?.LateEntry ?? { id: lateEntryKind(prev.run_id, args.classDef()?.id) }),
+            ...(prev.qxchange_data?.LateEntry ?? { kind: lateEntryKind(prev.run_id, args.classDef()?.id) }),
             [field]: value === originalValue ? undefined : value,
           },
         },
@@ -494,7 +489,7 @@ export function createLateEntryDialogController(args: {
           qxchange_data: {
             ...prev.qxchange_data,
             LateEntry: {
-              ...(prev.qxchange_data?.LateEntry ?? { id: lateEntryKind(prev.run_id, args.classDef()?.id) }),
+              ...(prev.qxchange_data?.LateEntry ?? { kind: lateEntryKind(prev.run_id, args.classDef()?.id) }),
               registration: registration,
               firstname: regFirstname === undefined ? prev.firstname : regFirstname,
               lastname: regLastname === undefined ? prev.lastname : regLastname,
