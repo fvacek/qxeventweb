@@ -12,7 +12,7 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { object, number, string, parse, type InferOutput, optional, boolean } from "valibot";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 import { callRpcMethod } from "~/lib/rpc";
-import { EventConfig } from "~/routes/OpenedEvent";
+import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import LateEntryDialog, { type LateEntryDialogField, type LateEntryDialogValue } from "~/components/LateEntryDialog";
 
@@ -574,7 +574,7 @@ const Runs = (props: {
   const currentStage = () => props.currentStage;
   const workingStage = () => props.workingStage;
 
-  const currentUserIsOrganizer = () => props.eventConfig().members?.[user()?.email ?? ""] === "Organizer";
+  const currentUserIsOrganizer = () => isEventOrganizer(props.eventConfig(), user()?.email);
 
   const canEditRunRecords = () => {
     return (workingStage() ?? 0) >= (currentStage() ?? 1);

@@ -76,13 +76,6 @@ function LateEntryDialog(props: {
                 <span class="font-medium text-muted-foreground">Status</span>
                 <span class="font-semibold">{props.status() || "—"}</span>
               </div>
-              {!isEditable() && (
-                <p class="mt-1 text-muted-foreground">
-                  {props.canEditPaid()
-                    ? "Only the Paid field can be edited for this entry."
-                    : "Read-only: only the change owner or an organizer can edit pending entries."}
-                </p>
-              )}
               {props.statusMessage() && (
                 <p class="mt-1 text-muted-foreground">{props.statusMessage()}</p>
               )}

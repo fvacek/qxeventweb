@@ -31,6 +31,11 @@ export class EventConfig {
   members?: EventMembers;
 }
 
+export function isEventOrganizer(config: EventConfig, email: string | undefined): boolean {
+  if (!email) return false;
+  return config.owner === email || config.members?.[email] === "Organizer";
+}
+
 interface EventProps {
   event_id_str: string;
 }

@@ -9,7 +9,7 @@ import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { callRpcMethod } from "~/lib/rpc";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
-import { EventConfig } from "~/routes/OpenedEvent";
+import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
 import LateEntryDialog from "~/components/LateEntryDialog";
 import {
   ChangedValue,
@@ -274,7 +274,7 @@ const LateEntries = (props: {
 
   const currentStage = () => props.currentStage;
   const workingStage = () => props.workingStage;
-  const currentUserIsOrganizer = () => props.eventConfig().members?.[user()?.email ?? ""] === "Organizer";
+  const currentUserIsOrganizer = () => isEventOrganizer(props.eventConfig(), user()?.email);
   const canEditRunRecords = () => (workingStage() ?? 0) >= (currentStage() ?? 1);
 
   const canEditRun = (run: Run | undefined) => {
