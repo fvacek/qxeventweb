@@ -6,8 +6,7 @@ import { callRpcMethod } from "~/lib/rpc";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import type { EventConfig } from "~/routes/OpenedEvent";
-import { fullName } from "~/components/lateEntryColumns";
-import { sqlQuotedString } from "~/lib/runnerEntry";
+import { fullName, sqlQuotedString } from "~/lib/runnerEntry";
 
 type ResultRow = {
   id: number;

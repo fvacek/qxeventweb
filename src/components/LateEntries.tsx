@@ -4,13 +4,19 @@ import { Button } from "~/components/ui/button";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
-import { changedValueColumns, compareOptional } from "~/components/lateEntryColumns";
+import { changedValueColumns } from "~/components/lateEntryColumns";
 import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { RUNNER_ROW_COLUMNS as RUNNER_ENTRY_ROW_COLUMNS, sqlQuotedString, type RunnerEntryRow } from "~/lib/runnerEntry";
-import { applyRecChngToLateEntries, parseRunnerEntryRows } from "~/lib/lateEntryRows";
+import {
+  RUNNER_ROW_COLUMNS,
+  applyRecChngToLateEntries,
+  compareOptional,
+  parseRunnerEntryRows,
+  sqlQuotedString,
+  type RunnerEntryRow,
+} from "~/lib/runnerEntry";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 import type { EventConfig } from "~/routes/OpenedEvent";
@@ -56,7 +62,7 @@ function PaidIcon(props: { paid?: boolean }) {
 
 function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
-  return `SELECT ${RUNNER_ENTRY_ROW_COLUMNS},
+  return `SELECT ${RUNNER_ROW_COLUMNS},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
