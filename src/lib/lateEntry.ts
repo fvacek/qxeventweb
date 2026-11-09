@@ -54,10 +54,13 @@ export type QxChange = {
   lateEntry: LateEntry;
 };
 
-/** Shape shared by every late-entry based row, the dialog works with it. */
-export type LateEntryRowBase = {
+/**
+ * A run and/or its late-entry change, used by the runs and late entries tables and the dialog.
+ * A new entry has no run, an unchanged run has no change.
+ */
+export type LateEntryRow = {
+  class_name: string;
   run?: RunInfo;
-  class_name?: string;
   change?: QxChange;
 };
 
@@ -147,7 +150,7 @@ function paidValue(value: unknown, fallback?: boolean): boolean | undefined {
 }
 
 /** Start time shown for a row, the changed one if the change sets it. */
-export function effectiveStartTime(row: LateEntryRowBase): number | undefined {
+export function effectiveStartTime(row: LateEntryRow): number | undefined {
   return row.change?.lateEntry.starttimems ?? row.run?.starttimems;
 }
 
@@ -155,7 +158,7 @@ export function effectiveStartTime(row: LateEntryRowBase): number | undefined {
  * A row without a change (a run not changed yet, or a new entry) can be edited by anyone,
  * a pending change only by its owner or an organizer.
  */
-export function canEditLateEntry(row: LateEntryRowBase | undefined, userId: string | undefined, isOrganizer: boolean): boolean {
+export function canEditLateEntry(row: LateEntryRow | undefined, userId: string | undefined, isOrganizer: boolean): boolean {
   if (!userId || !row) return false;
   const change = row.change;
   if (!change) return true;

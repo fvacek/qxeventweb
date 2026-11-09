@@ -9,8 +9,8 @@ import LateEntryDialog, { createLateEntryDialogController } from "~/components/L
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { RUNNER_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
-import { applyRecChngToLateEntries, parseLateEntryRows, type LateEntryRow } from "~/lib/lateEntryRows";
+import { RUNNER_ROW_COLUMNS, sqlQuotedString, type LateEntryRow } from "~/lib/lateEntry";
+import { applyRecChngToLateEntries, parseLateEntryRows } from "~/lib/lateEntryRows";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 import type { EventConfig } from "~/routes/OpenedEvent";
@@ -79,9 +79,9 @@ function LateEntriesTable(props: {
     {
       key: "id",
       header: "ID",
-      cell: (row: LateEntryRow) => row.change.id.toString(),
+      cell: (row: LateEntryRow) => row.change?.id.toString() ?? "",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => a.change.id - b.change.id,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.id, b.change?.id),
       width: "64px",
       hidden: "hidden lg:table-cell",
     },
@@ -89,8 +89,8 @@ function LateEntriesTable(props: {
       key: "operation",
       header: "Op",
       cell: (row: LateEntryRow) => {
-        const kind = row.change.lateEntry.kind;
-        const [label, icon] = kind.DeleteEntry ? ["Delete", "✕"] : kind.Update ? ["Change", "✎"] : ["New", "+"];
+        const kind = row.change?.lateEntry.kind;
+        const [label, icon] = kind?.DeleteEntry ? ["Delete", "✕"] : kind?.Update ? ["Change", "✎"] : ["New", "+"];
         return (
           <span class="inline-flex w-full justify-center">
             <span
@@ -110,11 +110,11 @@ function LateEntriesTable(props: {
       header: "St",
       cell: (row: LateEntryRow) => (
         <span class="inline-flex w-full justify-center">
-          <StatusIcon status={row.change.status} />
+          <StatusIcon status={row.change?.status} />
         </span>
       ),
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => a.change.status.localeCompare(b.change.status),
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.status, b.change?.status),
       width: "56px",
     },
     {
@@ -123,25 +123,25 @@ function LateEntriesTable(props: {
       sortable: true,
       sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.class_name, b.class_name),
     },
-    ...changedValueColumns<LateEntryRow>(props.stageStart),
+    ...changedValueColumns(props.stageStart),
     {
       key: "paid",
       header: "Paid",
       cell: (row: LateEntryRow) => (
         <span class="inline-flex w-full justify-center">
-          <PaidIcon paid={row.change.paid} />
+          <PaidIcon paid={row.change?.paid} />
         </span>
       ),
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => Number(a.change.paid) - Number(b.change.paid),
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => Number(a.change?.paid) - Number(b.change?.paid),
       width: "56px",
     },
     ...(props.canShowOwner() ? [{
       key: "owner",
       header: "Owner",
-      cell: (row: LateEntryRow) => row.change.user_id ?? "",
+      cell: (row: LateEntryRow) => row.change?.user_id ?? "",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change.user_id, b.change.user_id),
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.user_id, b.change?.user_id),
     } satisfies TableColumn<LateEntryRow>] : []),
   ]);
 
@@ -202,7 +202,7 @@ const LateEntries = (props: {
 
   const tableRows = () => {
     const filter = statusFilter();
-    return filter ? rows().filter(row => row.change.status === filter) : rows();
+    return filter ? rows().filter(row => row.change?.status === filter) : rows();
   };
 
   const selectStatusFilter = (filter: string) => {

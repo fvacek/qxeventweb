@@ -26,7 +26,7 @@ import {
   lateEntryRpcParams,
   sqlQuotedString,
   type LateEntry,
-  type LateEntryRowBase,
+  type LateEntryRow,
   type RunInfo,
 } from "~/lib/lateEntry";
 import { callRpcMethod } from "~/lib/rpc";
@@ -53,7 +53,7 @@ function formatStartTimeInput(msec: number | undefined, stageStart: Date | undef
 }
 
 /** Row being edited in the late entry dialog, `edit` holds the changed fields. */
-type LateEntryDraft = LateEntryRowBase & { edit?: LateEntry };
+type LateEntryDraft = LateEntryRow & { edit?: LateEntry };
 
 /**
  * State of the late entry dialog shared by the runs and late entries tables,
@@ -67,7 +67,7 @@ export function createLateEntryDialogController(args: {
   className?: () => string;
   /** Class and its rows, needed to offer free start times and to create new entries. */
   classDef?: () => ClassDef | undefined;
-  classRows?: () => LateEntryRowBase[];
+  classRows?: () => LateEntryRow[];
   onNewLateEntrySaved?: () => void;
   updateErrorTitle?: string;
 }) {
@@ -81,15 +81,10 @@ export function createLateEntryDialogController(args: {
   /** Runs of a stage already started cannot be changed. */
   const canEditRunRecords = () => (args.workingStage() ?? 0) >= (args.currentStage() ?? 1);
 
-  const canEdit = (row: LateEntryRowBase | undefined) =>
+  const canEdit = (row: LateEntryRow | undefined) =>
     canEditRunRecords() && canEditLateEntry(row, user()?.email, isOrganizer());
 
-  const openEditDialog = (row: LateEntryRowBase) => setDraft({
-    run: row.run,
-    class_name: row.class_name,
-    change: row.change,
-    edit: row.change?.lateEntry,
-  });
+  const openEditDialog = (row: LateEntryRow) => setDraft({ ...row, edit: row.change?.lateEntry });
 
   const openNewEntryDialog = () => setDraft({ class_name: args.className?.() ?? "" });
 
@@ -108,7 +103,7 @@ export function createLateEntryDialogController(args: {
     // Free start slots of the class, only known when the class and its rows are given.
     const cd = args.classDef?.();
     if (cd?.interval && args.classRows) {
-      const isFormRun = (row: LateEntryRowBase) => form?.run !== undefined && row.run?.run_id === form.run.run_id;
+      const isFormRun = (row: LateEntryRow) => form?.run !== undefined && row.run?.run_id === form.run.run_id;
       const startTimes = new Set(
         args.classRows()
           .filter(row => !isFormRun(row))

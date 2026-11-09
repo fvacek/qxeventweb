@@ -1,13 +1,13 @@
 import { SqlOperation } from "~/schema/rpc-sql-schema";
-import type { QxChange } from "~/lib/lateEntry";
-import { applyRecChngToLateEntries, applyRecChngToRuns, type LateEntryRow, type RunRow } from "./lateEntryRows";
+import type { LateEntryRow, QxChange } from "~/lib/lateEntry";
+import { applyRecChngToLateEntries, applyRecChngToRuns } from "./lateEntryRows";
 
 describe("applyRecChngToRuns", () => {
   const run = { run_id: 1, competitor_id: 11, firstname: "Jan", siid: 100 };
   const change = (overrides: Partial<QxChange> = {}): QxChange => ({
     id: 10, user_id: "a@b.cz", status: "Pending", paid: false, lateEntry: { kind: { Update: { runId: 1 } } }, ...overrides,
   });
-  const rows = (): RunRow[] => [{ run, class_name: "H21" }];
+  const rows = (): LateEntryRow[] => [{ run, class_name: "H21" }];
 
   it("patches a run, including QuickEvent column casing", () => {
     const result = applyRecChngToRuns(rows(), { table: "runs", id: 1, op: SqlOperation.Update, record: { siId: 300, stageid: 2 } });
@@ -16,7 +16,7 @@ describe("applyRecChngToRuns", () => {
 
   it("patches competitors by competitor id", () => {
     const result = applyRecChngToRuns(rows(), { table: "competitors", id: 11, op: SqlOperation.Update, record: { firstname: "Petr" } });
-    expect(result[0].run.firstname).toBe("Petr");
+    expect(result[0].run?.firstname).toBe("Petr");
   });
 
   it("drops the row of a deleted run", () => {
@@ -46,7 +46,7 @@ describe("applyRecChngToLateEntries", () => {
   const run = { run_id: 1, competitor_id: 11, firstname: "Jan", siid: 100 };
   const change: QxChange = { id: 10, user_id: "a@b.cz", status: "Pending", paid: false, lateEntry: { kind: { DeleteEntry: { runId: 1 } } } };
   const newEntry: QxChange = { ...change, id: 11, lateEntry: { kind: { NewEntry: { classId: 5 } } } };
-  const rows = (): LateEntryRow[] => [{ run, class_name: "H21", change }, { change: newEntry }];
+  const rows = (): LateEntryRow[] => [{ run, class_name: "H21", change }, { class_name: "D21", change: newEntry }];
 
   it("patches the run of a change", () => {
     const result = applyRecChngToLateEntries(rows(), { table: "runs", id: 1, op: SqlOperation.Update, record: { siid: 300 } }, undefined);
@@ -63,7 +63,7 @@ describe("applyRecChngToLateEntries", () => {
     const result = applyRecChngToLateEntries(rows(), { table: "runs", id: 1, op: SqlOperation.Delete }, undefined);
     expect(result).toHaveLength(2);
     expect(result[0].run).toBeUndefined();
-    expect(result[0].change.id).toBe(10);
+    expect(result[0].change?.id).toBe(10);
   });
 
   it("ignores inserted runs and competitors", () => {
@@ -74,6 +74,6 @@ describe("applyRecChngToLateEntries", () => {
 
   it("removes a deleted change", () => {
     const result = applyRecChngToLateEntries(rows(), { table: "qxchanges", id: 10, op: SqlOperation.Delete }, undefined);
-    expect(result.map(r => r.change.id)).toEqual([11]);
+    expect(result.map(r => r.change?.id)).toEqual([11]);
   });
 });

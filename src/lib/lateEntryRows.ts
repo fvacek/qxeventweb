@@ -9,16 +9,11 @@ import {
   patchChange,
   patchRunInfo,
   runInfoFromSqlRow,
-  type LateEntryRowBase,
-  type QxChange,
-  type RunInfo,
+  type LateEntryRow,
 } from "~/lib/lateEntry";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 
-/** Runs table row: a run, optionally with its pending change. */
-export type RunRow = LateEntryRowBase & { run: RunInfo; class_name: string };
-
-export function parseRunnerRows(result: RpcValue): RunRow[] {
+export function parseRunnerRows(result: RpcValue): LateEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
     const run = runInfoFromSqlRow(row);
     if (!run || row.class_name === undefined) {
@@ -29,7 +24,7 @@ export function parseRunnerRows(result: RpcValue): RunRow[] {
   });
 }
 
-function clearChange(rows: RunRow[], changeId: number): RunRow[] {
+function clearChange(rows: LateEntryRow[], changeId: number): LateEntryRow[] {
   return rows.map(r => r.change?.id === changeId ? { ...r, change: undefined } : r);
 }
 
@@ -38,18 +33,18 @@ function clearChange(rows: RunRow[], changeId: number): RunRow[] {
  * An inserted run carries neither class nor names, so it is ignored; `onCompetitorInserted` lets the caller
  * reload once the new competitor's runs are written.
  */
-export function applyRecChngToRuns(rows: RunRow[], recchng: RecChng, onCompetitorInserted?: (record: RecChngRecord) => void): RunRow[] {
+export function applyRecChngToRuns(rows: LateEntryRow[], recchng: RecChng, onCompetitorInserted?: (record: RecChngRecord) => void): LateEntryRow[] {
   const { table, id, op } = recchng;
   const record = normalizedRecChngRecord(recchng);
 
   switch (table) {
     case "runs":
-      if (op === SqlOperation.Update) return rows.map(r => r.run.run_id === id ? { ...r, run: patchRunInfo(r.run, record) } : r);
-      if (op === SqlOperation.Delete) return rows.filter(r => r.run.run_id !== id);
+      if (op === SqlOperation.Update) return rows.map(r => r.run?.run_id === id ? { ...r, run: patchRunInfo(r.run, record) } : r);
+      if (op === SqlOperation.Delete) return rows.filter(r => r.run?.run_id !== id);
       return rows;
 
     case "competitors":
-      if (op === SqlOperation.Update) return rows.map(r => r.run.competitor_id === id ? { ...r, run: patchRunInfo(r.run, record) } : r);
+      if (op === SqlOperation.Update) return rows.map(r => r.run?.competitor_id === id ? { ...r, run: patchRunInfo(r.run, record) } : r);
       if (op === SqlOperation.Insert) onCompetitorInserted?.(record);
       return rows;
 
@@ -62,7 +57,7 @@ export function applyRecChngToRuns(rows: RunRow[], recchng: RecChng, onCompetito
           const change = changeFromRecChng(id, record);
           const runId = change && changeRunId(change.lateEntry);
           if (!change || runId === undefined) return rows;
-          return rows.map(r => r.run.run_id === runId ? { ...r, change } : r);
+          return rows.map(r => r.run?.run_id === runId ? { ...r, change } : r);
         }
 
         case SqlOperation.Update: {
@@ -82,13 +77,14 @@ export function applyRecChngToRuns(rows: RunRow[], recchng: RecChng, onCompetito
   }
 }
 
-/** Late entries table row: a change, with the run it applies to, if any (a new entry has none). */
-export type LateEntryRow = LateEntryRowBase & { change: QxChange };
-
 export function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
     const change = changeFromSqlRow(row);
     if (!change) return [];
+    if (row.class_name === undefined) {
+      console.warn("Skipping late entry row without class_name", row);
+      return [];
+    }
     return [{ run: runInfoFromSqlRow(row), class_name: row.class_name, change }];
   });
 }
@@ -115,7 +111,7 @@ export function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng
     case "qxchanges":
       switch (op) {
         case SqlOperation.Delete:
-          return rows.filter(r => r.change.id !== id);
+          return rows.filter(r => r.change?.id !== id);
 
         case SqlOperation.Insert: {
           const change = changeFromRecChng(id, record);
@@ -124,14 +120,15 @@ export function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng
 
           // Take the original run data from another change of the same run, a new entry
           // has no run, only the class name from another new entry in the same class.
+          // Without such a row the class name stays empty until the next reload.
           const runId = changeRunId(change.lateEntry);
           const classId = change.lateEntry.kind.NewEntry?.classId;
           const base = runId !== undefined
             ? rows.find(r => r.run?.run_id === runId)
-            : rows.find(r => classId !== undefined && r.change.lateEntry.kind.NewEntry?.classId === classId);
+            : rows.find(r => classId !== undefined && r.change?.lateEntry.kind.NewEntry?.classId === classId);
           const inserted: LateEntryRow = {
             run: runId !== undefined ? base?.run : undefined,
-            class_name: base?.class_name,
+            class_name: base?.class_name ?? "",
             change,
           };
           // The query orders by qxchanges.id DESC.
@@ -139,7 +136,7 @@ export function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng
         }
 
         case SqlOperation.Update:
-          return rows.map(r => r.change.id === id ? { ...r, change: patchChange(r.change, record) } : r);
+          return rows.map(r => r.change?.id === id ? { ...r, change: patchChange(r.change, record) } : r);
       }
       return rows;
 

@@ -70,17 +70,17 @@ describe("patchRunInfo", () => {
 
 describe("canEditLateEntry", () => {
   it("allows a row without a change to any user", () => {
-    expect(canEditLateEntry({}, "x@y.cz", false)).toBe(true);
-    expect(canEditLateEntry({}, undefined, false)).toBe(false);
+    expect(canEditLateEntry({ class_name: "H21" }, "x@y.cz", false)).toBe(true);
+    expect(canEditLateEntry({ class_name: "H21" }, undefined, false)).toBe(false);
   });
 
   it("allows a pending change to its owner or an organizer only", () => {
-    expect(canEditLateEntry({ change: change() }, "a@b.cz", false)).toBe(true);
-    expect(canEditLateEntry({ change: change() }, "x@y.cz", false)).toBe(false);
-    expect(canEditLateEntry({ change: change() }, "x@y.cz", true)).toBe(true);
+    expect(canEditLateEntry({ class_name: "H21", change: change() }, "a@b.cz", false)).toBe(true);
+    expect(canEditLateEntry({ class_name: "H21", change: change() }, "x@y.cz", false)).toBe(false);
+    expect(canEditLateEntry({ class_name: "H21", change: change() }, "x@y.cz", true)).toBe(true);
   });
 
   it("forbids editing a resolved change", () => {
-    expect(canEditLateEntry({ change: change({ status: "Accepted" }) }, "a@b.cz", true)).toBe(false);
+    expect(canEditLateEntry({ class_name: "H21", change: change({ status: "Accepted" }) }, "a@b.cz", true)).toBe(false);
   });
 });

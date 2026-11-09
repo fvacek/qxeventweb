@@ -4,13 +4,13 @@ import { Button } from "~/components/ui/button";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
-import { changedValueColumns } from "~/components/lateEntryColumns";
+import { changedValueColumns, compareOptional } from "~/components/lateEntryColumns";
 import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { RUNNER_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
-import { applyRecChngToRuns, parseRunnerRows, type RunRow } from "~/lib/lateEntryRows";
+import { RUNNER_ROW_COLUMNS, sqlQuotedString, type LateEntryRow } from "~/lib/lateEntry";
+import { applyRecChngToRuns, parseRunnerRows } from "~/lib/lateEntryRows";
 import { num } from "~/lib/recChng";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
@@ -34,27 +34,27 @@ const NEW_COMPETITOR_RELOAD_DELAY_MS = 1000;
 
 function createRunColumns(args: {
   stageStart: () => Date | undefined;
-  canEdit: (row: RunRow) => boolean;
-  onEditRun: (row: RunRow) => void;
+  canEdit: (row: LateEntryRow) => boolean;
+  onEditRun: (row: LateEntryRow) => void;
   showActions: boolean;
-}): TableColumn<RunRow>[] {
-  const columns: TableColumn<RunRow>[] = [
+}): TableColumn<LateEntryRow>[] {
+  const columns: TableColumn<LateEntryRow>[] = [
     {
       key: "run_id",
       header: "ID",
-      cell: (row: RunRow) => row.run.run_id.toString(),
+      cell: (row: LateEntryRow) => row.run?.run_id.toString() ?? "",
       sortable: true,
-      sortFn: (a: RunRow, b: RunRow) => a.run.run_id - b.run.run_id,
+      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.run?.run_id, b.run?.run_id),
       hidden: "hidden lg:table-cell",
     },
-    ...changedValueColumns<RunRow>(args.stageStart),
+    ...changedValueColumns(args.stageStart),
   ];
   if (!args.showActions) return columns;
   columns.push(
     {
       key: "actions",
       header: "Action",
-      cell: (row: RunRow) => {
+      cell: (row: LateEntryRow) => {
         const canEditRun = args.canEdit(row);
         return (
           <Button size="sm" variant="outline"
@@ -75,10 +75,10 @@ function createRunColumns(args: {
 
 function RunsTable(props: {
   stageStart: () => Date | undefined;
-  rows: () => RunRow[];
+  rows: () => LateEntryRow[];
   loading: () => boolean;
-  canEdit: (row: RunRow) => boolean;
-  onEditRun: (row: RunRow) => void;
+  canEdit: (row: LateEntryRow) => boolean;
+  onEditRun: (row: LateEntryRow) => void;
   showActions: () => boolean;
 }) {
   const columns = createMemo(() => createRunColumns({
@@ -118,7 +118,7 @@ const Runs = (props: {
 
   const [className, setClassName] = createSignal("");
   const [classDef, setClassDef] = createSignal<ClassDef | undefined>(undefined);
-  const [rows, setRows] = createSignal<RunRow[]>([]);
+  const [rows, setRows] = createSignal<LateEntryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
 
   const eventId = () => props.eventId;
