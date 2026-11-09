@@ -133,8 +133,6 @@ export default function ResultsTab(props: {
     }
   };
 
-
-
   createEffect(() => {
     if (status() !== "Connected") return;
     const selectedClass = className();

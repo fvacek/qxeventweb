@@ -10,7 +10,7 @@ import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
 import { RUNNER_ROW_COLUMNS as RUNNER_ENTRY_ROW_COLUMNS, sqlQuotedString, type RunnerEntryRow } from "~/lib/runnerEntry";
-import { applyRecChngToLateEntries, parseLateEntryRows } from "~/lib/lateEntryRows";
+import { applyRecChngToLateEntries, parseRunnerEntryRows } from "~/lib/lateEntryRows";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 import type { EventConfig } from "~/routes/OpenedEvent";
@@ -192,7 +192,7 @@ const LateEntries = (props: {
     try {
       const query = createLateEntriesQuery(workingStage() ?? 0, user()?.email ?? "", currentUserIsOrganizer());
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
-      setRows(parseLateEntryRows(result));
+      setRows(parseRunnerEntryRows(result));
     } catch (error) {
       showToast({ title: "Reload late entries error", description: (error as Error).message, variant: "destructive" });
     } finally {

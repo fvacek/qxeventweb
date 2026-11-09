@@ -77,7 +77,7 @@ export function applyRecChngToRuns(rows: RunnerEntryRow[], recchng: RecChng, onC
   }
 }
 
-export function parseLateEntryRows(result: RpcValue): RunnerEntryRow[] {
+export function parseRunnerEntryRows(result: RpcValue): RunnerEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
     const change = changeFromSqlRow(row);
     if (!change) return [];
