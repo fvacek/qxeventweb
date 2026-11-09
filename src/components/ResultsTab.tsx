@@ -6,6 +6,8 @@ import { callRpcMethod } from "~/lib/rpc";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import type { EventConfig } from "~/routes/OpenedEvent";
+import { fullName } from "~/components/lateEntryColumns";
+import { sqlQuotedString } from "~/lib/lateEntry";
 
 type ResultRow = {
   id: number;
@@ -17,14 +19,6 @@ type ResultRow = {
   lastname?: string;
   registration?: string;
 };
-
-function sqlQuotedString(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
-function fullName(lastname?: string, firstname?: string): string {
-  return [lastname, firstname].filter(n => n?.trim()).join(" ");
-}
 
 function formatResultTime(timems: number): string {
   const totalSeconds = Math.floor(timems / 1000);

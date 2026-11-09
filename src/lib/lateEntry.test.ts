@@ -1,17 +1,11 @@
-import { SqlOperation } from "~/schema/rpc-sql-schema";
 import {
-  applyRunRecChng,
   canEditLateEntry,
   changeFromSqlRow,
   parseSqlRows,
+  patchRunInfo,
   runInfoFromSqlRow,
-  type LateEntryRowBase,
   type QxChange,
-  type RunInfo,
 } from "./lateEntry";
-
-type RunRow = { run: RunInfo; change?: QxChange };
-type LateEntryRow = LateEntryRowBase & { change: QxChange };
 
 const FIELDS = [
   "run_id", "siid", "starttimems", "competitor_id", "firstname", "lastname", "registration",
@@ -62,39 +56,15 @@ describe("SQL row parsing", () => {
   });
 });
 
-describe("applyRunRecChng", () => {
+describe("patchRunInfo", () => {
   const run = { run_id: 1, competitor_id: 11, firstname: "Jan", siid: 100 };
 
-  it("patches only known run columns", () => {
-    const rows: RunRow[] = [{ run }];
-    const record = { id: 1, siid: 300, stageid: 2 };
-    const result = applyRunRecChng(rows, { table: "runs", id: 1, op: SqlOperation.Update, record }, record, () => undefined);
-    expect(result?.[0].run).toEqual({ ...run, siid: 300 });
+  it("copies only known run columns", () => {
+    expect(patchRunInfo(run, { id: 1, siid: 300, stageid: 2, firstname: "Petr" })).toEqual({ ...run, siid: 300, firstname: "Petr" });
   });
 
-  it("patches competitors by competitor id", () => {
-    const rows: RunRow[] = [{ run }];
-    const record = { firstname: "Petr" };
-    const result = applyRunRecChng(rows, { table: "competitors", id: 11, op: SqlOperation.Update, record }, record, () => undefined);
-    expect(result?.[0].run.firstname).toBe("Petr");
-  });
-
-  it("lets the caller keep a row of a deleted run", () => {
-    const rows: LateEntryRow[] = [{ run, change: change({ lateEntry: { kind: { DeleteEntry: { runId: 1 } } } }) }];
-    const result = applyRunRecChng(rows, { table: "runs", id: 1, op: SqlOperation.Delete }, undefined, row => ({ ...row, run: undefined }));
-    expect(result).toHaveLength(1);
-    expect(result?.[0].run).toBeUndefined();
-    expect(result?.[0].change.id).toBe(10);
-  });
-
-  it("drops a deleted run row when the caller returns undefined", () => {
-    const rows: RunRow[] = [{ run }];
-    const result = applyRunRecChng(rows, { table: "runs", id: 1, op: SqlOperation.Delete }, undefined, () => undefined);
-    expect(result).toHaveLength(0);
-  });
-
-  it("returns undefined for other tables", () => {
-    expect(applyRunRecChng([], { table: "qxchanges", id: 1, op: SqlOperation.Delete }, undefined, () => undefined)).toBeUndefined();
+  it("keeps the run without a record", () => {
+    expect(patchRunInfo(run, undefined)).toBe(run);
   });
 });
 

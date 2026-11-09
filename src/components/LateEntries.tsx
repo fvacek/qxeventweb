@@ -1,36 +1,19 @@
-import type { RpcValue } from "libshv-js";
 import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
+import { changedValueColumns, compareOptional } from "~/components/lateEntryColumns";
+import { createLateEntryDialogController, LateEntryControllerDialog } from "~/components/LateEntryControllerDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
+import { LATE_ENTRY_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
+import { applyRecChngToLateEntries, parseLateEntryRows, type LateEntryRow } from "~/lib/lateEntryRows";
 import { callRpcMethod } from "~/lib/rpc";
-import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
-import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
-import {
-  changedValueColumns,
-  compareOptional,
-  createLateEntryDialogController,
-  LateEntryControllerDialog,
-} from "~/components/Runs";
-import {
-  applyRunRecChng,
-  canEditLateEntry,
-  changeFromRecChng,
-  changeFromSqlRow,
-  changeRunId,
-  normalizedRecChngRecord,
-  parseSqlRows,
-  patchChange,
-  runInfoFromSqlRow,
-  type LateEntryRowBase,
-  type QxChange,
-  type RunInfo,
-} from "~/lib/lateEntry";
+import type { RecChng } from "~/schema/rpc-sql-schema";
+import type { EventConfig } from "~/routes/OpenedEvent";
 
 type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
@@ -71,74 +54,9 @@ function PaidIcon(props: { paid?: boolean }) {
     : <span class="text-muted-foreground" title="Unpaid" aria-label="Unpaid">—</span>;
 }
 
-/** Late entries table row: a change, with the run it applies to, if any (a new entry has none). */
-type LateEntryRow = {
-  run?: RunInfo;
-  class_name?: string;
-  change: QxChange;
-};
-
-function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
-  return parseSqlRows(result).flatMap(row => {
-    const change = changeFromSqlRow(row);
-    if (!change) return [];
-    return [{ run: runInfoFromSqlRow(row), class_name: row.class_name, change }];
-  });
-}
-
-/**
- * @param ownerId when set, inserted changes of other users are ignored, the same way the query filters them.
- */
-function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng, ownerId: string | undefined): LateEntryRow[] {
-  const { table, id, op } = recchng;
-  const record = normalizedRecChngRecord(recchng);
-
-  // A deleted run keeps its changes, e.g. an accepted DeleteEntry, only the run data is gone.
-  const runsChanged = applyRunRecChng(rows, recchng, record, row => ({ ...row, run: undefined }));
-  if (runsChanged) return runsChanged;
-  if (table !== "qxchanges") return rows;
-
-  switch (op) {
-    case SqlOperation.Delete:
-      return rows.filter(r => r.change.id !== id);
-
-    case SqlOperation.Insert: {
-      const change = changeFromRecChng(id, record);
-      if (!change) return rows;
-      if (ownerId !== undefined && change.user_id !== ownerId) return rows;
-
-      // Take the original run data from another change of the same run, a new entry
-      // has no run, only the class name from another new entry in the same class.
-      const runId = changeRunId(change.lateEntry);
-      const classId = change.lateEntry.kind.NewEntry?.classId;
-      const base = runId !== undefined
-        ? rows.find(r => r.run?.run_id === runId)
-        : rows.find(r => classId !== undefined && r.change.lateEntry.kind.NewEntry?.classId === classId);
-      const inserted: LateEntryRow = {
-        run: runId !== undefined ? base?.run : undefined,
-        class_name: base?.class_name,
-        change,
-      };
-      // The query orders by qxchanges.id DESC.
-      return [inserted, ...rows];
-    }
-
-    case SqlOperation.Update:
-      return rows.map(r => r.change.id === id ? { ...r, change: patchChange(r.change, record) } : r);
-
-    default:
-      return rows;
-  }
-}
-
 function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
-  const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = '${userId.replaceAll("'", "''")}'`;
-  return `SELECT runs.id as run_id, runs.siid, runs.starttimems,
-                  competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
-                  qxchanges.id as qxchange_id, qxchanges.created as qxchange_created,
-                  qxchanges.status as qxchange_status, qxchanges.status_message as qxchange_status_message,
-                  qxchanges.paid as qxchange_paid,
-                  qxchanges.data as qxchange_data, qxchanges.user_id as qxchange_user_id,
+  const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
+  return `SELECT ${LATE_ENTRY_ROW_COLUMNS},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
@@ -258,20 +176,15 @@ const LateEntries = (props: {
   const [loading, setLoading] = createSignal(false);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
 
-  const currentStage = () => props.currentStage;
   const workingStage = () => props.workingStage;
-  const currentUserIsOrganizer = () => isEventOrganizer(props.eventConfig(), user()?.email);
-  const canEditRunRecords = () => (workingStage() ?? 0) >= (currentStage() ?? 1);
-
-  const canEdit = (row: LateEntryRowBase | undefined) =>
-    canEditRunRecords() && canEditLateEntry(row, user()?.email, currentUserIsOrganizer());
 
   const lateEntryDialog = createLateEntryDialogController({
     eventId: () => props.eventId,
     eventConfig: props.eventConfig,
+    currentStage: () => props.currentStage,
     workingStage,
-    canEdit,
   });
+  const currentUserIsOrganizer = lateEntryDialog.isOrganizer;
 
   const reloadTable = async () => {
     if (status() !== "Connected" || workingStage() === undefined) return;

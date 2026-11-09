@@ -2,7 +2,7 @@ import { makeMap, type RpcValue } from "libshv-js";
 import { object, number, string, parse, safeParse, type InferOutput, optional, boolean, union, pipe, transform, unknown } from "valibot";
 
 import { createSqlTable } from "~/lib/SqlTable";
-import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
+import { num, str, type RecChngRecord } from "~/lib/recChng";
 
 const LateEntryKindSchema = object({
   Update: optional(object({ runId: number() })),
@@ -17,7 +17,7 @@ export function lateEntryKind(runId: number | undefined, classId: number | undef
   return {};
 }
 
-export const LateEntrySchema = object({
+const LateEntrySchema = object({
   kind: LateEntryKindSchema,
   firstname: optional(string()),
   lastname: optional(string()),
@@ -40,7 +40,6 @@ export type RunInfo = {
   lastname?: string;
   registration?: string;
   siid?: number;
-  note?: string;
   starttimems?: number;
 };
 
@@ -62,7 +61,7 @@ export type LateEntryRowBase = {
   change?: QxChange;
 };
 
-/** Flat row as returned by the runs / late entries SQL queries. */
+/** Flat row as returned by the runs / late entries SQL queries, see `LATE_ENTRY_ROW_COLUMNS`. */
 const SqlRowSchema = object({
   run_id: optional(number()),
   competitor_id: optional(number()),
@@ -71,7 +70,6 @@ const SqlRowSchema = object({
   lastname: optional(string()),
   registration: optional(string()),
   siid: optional(number()),
-  note: optional(string()),
   starttimems: optional(number()),
   qxchange_id: optional(number()),
   qxchange_created: optional(string()),
@@ -81,7 +79,15 @@ const SqlRowSchema = object({
   qxchange_paid: optional(pipe(union([boolean(), number()]), transform(v => Boolean(v)))),
   qxchange_data: optional(unknown()),
 });
-export type SqlRow = InferOutput<typeof SqlRowSchema>;
+type SqlRow = InferOutput<typeof SqlRowSchema>;
+
+/** SELECT list of the runs / late entries queries, it has to match `SqlRowSchema`. */
+export const LATE_ENTRY_ROW_COLUMNS = `runs.id AS run_id, runs.siid, runs.starttimems,
+  competitors.id AS competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
+  qxchanges.id AS qxchange_id, qxchanges.created AS qxchange_created,
+  qxchanges.status AS qxchange_status, qxchanges.status_message AS qxchange_status_message,
+  qxchanges.paid AS qxchange_paid,
+  qxchanges.data AS qxchange_data, qxchanges.user_id AS qxchange_user_id`;
 
 export function sqlQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -101,8 +107,8 @@ function parseLateEntryData(data: unknown): LateEntry | undefined {
 
 export function runInfoFromSqlRow(row: SqlRow): RunInfo | undefined {
   if (row.run_id === undefined || row.competitor_id === undefined) return undefined;
-  const { run_id, competitor_id, firstname, lastname, registration, siid, note, starttimems } = row;
-  return { run_id, competitor_id, firstname, lastname, registration, siid, note, starttimems };
+  const { run_id, competitor_id, firstname, lastname, registration, siid, starttimems } = row;
+  return { run_id, competitor_id, firstname, lastname, registration, siid, starttimems };
 }
 
 export function changeFromSqlRow(row: SqlRow): QxChange | undefined {
@@ -136,13 +142,7 @@ export function parseSqlRows(result: RpcValue): SqlRow[] {
   return rows;
 }
 
-export const str = (value: unknown, fallback?: string): string | undefined =>
-  typeof value === "string" ? value : fallback;
-
-const num = (value: unknown): number | undefined =>
-  typeof value === "number" ? value : undefined;
-
-export function paidValue(value: unknown, fallback?: boolean): boolean | undefined {
+function paidValue(value: unknown, fallback?: boolean): boolean | undefined {
   return typeof value === "boolean" || typeof value === "number" ? Boolean(value) : fallback;
 }
 
@@ -163,15 +163,7 @@ export function canEditLateEntry(row: LateEntryRowBase | undefined, userId: stri
   return isOrganizer || change.user_id === userId;
 }
 
-type RecChngRecord = RecChng["record"];
-
-/** Lowercases record keys, so DB column casing (e.g. QuickEvent's `startTimeMs`) matches `RunInfo` keys. */
-export function normalizedRecChngRecord(recchng: RecChng): RecChngRecord {
-  const record = recchng.record;
-  return record && Object.fromEntries(Object.entries(record).map(([k, v]) => [k.toLowerCase(), v]));
-}
-
-export function parseLateEntryFromRecChng(record: RecChngRecord): LateEntry | undefined {
+function parseLateEntryFromRecChng(record: RecChngRecord): LateEntry | undefined {
   if (!record || typeof record.data !== "string") return undefined;
   return parseLateEntryData(record.data);
 }
@@ -181,7 +173,7 @@ export function changeFromRecChng(id: number, record: RecChngRecord): QxChange |
   const lateEntry = parseLateEntryFromRecChng(record);
   const userId = str(record?.user_id);
   if (!lateEntry || !userId) {
-    console.warn("processRecChng: [Insert] Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
+    console.warn("changeFromRecChng: Skipping — lateEntry or user_id missing", { lateEntry, user_id: userId });
     return undefined;
   }
   return {
@@ -206,16 +198,11 @@ export function patchChange(change: QxChange, record: RecChngRecord): QxChange {
   };
 }
 
-/** Run id the change refers to, a new entry has none. */
-export function changeRunId(lateEntry: LateEntry): number | undefined {
-  return lateEntry.kind.Update?.runId ?? lateEntry.kind.DeleteEntry?.runId;
-}
-
-const RUN_INFO_STRING_KEYS = ["firstname", "lastname", "registration", "note"] as const;
+const RUN_INFO_STRING_KEYS = ["firstname", "lastname", "registration"] as const;
 const RUN_INFO_NUMBER_KEYS = ["siid", "starttimems"] as const;
 
 /** Copies only the known `RunInfo` columns of a `runs` / `competitors` record. */
-function patchRunInfo(run: RunInfo, record: RecChngRecord): RunInfo {
+export function patchRunInfo(run: RunInfo, record: RecChngRecord): RunInfo {
   if (!record) return run;
   const patched = { ...run };
   for (const key of RUN_INFO_STRING_KEYS) if (key in record) patched[key] = str(record[key]);
@@ -223,31 +210,9 @@ function patchRunInfo(run: RunInfo, record: RecChngRecord): RunInfo {
   return patched;
 }
 
-/**
- * Applies `runs` / `competitors` record changes, shared by every row type.
- * A deleted run is passed to `onRunDeleted`, which returns the row to keep, or `undefined` to drop it.
- * Returns `undefined` when the change is not one of those tables, so the caller handles it.
- */
-export function applyRunRecChng<T extends LateEntryRowBase>(
-  rows: T[],
-  recchng: RecChng,
-  record: RecChngRecord,
-  onRunDeleted: (row: T) => T | undefined,
-): T[] | undefined {
-  const { table, id, op } = recchng;
-  const patchRows = (matches: (run: RunInfo) => boolean): T[] =>
-    rows.map(r => r.run && matches(r.run) ? { ...r, run: patchRunInfo(r.run, record) } : r);
-
-  if (table === "runs") {
-    if (op === SqlOperation.Update) return patchRows(run => run.run_id === id);
-    if (op === SqlOperation.Delete) return rows.flatMap(r => r.run?.run_id === id ? (onRunDeleted(r) ?? []) : [r]);
-    return rows;
-  }
-  if (table === "competitors") {
-    if (op === SqlOperation.Update) return patchRows(run => run.competitor_id === id);
-    return rows;
-  }
-  return undefined;
+/** Run id the change refers to, a new entry has none. */
+export function changeRunId(lateEntry: LateEntry): number | undefined {
+  return lateEntry.kind.Update?.runId ?? lateEntry.kind.DeleteEntry?.runId;
 }
 
 export function lateEntryRpcParams(stageId: number, changeId: number | undefined, lateEntry: LateEntry) {
