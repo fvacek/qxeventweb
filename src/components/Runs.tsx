@@ -5,7 +5,7 @@ import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import { changedValueColumns } from "~/components/lateEntryColumns";
-import { createLateEntryDialogController, LateEntryControllerDialog } from "~/components/LateEntryControllerDialog";
+import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
@@ -201,7 +201,7 @@ const Runs = (props: {
           showActions={() => !!user()?.email}
         />
 
-        <LateEntryControllerDialog controller={lateEntryDialog} />
+        <LateEntryDialog controller={lateEntryDialog} />
       </div>
     </div>
   );

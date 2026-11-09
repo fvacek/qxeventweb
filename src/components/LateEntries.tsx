@@ -5,7 +5,7 @@ import { FlexDropdown } from "~/components/ui/flexdropdown";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
 import { changedValueColumns, compareOptional } from "~/components/lateEntryColumns";
-import { createLateEntryDialogController, LateEntryControllerDialog } from "~/components/LateEntryControllerDialog";
+import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
@@ -251,7 +251,7 @@ const LateEntries = (props: {
           onEditRow={lateEntryDialog.openEditDialog}
         />
 
-        <LateEntryControllerDialog controller={lateEntryDialog} />
+        <LateEntryDialog controller={lateEntryDialog} />
       </div>
     </div>
   );
