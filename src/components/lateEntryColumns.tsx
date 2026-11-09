@@ -1,5 +1,5 @@
 import type { TableColumn } from "~/components/ui/table";
-import { effectiveStartTime, type LateEntryRow } from "~/lib/lateEntry";
+import { effectiveStartTime, type RunnerEntryRow } from "~/lib/runnerEntry";
 
 export function fullName(lastname?: string, firstname?: string): string {
   return [lastname, firstname].filter(n => n?.trim()).join(" ");
@@ -33,13 +33,13 @@ export function compareOptional<V extends string | number>(a: V | undefined, b: 
 }
 
 /** Start time, name, registration and SI columns showing the original value and its change. */
-export function changedValueColumns(stageStart: () => Date | undefined): TableColumn<LateEntryRow>[] {
-  const originalName = (row: LateEntryRow) => fullName(row.run?.lastname, row.run?.firstname);
+export function changedValueColumns(stageStart: () => Date | undefined): TableColumn<RunnerEntryRow>[] {
+  const originalName = (row: RunnerEntryRow) => fullName(row.run?.lastname, row.run?.firstname);
   return [
     {
       key: "starttimems",
       header: "Start Time",
-      cell: (row: LateEntryRow) => {
+      cell: (row: RunnerEntryRow) => {
         const changed = row.change?.lateEntry.starttimems;
         return (
           <ChangedValue
@@ -49,12 +49,12 @@ export function changedValueColumns(stageStart: () => Date | undefined): TableCo
         );
       },
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(effectiveStartTime(a), effectiveStartTime(b)),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(effectiveStartTime(a), effectiveStartTime(b)),
     },
     {
       key: "name",
       header: "Name",
-      cell: (row: LateEntryRow) => {
+      cell: (row: RunnerEntryRow) => {
         const le = row.change?.lateEntry;
         const changedName = le?.firstname !== undefined || le?.lastname !== undefined
           ? fullName(le?.lastname ?? row.run?.lastname, le?.firstname ?? row.run?.firstname)
@@ -63,19 +63,19 @@ export function changedValueColumns(stageStart: () => Date | undefined): TableCo
         return <ChangedValue original={originalName(row)} changed={changedName} />;
       },
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => originalName(a).localeCompare(originalName(b)),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => originalName(a).localeCompare(originalName(b)),
     },
     {
       key: "registration",
       header: "Reg",
-      cell: (row: LateEntryRow) => <ChangedValue original={row.run?.registration || ""} changed={row.change?.lateEntry.registration} />,
+      cell: (row: RunnerEntryRow) => <ChangedValue original={row.run?.registration || ""} changed={row.change?.lateEntry.registration} />,
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.run?.registration, b.run?.registration),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.run?.registration, b.run?.registration),
     },
     {
       key: "siid",
       header: "SI",
-      cell: (row: LateEntryRow) => <ChangedValue original={row.run?.siid?.toString() || ""} changed={row.change?.lateEntry.siid?.toString()} />,
+      cell: (row: RunnerEntryRow) => <ChangedValue original={row.run?.siid?.toString() || ""} changed={row.change?.lateEntry.siid?.toString()} />,
       sortable: false,
     },
   ];

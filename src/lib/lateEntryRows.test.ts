@@ -1,5 +1,5 @@
 import { SqlOperation } from "~/schema/rpc-sql-schema";
-import type { LateEntryRow, QxChange } from "~/lib/lateEntry";
+import type { RunnerEntryRow, QxChange } from "~/lib/runnerEntry";
 import { applyRecChngToLateEntries, applyRecChngToRuns } from "./lateEntryRows";
 
 describe("applyRecChngToRuns", () => {
@@ -7,7 +7,7 @@ describe("applyRecChngToRuns", () => {
   const change = (overrides: Partial<QxChange> = {}): QxChange => ({
     id: 10, user_id: "a@b.cz", status: "Pending", paid: false, lateEntry: { kind: { Update: { runId: 1 } } }, ...overrides,
   });
-  const rows = (): LateEntryRow[] => [{ run, class_name: "H21" }];
+  const rows = (): RunnerEntryRow[] => [{ run, class_name: "H21" }];
 
   it("patches a run, including QuickEvent column casing", () => {
     const result = applyRecChngToRuns(rows(), { table: "runs", id: 1, op: SqlOperation.Update, record: { siId: 300, stageid: 2 } });
@@ -46,7 +46,7 @@ describe("applyRecChngToLateEntries", () => {
   const run = { run_id: 1, competitor_id: 11, firstname: "Jan", siid: 100 };
   const change: QxChange = { id: 10, user_id: "a@b.cz", status: "Pending", paid: false, lateEntry: { kind: { DeleteEntry: { runId: 1 } } } };
   const newEntry: QxChange = { ...change, id: 11, lateEntry: { kind: { NewEntry: { classId: 5 } } } };
-  const rows = (): LateEntryRow[] => [{ run, class_name: "H21", change }, { class_name: "D21", change: newEntry }];
+  const rows = (): RunnerEntryRow[] => [{ run, class_name: "H21", change }, { class_name: "D21", change: newEntry }];
 
   it("patches the run of a change", () => {
     const result = applyRecChngToLateEntries(rows(), { table: "runs", id: 1, op: SqlOperation.Update, record: { siid: 300 } }, undefined);

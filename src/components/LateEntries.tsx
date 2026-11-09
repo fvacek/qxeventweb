@@ -9,7 +9,7 @@ import LateEntryDialog, { createLateEntryDialogController } from "~/components/L
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { RUNNER_ROW_COLUMNS, sqlQuotedString, type LateEntryRow } from "~/lib/lateEntry";
+import { RUNNER_ROW_COLUMNS as RUNNER_ENTRY_ROW_COLUMNS, sqlQuotedString, type RunnerEntryRow } from "~/lib/runnerEntry";
 import { applyRecChngToLateEntries, parseLateEntryRows } from "~/lib/lateEntryRows";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
@@ -56,7 +56,7 @@ function PaidIcon(props: { paid?: boolean }) {
 
 function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
-  return `SELECT ${RUNNER_ROW_COLUMNS},
+  return `SELECT ${RUNNER_ENTRY_ROW_COLUMNS},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'
@@ -70,25 +70,25 @@ function createLateEntriesQuery(workingStage: number, userId: string, currentUse
 
 function LateEntriesTable(props: {
   stageStart: () => Date | undefined;
-  rows: () => LateEntryRow[];
+  rows: () => RunnerEntryRow[];
   loading: () => boolean;
   canShowOwner: () => boolean;
-  onEditRow: (row: LateEntryRow) => void;
+  onEditRow: (row: RunnerEntryRow) => void;
 }) {
-  const columns = createMemo<TableColumn<LateEntryRow>[]>(() => [
+  const columns = createMemo<TableColumn<RunnerEntryRow>[]>(() => [
     {
       key: "id",
       header: "ID",
-      cell: (row: LateEntryRow) => row.change?.id.toString() ?? "",
+      cell: (row: RunnerEntryRow) => row.change?.id.toString() ?? "",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.id, b.change?.id),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.change?.id, b.change?.id),
       width: "64px",
       hidden: "hidden lg:table-cell",
     },
     {
       key: "operation",
       header: "Op",
-      cell: (row: LateEntryRow) => {
+      cell: (row: RunnerEntryRow) => {
         const kind = row.change?.lateEntry.kind;
         const [label, icon] = kind?.DeleteEntry ? ["Delete", "✕"] : kind?.Update ? ["Change", "✎"] : ["New", "+"];
         return (
@@ -108,41 +108,41 @@ function LateEntriesTable(props: {
     {
       key: "status",
       header: "St",
-      cell: (row: LateEntryRow) => (
+      cell: (row: RunnerEntryRow) => (
         <span class="inline-flex w-full justify-center">
           <StatusIcon status={row.change?.status} />
         </span>
       ),
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.status, b.change?.status),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.change?.status, b.change?.status),
       width: "56px",
     },
     {
       key: "class_name",
       header: "Class",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.class_name, b.class_name),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.class_name, b.class_name),
     },
     ...changedValueColumns(props.stageStart),
     {
       key: "paid",
       header: "Paid",
-      cell: (row: LateEntryRow) => (
+      cell: (row: RunnerEntryRow) => (
         <span class="inline-flex w-full justify-center">
           <PaidIcon paid={row.change?.paid} />
         </span>
       ),
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => Number(a.change?.paid) - Number(b.change?.paid),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => Number(a.change?.paid) - Number(b.change?.paid),
       width: "56px",
     },
     ...(props.canShowOwner() ? [{
       key: "owner",
       header: "Owner",
-      cell: (row: LateEntryRow) => row.change?.user_id ?? "",
+      cell: (row: RunnerEntryRow) => row.change?.user_id ?? "",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.change?.user_id, b.change?.user_id),
-    } satisfies TableColumn<LateEntryRow>] : []),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.change?.user_id, b.change?.user_id),
+    } satisfies TableColumn<RunnerEntryRow>] : []),
   ]);
 
   return (
@@ -172,7 +172,7 @@ const LateEntries = (props: {
   const appConfig = useAppConfig();
   const { user } = useAuth();
 
-  const [rows, setRows] = createSignal<LateEntryRow[]>([]);
+  const [rows, setRows] = createSignal<RunnerEntryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
 

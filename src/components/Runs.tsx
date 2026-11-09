@@ -9,7 +9,7 @@ import LateEntryDialog, { createLateEntryDialogController } from "~/components/L
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { RUNNER_ROW_COLUMNS, sqlQuotedString, type LateEntryRow } from "~/lib/lateEntry";
+import { RUNNER_ROW_COLUMNS, sqlQuotedString, type RunnerEntryRow } from "~/lib/runnerEntry";
 import { applyRecChngToRuns, parseRunnerRows } from "~/lib/lateEntryRows";
 import { num } from "~/lib/recChng";
 import { callRpcMethod } from "~/lib/rpc";
@@ -34,17 +34,17 @@ const NEW_COMPETITOR_RELOAD_DELAY_MS = 1000;
 
 function createRunColumns(args: {
   stageStart: () => Date | undefined;
-  canEdit: (row: LateEntryRow) => boolean;
-  onEditRun: (row: LateEntryRow) => void;
+  canEdit: (row: RunnerEntryRow) => boolean;
+  onEditRun: (row: RunnerEntryRow) => void;
   showActions: boolean;
-}): TableColumn<LateEntryRow>[] {
-  const columns: TableColumn<LateEntryRow>[] = [
+}): TableColumn<RunnerEntryRow>[] {
+  const columns: TableColumn<RunnerEntryRow>[] = [
     {
       key: "run_id",
       header: "ID",
-      cell: (row: LateEntryRow) => row.run?.run_id.toString() ?? "",
+      cell: (row: RunnerEntryRow) => row.run?.run_id.toString() ?? "",
       sortable: true,
-      sortFn: (a: LateEntryRow, b: LateEntryRow) => compareOptional(a.run?.run_id, b.run?.run_id),
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.run?.run_id, b.run?.run_id),
       hidden: "hidden lg:table-cell",
     },
     ...changedValueColumns(args.stageStart),
@@ -54,7 +54,7 @@ function createRunColumns(args: {
     {
       key: "actions",
       header: "Action",
-      cell: (row: LateEntryRow) => {
+      cell: (row: RunnerEntryRow) => {
         const canEditRun = args.canEdit(row);
         return (
           <Button size="sm" variant="outline"
@@ -75,10 +75,10 @@ function createRunColumns(args: {
 
 function RunsTable(props: {
   stageStart: () => Date | undefined;
-  rows: () => LateEntryRow[];
+  rows: () => RunnerEntryRow[];
   loading: () => boolean;
-  canEdit: (row: LateEntryRow) => boolean;
-  onEditRun: (row: LateEntryRow) => void;
+  canEdit: (row: RunnerEntryRow) => boolean;
+  onEditRun: (row: RunnerEntryRow) => void;
   showActions: () => boolean;
 }) {
   const columns = createMemo(() => createRunColumns({
@@ -118,7 +118,7 @@ const Runs = (props: {
 
   const [className, setClassName] = createSignal("");
   const [classDef, setClassDef] = createSignal<ClassDef | undefined>(undefined);
-  const [rows, setRows] = createSignal<LateEntryRow[]>([]);
+  const [rows, setRows] = createSignal<RunnerEntryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
 
   const eventId = () => props.eventId;

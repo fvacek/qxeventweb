@@ -5,7 +5,7 @@ import {
   patchRunInfo,
   runInfoFromSqlRow,
   type QxChange,
-} from "./lateEntry";
+} from "./runnerEntry";
 
 const FIELDS = [
   "run_id", "siid", "starttimems", "competitor_id", "firstname", "lastname", "registration",

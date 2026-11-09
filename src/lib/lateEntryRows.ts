@@ -9,11 +9,11 @@ import {
   patchChange,
   patchRunInfo,
   runInfoFromSqlRow,
-  type LateEntryRow,
-} from "~/lib/lateEntry";
+  type RunnerEntryRow,
+} from "~/lib/runnerEntry";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 
-export function parseRunnerRows(result: RpcValue): LateEntryRow[] {
+export function parseRunnerRows(result: RpcValue): RunnerEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
     const run = runInfoFromSqlRow(row);
     if (!run || row.class_name === undefined) {
@@ -24,7 +24,7 @@ export function parseRunnerRows(result: RpcValue): LateEntryRow[] {
   });
 }
 
-function clearChange(rows: LateEntryRow[], changeId: number): LateEntryRow[] {
+function clearChange(rows: RunnerEntryRow[], changeId: number): RunnerEntryRow[] {
   return rows.map(r => r.change?.id === changeId ? { ...r, change: undefined } : r);
 }
 
@@ -33,7 +33,7 @@ function clearChange(rows: LateEntryRow[], changeId: number): LateEntryRow[] {
  * An inserted run carries neither class nor names, so it is ignored; `onCompetitorInserted` lets the caller
  * reload once the new competitor's runs are written.
  */
-export function applyRecChngToRuns(rows: LateEntryRow[], recchng: RecChng, onCompetitorInserted?: (record: RecChngRecord) => void): LateEntryRow[] {
+export function applyRecChngToRuns(rows: RunnerEntryRow[], recchng: RecChng, onCompetitorInserted?: (record: RecChngRecord) => void): RunnerEntryRow[] {
   const { table, id, op } = recchng;
   const record = normalizedRecChngRecord(recchng);
 
@@ -77,7 +77,7 @@ export function applyRecChngToRuns(rows: LateEntryRow[], recchng: RecChng, onCom
   }
 }
 
-export function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
+export function parseLateEntryRows(result: RpcValue): RunnerEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
     const change = changeFromSqlRow(row);
     if (!change) return [];
@@ -93,7 +93,7 @@ export function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
  * Applies a record change to the late entries table rows.
  * @param ownerId when set, inserted changes of other users are ignored, the same way the query filters them.
  */
-export function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng, ownerId: string | undefined): LateEntryRow[] {
+export function applyRecChngToLateEntries(rows: RunnerEntryRow[], recchng: RecChng, ownerId: string | undefined): RunnerEntryRow[] {
   const { table, id, op } = recchng;
   const record = normalizedRecChngRecord(recchng);
 
@@ -126,7 +126,7 @@ export function applyRecChngToLateEntries(rows: LateEntryRow[], recchng: RecChng
           const base = runId !== undefined
             ? rows.find(r => r.run?.run_id === runId)
             : rows.find(r => classId !== undefined && r.change?.lateEntry.kind.NewEntry?.classId === classId);
-          const inserted: LateEntryRow = {
+          const inserted: RunnerEntryRow = {
             run: runId !== undefined ? base?.run : undefined,
             class_name: base?.class_name ?? "",
             change,
