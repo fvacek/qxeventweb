@@ -62,7 +62,7 @@ export type LateEntryRowBase = {
 };
 
 /** Flat row as returned by the runs / late entries SQL queries, see `LATE_ENTRY_ROW_COLUMNS`. */
-const SqlRowSchema = object({
+const SqlRunnerRowSchema = object({
   run_id: optional(number()),
   competitor_id: optional(number()),
   class_name: optional(string()),
@@ -79,10 +79,10 @@ const SqlRowSchema = object({
   qxchange_paid: optional(pipe(union([boolean(), number()]), transform(v => Boolean(v)))),
   qxchange_data: optional(unknown()),
 });
-type SqlRow = InferOutput<typeof SqlRowSchema>;
+type SqlRunnerRow = InferOutput<typeof SqlRunnerRowSchema>;
 
 /** SELECT list of the runs / late entries queries, it has to match `SqlRowSchema`. */
-export const LATE_ENTRY_ROW_COLUMNS = `runs.id AS run_id, runs.siid, runs.starttimems,
+export const RUNNER_ROW_COLUMNS = `runs.id AS run_id, runs.siid, runs.starttimems,
   competitors.id AS competitor_id, competitors.firstname, competitors.lastname, competitors.registration,
   qxchanges.id AS qxchange_id, qxchanges.created AS qxchange_created,
   qxchanges.status AS qxchange_status, qxchanges.status_message AS qxchange_status_message,
@@ -105,13 +105,13 @@ function parseLateEntryData(data: unknown): LateEntry | undefined {
   return undefined;
 }
 
-export function runInfoFromSqlRow(row: SqlRow): RunInfo | undefined {
+export function runInfoFromSqlRow(row: SqlRunnerRow): RunInfo | undefined {
   if (row.run_id === undefined || row.competitor_id === undefined) return undefined;
   const { run_id, competitor_id, firstname, lastname, registration, siid, starttimems } = row;
   return { run_id, competitor_id, firstname, lastname, registration, siid, starttimems };
 }
 
-export function changeFromSqlRow(row: SqlRow): QxChange | undefined {
+export function changeFromSqlRow(row: SqlRunnerRow): QxChange | undefined {
   if (row.qxchange_id === undefined) return undefined;
   const lateEntry = parseLateEntryData(row.qxchange_data);
   if (!lateEntry || row.qxchange_status === undefined) {
@@ -129,12 +129,12 @@ export function changeFromSqlRow(row: SqlRow): QxChange | undefined {
   };
 }
 
-export function parseSqlRows(result: RpcValue): SqlRow[] {
+export function parseSqlRows(result: RpcValue): SqlRunnerRow[] {
   const table = createSqlTable(result);
-  const rows: SqlRow[] = [];
+  const rows: SqlRunnerRow[] = [];
   for (let i = 0; i < table.rowCount(); i++) {
     try {
-      rows.push(parse(SqlRowSchema, table.recordAt(i)));
+      rows.push(parse(SqlRunnerRowSchema, table.recordAt(i)));
     } catch (error) {
       console.warn(`Skipping invalid row ${i}:`, error);
     }

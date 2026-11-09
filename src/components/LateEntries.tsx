@@ -9,7 +9,7 @@ import LateEntryDialog, { createLateEntryDialogController } from "~/components/L
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { LATE_ENTRY_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
+import { RUNNER_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
 import { applyRecChngToLateEntries, parseLateEntryRows, type LateEntryRow } from "~/lib/lateEntryRows";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
@@ -56,7 +56,7 @@ function PaidIcon(props: { paid?: boolean }) {
 
 function createLateEntriesQuery(workingStage: number, userId: string, currentUserIsOrganizer: boolean): string {
   const ownerFilter = currentUserIsOrganizer ? "" : `AND qxchanges.user_id = ${sqlQuotedString(userId)}`;
-  return `SELECT ${LATE_ENTRY_ROW_COLUMNS},
+  return `SELECT ${RUNNER_ROW_COLUMNS},
                   COALESCE(classes.name, qxclasses.name) AS class_name
                 FROM qxchanges
                 LEFT JOIN runs ON runs.id = qxchanges.foreign_id AND qxchanges.foreign_table = 'runs' AND qxchanges.data_type = 'LateEntry'

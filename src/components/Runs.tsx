@@ -9,15 +9,15 @@ import LateEntryDialog, { createLateEntryDialogController } from "~/components/L
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
 import { useAppConfig } from "~/context/AppConfig";
-import { LATE_ENTRY_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
-import { applyRecChngToRuns, parseRunRows, type RunRow } from "~/lib/lateEntryRows";
+import { RUNNER_ROW_COLUMNS, sqlQuotedString } from "~/lib/lateEntry";
+import { applyRecChngToRuns, parseRunnerRows, type RunRow } from "~/lib/lateEntryRows";
 import { num } from "~/lib/recChng";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 import type { EventConfig } from "~/routes/OpenedEvent";
 
 function createRunsQuery(className: string, workingStage: number): string {
-  return `SELECT ${LATE_ENTRY_ROW_COLUMNS},
+  return `SELECT ${RUNNER_ROW_COLUMNS},
                   classes.name AS class_name
                 FROM runs
                 INNER JOIN competitors ON runs.competitorid = competitors.id
@@ -143,7 +143,7 @@ const Runs = (props: {
     try {
       const query = createRunsQuery(className(), workingStage() ?? 0);
       const result = await callRpcMethod(wsClient()!, appConfig.eventSqlApiPath(props.eventId), "query", [query]);
-      setRows(parseRunRows(result));
+      setRows(parseRunnerRows(result));
     } catch (error) {
       showToast({ title: "Reload table error", description: (error as Error).message, variant: "destructive" });
     } finally {

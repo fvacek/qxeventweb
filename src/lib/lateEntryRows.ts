@@ -9,19 +9,16 @@ import {
   patchChange,
   patchRunInfo,
   runInfoFromSqlRow,
+  type LateEntryRowBase,
   type QxChange,
   type RunInfo,
 } from "~/lib/lateEntry";
 import { RecChng, SqlOperation } from "~/schema/rpc-sql-schema";
 
 /** Runs table row: a run, optionally with its pending change. */
-export type RunRow = {
-  run: RunInfo;
-  class_name: string;
-  change?: QxChange;
-};
+export type RunRow = LateEntryRowBase & { run: RunInfo; class_name: string };
 
-export function parseRunRows(result: RpcValue): RunRow[] {
+export function parseRunnerRows(result: RpcValue): RunRow[] {
   return parseSqlRows(result).flatMap(row => {
     const run = runInfoFromSqlRow(row);
     if (!run || row.class_name === undefined) {
@@ -86,11 +83,7 @@ export function applyRecChngToRuns(rows: RunRow[], recchng: RecChng, onCompetito
 }
 
 /** Late entries table row: a change, with the run it applies to, if any (a new entry has none). */
-export type LateEntryRow = {
-  run?: RunInfo;
-  class_name?: string;
-  change: QxChange;
-};
+export type LateEntryRow = LateEntryRowBase & { change: QxChange };
 
 export function parseLateEntryRows(result: RpcValue): LateEntryRow[] {
   return parseSqlRows(result).flatMap(row => {
