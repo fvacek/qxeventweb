@@ -41,7 +41,6 @@ import {
   EventIdParamSchema,
   EventRecordSchema,
   EventRecordTableSchema,
-  SetEventDbModeParamSchema,
   UpdateEventRecordParamSchema,
   type EventDbMode,
   type EventRecord,
@@ -269,20 +268,11 @@ function EventsTable() {
     const original = tableRecords().find(r => r.id === record.id);
     if (!original) return;
     try {
-      // db_mode cannot be changed by updateEventRecord, it has its own RPC method
-      const { db_mode, ...fields } = record;
-      const recChanges = copyValidFieldsToRpcMap(original, fields);
-      const isDbModeChanged = db_mode !== original.db_mode;
+      const recChanges = copyValidFieldsToRpcMap(original, record);
       if (!isRecordEmpty(recChanges)) {
         const { event_id, change } = parse(UpdateEventRecordParamSchema, { event_id: record.id, change: recChanges });
         const params = makeMapRecursive({ event_id, change: makeMapRecursive(change) });
         await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "updateEventRecord", params);
-      }
-      if (isDbModeChanged) {
-        const params = makeMapRecursive(parse(SetEventDbModeParamSchema, { event_id: record.id, db_mode }));
-        await callRpcMethod(wsClient()!, appConfig.eventCtlApiPath(), "setEventDbMode", params);
-      }
-      if (!isRecordEmpty(recChanges) || isDbModeChanged) {
         showToast({ title: "Update event success" });
       }
     } catch (error) {

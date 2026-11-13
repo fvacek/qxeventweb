@@ -64,11 +64,6 @@ export const UpdateEventRecordParamSchema = v.object({
   change: v.record(v.string(), v.custom<RpcValue>(() => true)),
 });
 
-export const SetEventDbModeParamSchema = v.object({
-  event_id: v.number(),
-  db_mode: EventDbModeSchema,
-});
-
 export type EventDbMode = InferOutput<typeof EventDbModeSchema>;
 export type EventMembers = InferOutput<typeof EventMembersSchema>;
 export type EventRecord = InferOutput<typeof EventRecordSchema>;
