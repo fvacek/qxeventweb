@@ -432,7 +432,7 @@ function EventsTable() {
           </DialogHeader>
 
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <TextField>
+            <TextField readOnly>
               <TextFieldLabel>ID</TextFieldLabel>
               <TextFieldInput value={formData()?.id.toString() ?? ""} type="text" readOnly />
             </TextField>
@@ -468,7 +468,7 @@ function EventsTable() {
               onChange={(date) => setFormData(prev => prev ? { ...prev, date } : null)}
             />
 
-            <TextField>
+            <TextField readOnly>
               <TextFieldLabel>API token</TextFieldLabel>
               <TextFieldInput value={formData()?.api_token || ""} type="text" readOnly />
             </TextField>
