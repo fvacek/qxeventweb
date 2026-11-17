@@ -36,6 +36,8 @@ export function isEventOrganizer(config: EventConfig, email: string | undefined)
   return config.owner === email || config.members?.[email] === "Organizer";
 }
 
+const CONFIG_RELOAD_DEBOUNCE_MS = 300;
+
 interface EventProps {
   event_id_str: string;
 }
@@ -73,6 +75,20 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     return result;
   };
 
+  let eventRecord: EventRecord | undefined;
+
+  // Re-reads the config table; does not touch `loading`, so it can run on recchng without remounting the tabs.
+  const reloadConfigTable = async () => {
+    if (!eventRecord) return;
+    const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(eventId()), "query", [
+      "SELECT * FROM config",
+    ]);
+    const eventConfig = parseEventConfig(event_config_result, eventRecord);
+    setEventConfig(eventConfig);
+    setCurrentStage(eventConfig.currentStage);
+    setWorkingStage(prev => prev ?? eventConfig.currentStage);
+  };
+
   const loadEventConfig = async () => {
     const event_id = eventId();
 
@@ -93,17 +109,9 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       const eventApiPath = appConfig.eventCtlApiPath();
       let eventData = await callRpcMethod(eventApiPath, "eventData", eventIdParam);
 
-      let eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
+      eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
 
-      // Then get detailed config and stages
-      const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(event_id), "query", [
-        "SELECT * FROM config",
-      ]);
-      const eventConfig = parseEventConfig(event_config_result, eventRecord);
-      // await syncEventConfig(eventConfig, eventRecord);
-      setEventConfig(eventConfig);
-      setCurrentStage(eventConfig.currentStage);
-      setWorkingStage(prev => prev ?? eventConfig.currentStage);
+      await reloadConfigTable();
     } catch (error) {
       console.error("Failed to load event config:", error);
       setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -199,6 +207,23 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     }
   });
 
+  // Config table rows are keyed by `ckey`, not a numeric id, so the recchng payload can't be applied
+  // directly; re-read the config instead (e.g. QuickEvent changing event.currentStageId).
+  // Config is saved in batches (one recchng per key), so the reload is debounced.
+  let configReloadTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleConfigReload = () => {
+    clearTimeout(configReloadTimer);
+    configReloadTimer = setTimeout(() => {
+      reloadConfigTable().catch(error => console.error("Failed to reload event config:", error));
+    }, CONFIG_RELOAD_DEBOUNCE_MS);
+  };
+  onCleanup(() => clearTimeout(configReloadTimer));
+
+  createEffect(() => {
+    const recchng = recchngReceived();
+    if (recchng?.table.toLowerCase() !== "config") return;
+    scheduleConfigReload();
+  });
 
   return (
     <div class="flex w-full flex-col items-center justify-center p-4">
