@@ -2,24 +2,13 @@ import { RpcValue } from "libshv-js";
 import { parse, safeParse, ValiError } from "valibot";
 import {
   ValidatedTableJsonSchema,
-  type TableJson as ValibotTableJson
-} from "../schema/sql-table-schema";
+  type TableCell,
+  type TableField,
+  type TableJson,
+  type TableRow,
+} from "~/schema/sql-table-schema";
 
-export type TableField = {
-  name: string;
-};
-
-export type TableCell = null | string | number | Date | boolean;
-
-export type TableRow = TableCell[];
-
-export interface TableJson {
-  fields: TableField[];
-  rows: TableRow[];
-}
-
-// Type alias for compatibility with valibot schema
-export type { ValibotTableJson };
+export type { TableCell, TableField, TableJson, TableRow };
 
 export class SqlTable {
   fields: TableField[];

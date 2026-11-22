@@ -14,6 +14,7 @@ import { num } from "~/lib/recChng";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 import type { EventConfig } from "~/lib/eventConfig";
+import type { EventRecord } from "~/schema/event-record-schema";
 
 function createRunsQuery(className: string, workingStage: number): string {
   return `SELECT ${RUNNER_ROW_COLUMNS},
@@ -106,6 +107,7 @@ function RunsTable(props: {
 const Runs = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
+  eventRecord: () => EventRecord | undefined,
   currentStage: () => number | undefined,
   workingStage: () => number | undefined,
   recchngReceived: () => RecChng | null,
@@ -127,6 +129,7 @@ const Runs = (props: {
   const lateEntryDialog = createLateEntryDialogController({
     eventId,
     eventConfig: props.eventConfig,
+    eventRecord: props.eventRecord,
     currentStage,
     workingStage,
     className,

@@ -1,10 +1,12 @@
-import { EventConfig } from "~/lib/eventConfig";
+import { EventConfig, eventDate, eventName } from "~/lib/eventConfig";
+import type { EventRecord } from "~/schema/event-record-schema";
 
 interface EventInfoProps {
   eventConfig: EventConfig;
+  eventRecord: () => EventRecord | undefined;
 }
 
-const EventInfo = ({ eventConfig }: EventInfoProps) => {
+const EventInfo = ({ eventConfig, eventRecord }: EventInfoProps) => {
   return (
     <div class="shadow-lg rounded-lg p-6">
       <h2 class="text-2xl font-semibold mb-4">Event Information</h2>
@@ -12,7 +14,7 @@ const EventInfo = ({ eventConfig }: EventInfoProps) => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-muted-foreground mb-1">Name</label>
-          <p class="text-lg">{eventConfig.name || 'N/A'}</p>
+          <p class="text-lg">{eventName(eventConfig, eventRecord()) || 'N/A'}</p>
         </div>
 
         <div>
@@ -22,7 +24,7 @@ const EventInfo = ({ eventConfig }: EventInfoProps) => {
 
         <div>
           <label class="block text-sm font-medium text-muted-foreground mb-1">Date</label>
-          <p class="text-lg">{eventConfig.date?.toLocaleDateString() || 'N/A'}</p>
+          <p class="text-lg">{eventDate(eventConfig, eventRecord())?.toLocaleDateString() || 'N/A'}</p>
         </div>
 
         <div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RpcValue } from "libshv-js";
-import { isEventOrganizer, parseEventConfig, unquote } from "./eventConfig";
+import { eventDate, eventName, isEventOrganizer, parseEventConfig, unquote } from "./eventConfig";
 import type { EventRecord } from "~/schema/event-record-schema";
 
 const eventRecord: EventRecord = {
@@ -14,9 +14,9 @@ const eventRecord: EventRecord = {
   config: { members: { "org@example.com": "Organizer", "user@example.com": "Member" } },
 };
 
-// Mirrors QuickEvent's config table: ckey, cname, cvalue, ctype.
+// Mirrors QuickEvent's config table: id, cname, cvalue, ctype.
 const configTable = (rows: unknown[][]) => ({
-  fields: [{ name: "ckey" }, { name: "cname" }, { name: "cvalue" }, { name: "ctype" }],
+  fields: [{ name: "id" }, { name: "cname" }, { name: "cvalue" }, { name: "ctype" }],
   rows,
 }) as unknown as RpcValue;
 
@@ -39,20 +39,19 @@ describe("parseEventConfig", () => {
       ["event.stageCount", null, "3", "int"],
       ["event.currentStageId", null, "2", "int"],
       ["stage.2.startDateTime", null, "2026-06-02T10:00:00Z", "QDateTime"],
-    ]), eventRecord);
+    ]));
     expect(config.name).toBe("O'Brien Cup");
     expect(config.place).toBe("Brno");
     expect(config.date?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
     expect(config.stageCount).toBe(3);
     expect(config.currentStage).toBe(2);
     expect(config.stages.map(s => s.stageStart?.toISOString())).toEqual([undefined, "2026-06-02T10:00:00.000Z", undefined]);
-    expect(config.owner).toBe("owner@example.com");
   });
 
-  it("falls back to the event record and defaults", () => {
-    const config = parseEventConfig(configTable([["event.name", null, "", "QString"]]), eventRecord);
-    expect(config.name).toBe("Record name");
-    expect(config.date?.toISOString()).toBe("2026-05-01T00:00:00.000Z");
+  it("uses defaults for missing values", () => {
+    const config = parseEventConfig(configTable([["event.name", null, "", "QString"]]));
+    expect(config.name).toBeUndefined();
+    expect(config.date).toBeUndefined();
     expect(config.stageCount).toBe(1);
     expect(config.currentStage).toBe(1);
     expect(config.stages).toHaveLength(1);
@@ -62,27 +61,48 @@ describe("parseEventConfig", () => {
     const config = parseEventConfig(configTable([
       ["event.stageCount", null, 2, "int"],
       ["event.currentStageId", null, 5, "int"],
-    ]), eventRecord);
+    ]));
     expect(config.currentStage).toBe(2);
   });
 
   it("accepts Date cells", () => {
-    const config = parseEventConfig(configTable([["event.date", null, new Date("2026-07-01T00:00:00Z"), "QDate"]]), eventRecord);
+    const config = parseEventConfig(configTable([["event.date", null, new Date("2026-07-01T00:00:00Z"), "QDate"]]));
     expect(config.date?.toISOString()).toBe("2026-07-01T00:00:00.000Z");
   });
 
   it("throws when the expected columns are missing", () => {
     const table = { fields: [{ name: "key" }, { name: "value" }], rows: [] } as unknown as RpcValue;
-    expect(() => parseEventConfig(table, eventRecord)).toThrow(/ckey/);
+    expect(() => parseEventConfig(table)).toThrow(/"id"/);
+  });
+});
+
+describe("eventName / eventDate", () => {
+  it("prefer the config table and fall back to the event record", () => {
+    const empty = parseEventConfig(configTable([]));
+    expect(eventName(empty, eventRecord)).toBe("Record name");
+    expect(eventDate(empty, eventRecord)?.toISOString()).toBe("2026-05-01T00:00:00.000Z");
+    expect(eventName(empty, undefined)).toBeUndefined();
+    expect(eventDate(empty, undefined)).toBeUndefined();
+
+    const config = parseEventConfig(configTable([
+      ["event.name", null, "Config name", "QString"],
+      ["event.date", null, "2026-06-01", "QDate"],
+    ]));
+    expect(eventName(config, eventRecord)).toBe("Config name");
+    expect(eventDate(config, eventRecord)?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
   });
 });
 
 describe("isEventOrganizer", () => {
-  const config = parseEventConfig(configTable([]), eventRecord);
   it("accepts the owner and organizer members only", () => {
-    expect(isEventOrganizer(config, "owner@example.com")).toBe(true);
-    expect(isEventOrganizer(config, "org@example.com")).toBe(true);
-    expect(isEventOrganizer(config, "user@example.com")).toBe(false);
-    expect(isEventOrganizer(config, undefined)).toBe(false);
+    expect(isEventOrganizer(eventRecord, "owner@example.com")).toBe(true);
+    expect(isEventOrganizer(eventRecord, "org@example.com")).toBe(true);
+    expect(isEventOrganizer(eventRecord, "user@example.com")).toBe(false);
+    expect(isEventOrganizer(eventRecord, undefined)).toBe(false);
+  });
+
+  it("rejects everyone while the event record is not loaded or has no members", () => {
+    expect(isEventOrganizer(undefined, "owner@example.com")).toBe(false);
+    expect(isEventOrganizer({ owner: "owner@example.com" }, "org@example.com")).toBe(false);
   });
 });

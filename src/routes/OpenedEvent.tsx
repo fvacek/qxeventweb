@@ -3,7 +3,7 @@ import { createStore, reconcile } from "solid-js/store";
 import { RpcValue, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
-import { EventConfig, parseEventConfig } from "~/lib/eventConfig";
+import { EventConfig, eventName, parseEventConfig } from "~/lib/eventConfig";
 import { showToast } from "~/components/ui/toast";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
@@ -39,6 +39,8 @@ const OpenedEvent = (props: EventProps) => {
   const eventId = () => parseInt(props.event_id_str);
   const [workingStage, setWorkingStage] = createSignal<number | undefined>(undefined);
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
+  // qxeventd's event record (owner, members, ...), kept apart from the config table data.
+  const [eventRecord, setEventRecord] = createSignal<EventRecord | undefined>(undefined);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>("");
   const [recchngReceived, setRecchngReceived] = createSignal<RecChng | null>(null);
@@ -61,13 +63,8 @@ const OpenedEvent = (props: EventProps) => {
     return result;
   };
 
-  // Latest server state; the store is derived from both by applyEventConfig().
-  let eventRecord: EventRecord | undefined;
-  let configTable: RpcValue | undefined;
-
-  const applyEventConfig = () => {
-    if (!eventRecord || configTable === undefined) return;
-    const eventConfig = parseEventConfig(configTable, eventRecord);
+  const applyEventConfig = (configTable: RpcValue) => {
+    const eventConfig = parseEventConfig(configTable);
     setEventConfig(eventConfig);
     // Keep the user's choice unless it no longer exists (e.g. stage count was lowered).
     setWorkingStage(prev => prev === undefined || prev > eventConfig.stageCount ? eventConfig.currentStage : prev);
@@ -81,8 +78,7 @@ const OpenedEvent = (props: EventProps) => {
     const eventIdParam = makeMapRecursive(parse(EventIdParamSchema, { event_id: eventId() }));
     const eventData = await callRpcMethod(appConfig.eventCtlApiPath(), "eventData", eventIdParam);
     if (seq !== eventRecordSeq) return;
-    eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
-    applyEventConfig();
+    setEventRecord(parse(EventRecordSchema, rpcMapToObject(eventData)));
   };
 
   // Re-reads the config table; does not touch `loading`, so it can run on recchng without remounting the tabs.
@@ -93,23 +89,21 @@ const OpenedEvent = (props: EventProps) => {
       "SELECT * FROM config",
     ]);
     if (seq !== configSeq) return;
-    configTable = result;
-    applyEventConfig();
+    applyEventConfig(result);
   };
 
   const loadEventConfig = async () => {
     const event_id = eventId();
     // Only the first load of an event shows the loading state; reloads after a reconnect
     // update the config in place, so the tabs (and their selections) stay mounted.
-    const initial = eventRecord?.id !== event_id;
+    const initial = untrack(eventRecord)?.id !== event_id;
 
     if (appConfig.debug) {
       console.log("Loading event config for event ID:", event_id);
     }
 
     if (initial) {
-      eventRecord = undefined;
-      configTable = undefined;
+      setEventRecord(undefined);
       setEventConfig(reconcile(new EventConfig()));
       setWorkingStage(undefined);
       setLoading(true);
@@ -159,7 +153,7 @@ const OpenedEvent = (props: EventProps) => {
     }
   });
 
-  // Config table rows are keyed by `ckey`, not a numeric id, so the recchng payload can't be applied
+  // Config table rows are keyed by a text `id` (config key), not a numeric one, so the recchng payload can't be applied
   // directly; re-read the config instead (e.g. QuickEvent changing event.currentStageId).
   // Config is saved in batches (one recchng per key), so the reload is debounced.
   const debounced = (fn: () => Promise<void>, what: string) => {
@@ -196,7 +190,7 @@ const OpenedEvent = (props: EventProps) => {
   return (
     <div class="flex w-full flex-col items-center justify-center p-4">
       <div class="flex flex-row w-full mb-6 justify-between">
-        <p class="text-3xl font-bold">{eventConfig.name}</p>
+        <p class="text-3xl font-bold">{eventName(eventConfig, eventRecord())}</p>
         <div class="flex items-center gap-3">
           <StageControl currentStage={() => eventConfig.currentStage} />
           <label class="flex items-center gap-2 text-sm font-medium">
@@ -226,7 +220,7 @@ const OpenedEvent = (props: EventProps) => {
         </div>
       )}
 
-      {!loading() && !error() && eventConfig.name && (
+      {!loading() && !error() && eventRecord() && (
         <div class="w-full max-w-7xl">
           <Tabs value={activeTab()} onChange={setActiveTab} class="w-full">
             <TabsList class="flex w-full flex-row">
@@ -237,13 +231,14 @@ const OpenedEvent = (props: EventProps) => {
             </TabsList>
 
             <TabsContent value="event-info" class="space-y-4">
-              <EventInfo eventConfig={eventConfig} />
+              <EventInfo eventConfig={eventConfig} eventRecord={eventRecord} />
             </TabsContent>
 
             <TabsContent value="runs" class="space-y-4">
               <Runs
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
+                eventRecord={eventRecord}
                 currentStage={() => eventConfig.currentStage}
                 workingStage={workingStage}
                 recchngReceived={recchngReceived}
@@ -259,6 +254,7 @@ const OpenedEvent = (props: EventProps) => {
               <LateEntries
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
+                eventRecord={eventRecord}
                 currentStage={() => eventConfig.currentStage}
                 workingStage={workingStage}
                 recchngReceived={recchngReceived}

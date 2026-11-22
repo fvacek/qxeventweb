@@ -1,6 +1,6 @@
 import type { RpcValue } from "libshv-js";
 import { createSqlTable, type TableCell } from "~/lib/SqlTable";
-import type { EventMembers, EventRecord } from "~/schema/event-record-schema";
+import type { EventRecord } from "~/schema/event-record-schema";
 
 export type StageConfig = {
   stageStart?: Date;
@@ -13,13 +13,12 @@ export class EventConfig {
   stageCount: number = 1;
   currentStage: number = 1;
   stages: StageConfig[] = [];
-  owner?: string;
-  members?: EventMembers;
 }
 
-export function isEventOrganizer(config: EventConfig, email: string | undefined): boolean {
-  if (!email) return false;
-  return config.owner === email || config.members?.[email] === "Organizer";
+/** Owner and members live in qxeventd's event record, not in the event's config table. */
+export function isEventOrganizer(eventRecord: Pick<EventRecord, "owner" | "config"> | undefined, email: string | undefined): boolean {
+  if (!eventRecord || !email) return false;
+  return eventRecord.owner === email || eventRecord.config?.members[email] === "Organizer";
 }
 
 /** Strips one pair of matching surrounding quotes, e.g. `"Spring Cup"` -> `Spring Cup`; inner quotes are kept. */
@@ -35,13 +34,20 @@ function parseDate(value: TableCell | string | undefined): Date | undefined {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
-/**
- * Builds the event config from QuickEvent's `config` table (`ckey`/`cvalue` columns, looked up by name)
- * and the qxeventd event record, which provides owner/members and fallbacks for name and date.
- */
-export function parseEventConfig(configTable: RpcValue, eventRecord: EventRecord): EventConfig {
+/** Event name shown in the UI: the config table's `event.name`, else the qxeventd event record's name. */
+export function eventName(config: EventConfig, eventRecord: EventRecord | undefined): string | undefined {
+  return config.name || eventRecord?.name;
+}
+
+/** Event date shown in the UI: the config table's `event.date`, else the qxeventd event record's date. */
+export function eventDate(config: EventConfig, eventRecord: EventRecord | undefined): Date | undefined {
+  return config.date ?? parseDate(eventRecord?.date);
+}
+
+/** Builds the event config from QuickEvent's `config` table (`id`/`cvalue` columns, looked up by name). */
+export function parseEventConfig(configTable: RpcValue): EventConfig {
   const table = createSqlTable(configTable);
-  const keyIx = table.fieldIndex("ckey");
+  const keyIx = table.fieldIndex("id");
   const valueIx = table.fieldIndex("cvalue");
   const values = new Map<string, TableCell>();
   for (const row of table.rows) {
@@ -68,13 +74,11 @@ export function parseEventConfig(configTable: RpcValue, eventRecord: EventRecord
   }));
 
   return {
-    name: text("event.name") || eventRecord.name,
+    name: text("event.name"),
     place: text("event.place"),
-    date: parseDate(values.get("event.date") ?? eventRecord.date),
+    date: parseDate(values.get("event.date")),
     stageCount,
     currentStage,
     stages,
-    owner: eventRecord.owner,
-    members: eventRecord.config?.members,
   };
 }

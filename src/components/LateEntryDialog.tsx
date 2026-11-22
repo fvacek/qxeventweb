@@ -32,6 +32,7 @@ import {
 import { callRpcMethod } from "~/lib/rpc";
 import { createSqlTable } from "~/lib/SqlTable";
 import { EventConfig, isEventOrganizer } from "~/lib/eventConfig";
+import type { EventRecord } from "~/schema/event-record-schema";
 
 export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems";
 export type LateEntryDialogValue = string | number | undefined;
@@ -62,6 +63,7 @@ type LateEntryDraft = RunnerEntryRow & { edit?: LateEntry };
 export function createLateEntryDialogController(args: {
   eventId: () => number;
   eventConfig: () => EventConfig;
+  eventRecord: () => EventRecord | undefined;
   currentStage: () => number | undefined;
   workingStage: () => number | undefined;
   className?: () => string;
@@ -76,7 +78,7 @@ export function createLateEntryDialogController(args: {
   const { user } = useAuth();
   const [draft, setDraft] = createSignal<LateEntryDraft | undefined>(undefined);
 
-  const isOrganizer = () => isEventOrganizer(args.eventConfig(), user()?.email);
+  const isOrganizer = () => isEventOrganizer(args.eventRecord(), user()?.email);
 
   /** Runs of a stage already started cannot be changed. */
   const canEditRunRecords = () => (args.workingStage() ?? 0) >= (args.currentStage() ?? 1);

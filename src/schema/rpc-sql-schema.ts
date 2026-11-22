@@ -14,7 +14,7 @@ export const SqlValueSchema = union([
   undefined_(),
 ]);
 
-/** Record ID, integer for most tables, string for tables keyed by text (e.g. `config` keyed by `ckey`). */
+/** Record ID, integer for most tables, string for tables keyed by text (e.g. `config` keyed by text `id`). */
 export const RecIdSchema = union([number(), string()]);
 
 export type RecId = InferOutput<typeof RecIdSchema>;
