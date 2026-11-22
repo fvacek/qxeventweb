@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { RpcValue } from "libshv-js";
-import { eventDate, eventName, isEventOrganizer, parseEventConfig, unquote } from "./eventConfig";
+import { eventDate, eventName, eventTime, isEventOrganizer, parseEventConfig, unquote } from "./eventConfig";
 import type { EventRecord } from "~/schema/event-record-schema";
+
+/** Local `YYYY-MM-DD` of a date, time zone independent. */
+const localDate = (date: Date | undefined) => date && [
+  date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0"),
+].join("-");
 
 const eventRecord: EventRecord = {
   id: 7,
   name: "Record name",
-  date: "2026-05-01T00:00:00.000Z",
+  date: "2026-05-01",
+  time: "10:00:00",
   stage_count: 1,
   api_token: "token",
   owner: "owner@example.com",
@@ -42,7 +48,7 @@ describe("parseEventConfig", () => {
     ]));
     expect(config.name).toBe("O'Brien Cup");
     expect(config.place).toBe("Brno");
-    expect(config.date?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+    expect(localDate(config.date)).toBe("2026-06-01");
     expect(config.stageCount).toBe(3);
     expect(config.currentStage).toBe(2);
     expect(config.stages.map(s => s.stageStart?.toISOString())).toEqual([undefined, "2026-06-02T10:00:00.000Z", undefined]);
@@ -76,20 +82,24 @@ describe("parseEventConfig", () => {
   });
 });
 
-describe("eventName / eventDate", () => {
+describe("eventName / eventDate / eventTime", () => {
   it("prefer the config table and fall back to the event record", () => {
     const empty = parseEventConfig(configTable([]));
     expect(eventName(empty, eventRecord)).toBe("Record name");
-    expect(eventDate(empty, eventRecord)?.toISOString()).toBe("2026-05-01T00:00:00.000Z");
+    expect(localDate(eventDate(empty, eventRecord))).toBe("2026-05-01");
+    expect(eventTime(empty, eventRecord)).toBe("10:00");
+    expect(eventTime(empty, undefined)).toBeUndefined();
     expect(eventName(empty, undefined)).toBeUndefined();
     expect(eventDate(empty, undefined)).toBeUndefined();
 
     const config = parseEventConfig(configTable([
       ["event.name", null, "Config name", "QString"],
       ["event.date", null, "2026-06-01", "QDate"],
+      ["event.time", null, "09:15:00", "QTime"],
     ]));
+    expect(eventTime(config, eventRecord)).toBe("09:15");
     expect(eventName(config, eventRecord)).toBe("Config name");
-    expect(eventDate(config, eventRecord)?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+    expect(localDate(eventDate(config, eventRecord))).toBe("2026-06-01");
   });
 });
 

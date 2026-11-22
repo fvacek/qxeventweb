@@ -2,12 +2,6 @@ import * as v from "valibot";
 import type { InferOutput } from "valibot";
 import type { RpcValue } from "libshv-js";
 
-// Accept SHV DateTime and strings, transform into an ISO 8601 string
-const DateTimeString = v.pipe(
-  v.union([v.date(), v.string()]),
-  v.transform((val) => val instanceof Date ? val.toISOString() : val),
-);
-
 const EventDbModeSchema = v.picklist(["Archived", "ReadOnly", "Master", "Replica"]);
 
 const EventMembersSchema = v.record(v.string(), v.string());
@@ -18,7 +12,10 @@ const EventConfigSchema = v.object({
 export const EventRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
-  date: v.optional(DateTimeString),
+  /** Local date of the event start, `YYYY-MM-DD` */
+  date: v.optional(v.string()),
+  /** Local time of the event start, `HH:MM:SS` */
+  time: v.optional(v.string()),
   stage_count: v.number(),
   api_token: v.string(),
   owner: v.string(),
@@ -29,7 +26,10 @@ export const EventRecordSchema = v.object({
 export const EventTableRecordSchema = v.object({
   id: v.number(),
   name: v.optional(v.string()),
-  date: v.optional(DateTimeString),
+  /** Local date of the event start, `YYYY-MM-DD` */
+  date: v.optional(v.string()),
+  /** Local time of the event start, `HH:MM:SS` */
+  time: v.optional(v.string()),
   stage_count: v.optional(v.number()),
   owner: v.string(),
   db_mode: EventDbModeSchema,

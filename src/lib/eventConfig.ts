@@ -10,6 +10,8 @@ export class EventConfig {
   name?: string;
   place?: string;
   date?: Date;
+  /** Local start time `HH:MM[:SS]` */
+  time?: string;
   stageCount: number = 1;
   currentStage: number = 1;
   stages: StageConfig[] = [];
@@ -30,7 +32,11 @@ export function unquote(value: string): string {
 function parseDate(value: TableCell | string | undefined): Date | undefined {
   if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
   if (value === undefined || value === null || value === "") return undefined;
-  const date = new Date(String(value));
+  // A date-only `YYYY-MM-DD` is a local date, `new Date()` would take it as UTC midnight.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(String(value));
   return isNaN(date.getTime()) ? undefined : date;
 }
 
@@ -42,6 +48,12 @@ export function eventName(config: EventConfig, eventRecord: EventRecord | undefi
 /** Event date shown in the UI: the config table's `event.date`, else the qxeventd event record's date. */
 export function eventDate(config: EventConfig, eventRecord: EventRecord | undefined): Date | undefined {
   return config.date ?? parseDate(eventRecord?.date);
+}
+
+/** Event start time `HH:MM` shown in the UI: the config table's `event.time`, else the qxeventd event record's time. */
+export function eventTime(config: EventConfig, eventRecord: EventRecord | undefined): string | undefined {
+  const time = config.time || eventRecord?.time;
+  return /^\d{2}:\d{2}/.test(time ?? "") ? time!.slice(0, 5) : undefined;
 }
 
 /** Builds the event config from QuickEvent's `config` table (`id`/`cvalue` columns, looked up by name). */
@@ -77,6 +89,7 @@ export function parseEventConfig(configTable: RpcValue): EventConfig {
     name: text("event.name"),
     place: text("event.place"),
     date: parseDate(values.get("event.date")),
+    time: text("event.time"),
     stageCount,
     currentStage,
     stages,

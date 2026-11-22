@@ -54,10 +54,9 @@ function normalizeMemberRole(role: string): MemberRole {
   return role === "Banned" ? "Banned" : "Organizer";
 }
 
-function formatLocalDateTime(value?: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+/** Event start as stored, local `YYYY-MM-DD HH:MM`. */
+function formatEventStart(rec: EventTableRecord): string {
+  return [rec.date, rec.time?.slice(0, 5)].filter(Boolean).join(" ");
 }
 
 function EventsTable() {
@@ -95,6 +94,7 @@ function EventsTable() {
             id: id,
             name: undefined,
             date: undefined,
+            time: undefined,
             stage_count: undefined,
             owner: "",
             db_mode: "Replica",
@@ -345,7 +345,7 @@ function EventsTable() {
       key: "date",
       header: "Date",
       cell: (rec: EventTableRecord) => {
-        return <span class="text-sm" title={rec.date}>{formatLocalDateTime(rec.date)}</span>;
+        return <span class="text-sm" title={[rec.date, rec.time].filter(Boolean).join(" ")}>{formatEventStart(rec)}</span>;
       },
       sortable: true,
     },
@@ -454,8 +454,10 @@ function EventsTable() {
 
             <DateTimeField
               label="Date"
-              value={formData()?.date}
-              onChange={(date) => setFormData(prev => prev ? { ...prev, date } : null)}
+              date={formData()?.date}
+              time={formData()?.time}
+              onDateChange={(date) => setFormData(prev => prev ? { ...prev, date } : null)}
+              onTimeChange={(time) => setFormData(prev => prev ? { ...prev, time } : null)}
             />
 
             <TextField readOnly>

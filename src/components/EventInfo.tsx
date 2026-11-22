@@ -1,4 +1,4 @@
-import { EventConfig, eventDate, eventName } from "~/lib/eventConfig";
+import { EventConfig, eventDate, eventName, eventTime } from "~/lib/eventConfig";
 import type { EventRecord } from "~/schema/event-record-schema";
 
 interface EventInfoProps {
@@ -25,6 +25,11 @@ const EventInfo = ({ eventConfig, eventRecord }: EventInfoProps) => {
         <div>
           <label class="block text-sm font-medium text-muted-foreground mb-1">Date</label>
           <p class="text-lg">{eventDate(eventConfig, eventRecord())?.toLocaleDateString() || 'N/A'}</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-muted-foreground mb-1">Time</label>
+          <p class="text-lg">{eventTime(eventConfig, eventRecord()) || 'N/A'}</p>
         </div>
 
         <div>
