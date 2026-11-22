@@ -1,12 +1,13 @@
 import { For, createSignal, createEffect, onCleanup, untrack } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createStore, reconcile } from "solid-js/store";
 import { RpcValue, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
-import { createSqlTable } from "~/lib/SqlTable";
+import { EventConfig, parseEventConfig } from "~/lib/eventConfig";
+import { showToast } from "~/components/ui/toast";
 import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
-import { EventIdParamSchema, EventMembers, EventRecord, EventRecordSchema, OpenEventResultSchema } from "~/schema/event-record-schema";
+import { EventIdParamSchema, EventRecord, EventRecordSchema, OpenEventResultSchema } from "~/schema/event-record-schema";
 import { makeMapRecursive, rpcMapToObject } from "~/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
@@ -17,25 +18,8 @@ import { useAuth } from "~/context/AuthContext";
 import { useSubscribe } from "~/context/SubscribeContext";
 import ResultsTab from "~/components/ResultsTab";
 
-export type StageConfig = {
-  stageStart?: Date;
-}
-
-export class EventConfig {
-  name?: string;
-  place?: string;
-  date?: Date;
-  stageCount: number = 1;
-  currentStage: number = 1;
-  stages: StageConfig[] = [];
-  owner?: string;
-  members?: EventMembers;
-}
-
-export function isEventOrganizer(config: EventConfig, email: string | undefined): boolean {
-  if (!email) return false;
-  return config.owner === email || config.members?.[email] === "Organizer";
-}
+export { EventConfig, isEventOrganizer } from "~/lib/eventConfig";
+export type { StageConfig } from "~/lib/eventConfig";
 
 const CONFIG_RELOAD_DEBOUNCE_MS = 300;
 
@@ -45,14 +29,14 @@ interface EventProps {
 
 
 
-const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
+const OpenedEvent = (props: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
   const { user } = useAuth();
   const { recchngReceived: eventsRecchng } = useSubscribe();
 
-  const [eventId, _setEventId] = createSignal<number>(parseInt(initialEventId));
-  const [currentStage, setCurrentStage] = createSignal<number | undefined>(undefined);
+  // Derived from the route param, so navigating to another event reloads instead of keeping the old one.
+  const eventId = () => parseInt(props.event_id_str);
   const [workingStage, setWorkingStage] = createSignal<number | undefined>(undefined);
   const [eventConfig, setEventConfig] = createStore(new EventConfig());
   const [loading, setLoading] = createSignal(false);
@@ -85,8 +69,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     if (!eventRecord || configTable === undefined) return;
     const eventConfig = parseEventConfig(configTable, eventRecord);
     setEventConfig(eventConfig);
-    setCurrentStage(eventConfig.currentStage);
-    setWorkingStage(prev => prev ?? eventConfig.currentStage);
+    // Keep the user's choice unless it no longer exists (e.g. stage count was lowered).
+    setWorkingStage(prev => prev === undefined || prev > eventConfig.stageCount ? eventConfig.currentStage : prev);
   };
 
   // Each reload bumps its sequence number; a response that is no longer the latest one is dropped,
@@ -126,6 +110,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     if (initial) {
       eventRecord = undefined;
       configTable = undefined;
+      setEventConfig(reconcile(new EventConfig()));
+      setWorkingStage(undefined);
       setLoading(true);
     }
     setError("");
@@ -140,74 +126,13 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       await Promise.all([reloadEventRecord(), reloadConfigTable()]);
     } catch (error) {
       console.error("Failed to load event config:", error);
+      // A load for an event we already navigated away from must not affect the current one.
+      if (eventId() !== event_id) return;
       setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      if (eventId() === event_id) setLoading(false);
     }
   };
-
-  function parseEventConfig(event_config: RpcValue, eventRecord: EventRecord): EventConfig {
-    const data = createSqlTable(event_config);
-
-    // Helper to find a config value by key
-    const getValue = (key: string): string | undefined => {
-      const row = data.rows.find((r: any[]) => r && r[0] === key);
-      return row && row[2] ? String(row[2]).replace(/['"]/g, "") : undefined;
-    };
-
-    // Use event data from events table if provided, otherwise fall back to config table
-    const name = getValue("event.name") || eventRecord?.name;
-    const place = getValue("event.place");
-    const dateStr = getValue("event.date") || eventRecord?.date;
-    const stageCountStr = getValue("event.stageCount") || "1";
-    const currentStageStr = getValue("event.currentStageId") || "1";
-
-    // Parse date safely
-    const parseDate = (dateStr: string): Date | undefined => {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        //throw new Error(`Invalid date string: ${dateStr}`);
-        return undefined
-      }
-      return date;
-    };
-
-    // Parse stage count safely
-    const stageCount = Math.max(1, parseInt(stageCountStr, 10) || 1);
-    const currentStage = Math.min(stageCount, Math.max(1, parseInt(currentStageStr, 10) || 1));
-
-    let stages: StageConfig[] = [];
-    for (let i = 0; i < stageCount; i++) {
-      const stageStart = getValue(`stage.${i + 1}.startDateTime`);
-      stages.push({
-        stageStart: parseDate(stageStart?.toString() || ""),
-      });
-    }
-
-    return {
-      name,
-      place,
-      date: dateStr ? parseDate(dateStr) : undefined,
-      stageCount,
-      currentStage,
-      stages,
-      owner: eventRecord.owner,
-      members: eventRecord.config?.members,
-    };
-  }
-
-  // async function syncEventConfig(eventConfig: EventConfig, eventRecord: EventRecord) {
-  //   // Find undefined fields in event_config and set their value from event_record
-  //   const changes: Partial<EventConfig> = {};
-  //   if (eventConfig.name !== undefined && eventRecord.name === undefined) changes.name = eventConfig.name;
-  //   if (Object.keys(changes).length > 0) {
-  //     const params: Record<string, any> = {};
-  //     params.table = "events";
-  //     params.id = eventRecord.id;
-  //     params.record = changes;
-  //     await callRpcMethod(`${appConfig.qxeventdPath}/sql`, "update", makeMap(params));
-  //   }
-  // }
 
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
@@ -243,7 +168,10 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     return () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        fn().catch(error => console.error(`Failed to reload ${what}:`, error));
+        fn().catch(error => {
+          console.error(`Failed to reload ${what}:`, error);
+          showToast({ title: `Failed to reload ${what}`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+        });
       }, CONFIG_RELOAD_DEBOUNCE_MS);
     };
   };
@@ -270,7 +198,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       <div class="flex flex-row w-full mb-6 justify-between">
         <p class="text-3xl font-bold">{eventConfig.name}</p>
         <div class="flex items-center gap-3">
-          <StageControl currentStage={() => currentStage() ?? eventConfig.currentStage} />
+          <StageControl currentStage={() => eventConfig.currentStage} />
           <label class="flex items-center gap-2 text-sm font-medium">
             Working stage
             <select
@@ -316,8 +244,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
               <Runs
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
-                currentStage={currentStage()}
-                workingStage={workingStage()}
+                currentStage={() => eventConfig.currentStage}
+                workingStage={workingStage}
                 recchngReceived={recchngReceived}
                 onNewLateEntrySaved={() => setActiveTab("late_entries")}
               />
@@ -331,8 +259,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
               <LateEntries
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
-                currentStage={currentStage()}
-                workingStage={workingStage()}
+                currentStage={() => eventConfig.currentStage}
+                workingStage={workingStage}
                 recchngReceived={recchngReceived}
               />
             </TabsContent>

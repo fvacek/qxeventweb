@@ -250,16 +250,18 @@ export const sampleTableData: TableJson = {
 
 // Example event config table
 export const sampleEventConfig: TableJson = {
+  // Same layout as QuickEvent's config table
   fields: [
-    { name: "key" },
-    { name: "value" },
-    { name: "description" },
+    { name: "ckey" },
+    { name: "cname" },
+    { name: "cvalue" },
+    { name: "ctype" },
   ],
   rows: [
-    ["event_name", "Spring Championship", "Name of the event"],
-    ["max_competitors", 100, "Maximum number of competitors"],
-    ["start_date", "2024-04-15", "Event start date"],
-    ["registration_open", "true", "Is registration currently open"],
+    ["event.name", null, "Spring Championship", "QString"],
+    ["event.date", null, "2024-04-15", "QDate"],
+    ["event.stageCount", null, "2", "int"],
+    ["event.currentStageId", null, "1", "int"],
   ],
 };
 

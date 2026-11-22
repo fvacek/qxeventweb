@@ -19,7 +19,7 @@ import {
 } from "~/lib/runnerEntry";
 import { callRpcMethod } from "~/lib/rpc";
 import type { RecChng } from "~/schema/rpc-sql-schema";
-import type { EventConfig } from "~/routes/OpenedEvent";
+import type { EventConfig } from "~/lib/eventConfig";
 
 type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
@@ -170,8 +170,8 @@ function LateEntriesTable(props: {
 const LateEntries = (props: {
   eventId: number;
   eventConfig: () => EventConfig;
-  currentStage: number | undefined;
-  workingStage: number | undefined;
+  currentStage: () => number | undefined;
+  workingStage: () => number | undefined;
   recchngReceived: () => RecChng | null;
 }) => {
   const { wsClient, status } = useWsClient();
@@ -182,12 +182,12 @@ const LateEntries = (props: {
   const [loading, setLoading] = createSignal(false);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
 
-  const workingStage = () => props.workingStage;
+  const workingStage = () => props.workingStage();
 
   const lateEntryDialog = createLateEntryDialogController({
     eventId: () => props.eventId,
     eventConfig: props.eventConfig,
-    currentStage: () => props.currentStage,
+    currentStage: props.currentStage,
     workingStage,
   });
   const currentUserIsOrganizer = lateEntryDialog.isOrganizer;

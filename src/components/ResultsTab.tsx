@@ -5,7 +5,7 @@ import { createSqlTable } from "~/lib/SqlTable";
 import { callRpcMethod } from "~/lib/rpc";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
-import type { EventConfig } from "~/routes/OpenedEvent";
+import type { EventConfig } from "~/lib/eventConfig";
 import { fullName, sqlQuotedString } from "~/lib/runnerEntry";
 
 type ResultRow = {

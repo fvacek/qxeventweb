@@ -31,7 +31,7 @@ import {
 } from "~/lib/runnerEntry";
 import { callRpcMethod } from "~/lib/rpc";
 import { createSqlTable } from "~/lib/SqlTable";
-import { EventConfig, isEventOrganizer } from "~/routes/OpenedEvent";
+import { EventConfig, isEventOrganizer } from "~/lib/eventConfig";
 
 export type LateEntryDialogField = "firstname" | "lastname" | "registration" | "siid" | "note" | "starttimems";
 export type LateEntryDialogValue = string | number | undefined;
