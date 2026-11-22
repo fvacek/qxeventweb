@@ -83,7 +83,7 @@ function EventsTable() {
 
   const processRecChng = (recchng: RecChng) => {
     const { table, id, record, op } = recchng;
-    if (table === "events") {
+    if (table === "events" && typeof id === "number") {
       if (op === SqlOperation.Update) {
         const originalEvent = tableRecords().find(rec => rec.id === id);
         if (!!originalEvent) {

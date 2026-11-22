@@ -1,4 +1,5 @@
-import { SqlOperation } from "~/schema/rpc-sql-schema";
+import { parse } from "valibot";
+import { RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import {
   applyRecChngToLateEntries,
   applyRecChngToRuns,
@@ -110,6 +111,11 @@ describe("applyRecChngToRuns", () => {
     expect(applyRecChngToRuns(rows(), { table: "runs", id: 1, op: SqlOperation.Delete })).toHaveLength(0);
   });
 
+  it("ignores a string record id", () => {
+    const before = rows();
+    expect(applyRecChngToRuns(before, { table: "runs", id: "1", op: SqlOperation.Delete })).toBe(before);
+  });
+
   it("ignores an inserted run", () => {
     const before = rows();
     expect(applyRecChngToRuns(before, { table: "runs", id: 2, op: SqlOperation.Insert, record: { id: 2, competitorid: 12 } })).toBe(before);
@@ -162,5 +168,13 @@ describe("applyRecChngToLateEntries", () => {
   it("removes a deleted change", () => {
     const result = applyRecChngToLateEntries(rows(), { table: "qxchanges", id: 10, op: SqlOperation.Delete }, undefined);
     expect(result.map(r => r.change?.id)).toEqual([11]);
+  });
+});
+
+describe("RecChngSchema", () => {
+  it("accepts integer and string record ids", () => {
+    expect(parse(RecChngSchema, { table: "runs", id: 1, op: "Update" }).id).toBe(1);
+    const recchng = { table: "config", id: "event.currentStageId", op: "Update", record: { cvalue: "2" } };
+    expect(parse(RecChngSchema, recchng).id).toBe("event.currentStageId");
   });
 });

@@ -14,9 +14,14 @@ export const SqlValueSchema = union([
   undefined_(),
 ]);
 
+/** Record ID, integer for most tables, string for tables keyed by text (e.g. `config` keyed by `ckey`). */
+export const RecIdSchema = union([number(), string()]);
+
+export type RecId = InferOutput<typeof RecIdSchema>;
+
 export const RecChngSchema = object({
   table: string(),
-  id: number(),
+  id: RecIdSchema,
   record: optional(record(string(), SqlValueSchema)),
   op: enum_(SqlOperation),
   issuer: optional(string()),

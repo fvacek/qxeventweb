@@ -279,6 +279,8 @@ function clearChange(rows: RunnerEntryRow[], changeId: number): RunnerEntryRow[]
  */
 export function applyRecChngToRuns(rows: RunnerEntryRow[], recchng: RecChng, onCompetitorInserted?: (record: RecChngRecord) => void): RunnerEntryRow[] {
   const { table, id, op } = recchng;
+  // The tables handled here all have integer IDs.
+  if (typeof id !== "number") return rows;
   const record = normalizedRecChngRecord(recchng);
 
   switch (table) {
@@ -339,6 +341,8 @@ export function parseRunnerEntryRows(result: RpcValue): RunnerEntryRow[] {
  */
 export function applyRecChngToLateEntries(rows: RunnerEntryRow[], recchng: RecChng, ownerId: string | undefined): RunnerEntryRow[] {
   const { table, id, op } = recchng;
+  // The tables handled here all have integer IDs.
+  if (typeof id !== "number") return rows;
   const record = normalizedRecChngRecord(recchng);
 
   switch (table) {
