@@ -1,10 +1,10 @@
-import { For, createSignal, createEffect, createMemo, onCleanup } from "solid-js";
+import { For, createSignal, createEffect, onCleanup, untrack } from "solid-js";
 import { createStore } from "solid-js/store";
-import { RpcValue, makeMap, ShvRI, CallRpcMethodOptions } from "libshv-js";
+import { RpcValue, ShvRI, CallRpcMethodOptions } from "libshv-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
-import { RecChng, RecChngSchema } from "~/schema/rpc-sql-schema";
+import { RecChng, RecChngSchema, SqlOperation } from "~/schema/rpc-sql-schema";
 import { parse } from "valibot";
 import { EventIdParamSchema, EventMembers, EventRecord, EventRecordSchema, OpenEventResultSchema } from "~/schema/event-record-schema";
 import { makeMapRecursive, rpcMapToObject } from "~/lib/utils";
@@ -14,6 +14,7 @@ import EventInfo from "~/components/EventInfo";
 import Runs from "../components/Runs";
 import LateEntries from "~/components/LateEntries";
 import { useAuth } from "~/context/AuthContext";
+import { useSubscribe } from "~/context/SubscribeContext";
 import ResultsTab from "~/components/ResultsTab";
 
 export type StageConfig = {
@@ -48,6 +49,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
   const { user } = useAuth();
+  const { recchngReceived: eventsRecchng } = useSubscribe();
 
   const [eventId, _setEventId] = createSignal<number>(parseInt(initialEventId));
   const [currentStage, setCurrentStage] = createSignal<number | undefined>(undefined);
@@ -75,28 +77,57 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
     return result;
   };
 
+  // Latest server state; the store is derived from both by applyEventConfig().
   let eventRecord: EventRecord | undefined;
+  let configTable: RpcValue | undefined;
 
-  // Re-reads the config table; does not touch `loading`, so it can run on recchng without remounting the tabs.
-  const reloadConfigTable = async () => {
-    if (!eventRecord) return;
-    const event_config_result = await callRpcMethod(appConfig.eventSqlApiPath(eventId()), "query", [
-      "SELECT * FROM config",
-    ]);
-    const eventConfig = parseEventConfig(event_config_result, eventRecord);
+  const applyEventConfig = () => {
+    if (!eventRecord || configTable === undefined) return;
+    const eventConfig = parseEventConfig(configTable, eventRecord);
     setEventConfig(eventConfig);
     setCurrentStage(eventConfig.currentStage);
     setWorkingStage(prev => prev ?? eventConfig.currentStage);
   };
 
+  // Each reload bumps its sequence number; a response that is no longer the latest one is dropped,
+  // so overlapping reloads (recchng vs. reconnect) can't leave stale data behind.
+  let eventRecordSeq = 0;
+  const reloadEventRecord = async () => {
+    const seq = ++eventRecordSeq;
+    const eventIdParam = makeMapRecursive(parse(EventIdParamSchema, { event_id: eventId() }));
+    const eventData = await callRpcMethod(appConfig.eventCtlApiPath(), "eventData", eventIdParam);
+    if (seq !== eventRecordSeq) return;
+    eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
+    applyEventConfig();
+  };
+
+  // Re-reads the config table; does not touch `loading`, so it can run on recchng without remounting the tabs.
+  let configSeq = 0;
+  const reloadConfigTable = async () => {
+    const seq = ++configSeq;
+    const result = await callRpcMethod(appConfig.eventSqlApiPath(eventId()), "query", [
+      "SELECT * FROM config",
+    ]);
+    if (seq !== configSeq) return;
+    configTable = result;
+    applyEventConfig();
+  };
+
   const loadEventConfig = async () => {
     const event_id = eventId();
+    // Only the first load of an event shows the loading state; reloads after a reconnect
+    // update the config in place, so the tabs (and their selections) stay mounted.
+    const initial = eventRecord?.id !== event_id;
 
     if (appConfig.debug) {
       console.log("Loading event config for event ID:", event_id);
     }
 
-    setLoading(true);
+    if (initial) {
+      eventRecord = undefined;
+      configTable = undefined;
+      setLoading(true);
+    }
     setError("");
 
     try {
@@ -106,12 +137,7 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
       const { mount_point } = parse(OpenEventResultSchema, rpcMapToObject(open_event_result));
       console.log("Loading event_mount_point:", mount_point);
 
-      const eventApiPath = appConfig.eventCtlApiPath();
-      let eventData = await callRpcMethod(eventApiPath, "eventData", eventIdParam);
-
-      eventRecord = parse(EventRecordSchema, rpcMapToObject(eventData));
-
-      await reloadConfigTable();
+      await Promise.all([reloadEventRecord(), reloadConfigTable()]);
     } catch (error) {
       console.error("Failed to load event config:", error);
       setError(`Failed to load event config: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -186,7 +212,8 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   // Load event config when WebSocket is connected and event ID changes
   createEffect(() => {
     if (status() === "Connected" && eventId() > 0) {
-      loadEventConfig();
+      // Untracked so the signals read inside the load (before its first await) don't become dependencies.
+      untrack(() => void loadEventConfig());
 
       const eid = eventId();
       const client = wsClient()!;
@@ -210,19 +237,32 @@ const OpenedEvent = ({ event_id_str: initialEventId }: EventProps) => {
   // Config table rows are keyed by `ckey`, not a numeric id, so the recchng payload can't be applied
   // directly; re-read the config instead (e.g. QuickEvent changing event.currentStageId).
   // Config is saved in batches (one recchng per key), so the reload is debounced.
-  let configReloadTimer: ReturnType<typeof setTimeout> | undefined;
-  const scheduleConfigReload = () => {
-    clearTimeout(configReloadTimer);
-    configReloadTimer = setTimeout(() => {
-      reloadConfigTable().catch(error => console.error("Failed to reload event config:", error));
-    }, CONFIG_RELOAD_DEBOUNCE_MS);
+  const debounced = (fn: () => Promise<void>, what: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    onCleanup(() => clearTimeout(timer));
+    return () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        fn().catch(error => console.error(`Failed to reload ${what}:`, error));
+      }, CONFIG_RELOAD_DEBOUNCE_MS);
+    };
   };
-  onCleanup(() => clearTimeout(configReloadTimer));
+  const scheduleConfigReload = debounced(reloadConfigTable, "event config");
+  const scheduleEventRecordReload = debounced(reloadEventRecord, "event record");
 
   createEffect(() => {
     const recchng = recchngReceived();
     if (recchng?.table.toLowerCase() !== "config") return;
     scheduleConfigReload();
+  });
+
+  // The events table lives in qxeventd's DB (SubscribeContext), not the event DB; owner and members
+  // come from there, so organizer rights follow changes made while the event is open.
+  createEffect(() => {
+    const recchng = eventsRecchng();
+    if (recchng?.table !== "events" || recchng.op !== SqlOperation.Update) return;
+    if (recchng.id !== untrack(eventId)) return;
+    scheduleEventRecordReload();
   });
 
   return (
