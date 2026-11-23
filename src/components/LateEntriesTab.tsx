@@ -26,6 +26,8 @@ type LateEntryStatusFilter = "Pending" | "Accepted" | "Rejected";
 
 const STATUS_FILTERS: LateEntryStatusFilter[] = ["Pending", "Accepted", "Rejected"];
 
+const ALL_OWNERS = "All owners";
+
 function StatusIcon(props: { status?: string }) {
   switch (props.status) {
     case "Rejected":
@@ -183,6 +185,7 @@ const LateEntriesTab = (props: {
   const [rows, setRows] = createSignal<RunnerEntryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [statusFilter, setStatusFilter] = createSignal<LateEntryStatusFilter | undefined>("Pending");
+  const [ownerFilter, setOwnerFilter] = createSignal<string | undefined>(undefined);
 
   const workingStage = () => props.workingStage();
 
@@ -210,9 +213,19 @@ const LateEntriesTab = (props: {
   };
 
   const tableRows = () => {
-    const filter = statusFilter();
-    return filter ? rows().filter(row => row.change?.status === filter) : rows();
+    const status = statusFilter();
+    const owner = currentUserIsOrganizer() ? ownerFilter() : undefined;
+    return rows().filter(row =>
+      (!status || row.change?.status === status) && (!owner || row.change?.user_id === owner));
   };
+
+  /** Owners of the loaded late entries, the selected owner is kept even when none of its rows is left. */
+  const ownerOptions = createMemo(() => {
+    const owners = new Set(rows().flatMap(row => row.change?.user_id ? [row.change.user_id] : []));
+    const selected = ownerFilter();
+    if (selected) owners.add(selected);
+    return [ALL_OWNERS, ...[...owners].sort()];
+  });
 
   const selectStatusFilter = (filter: string) => {
     setStatusFilter(filter === "All" ? undefined : filter as LateEntryStatusFilter);
@@ -238,6 +251,16 @@ const LateEntriesTab = (props: {
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-end">
           <div class="flex gap-2 justify-end">
+            {currentUserIsOrganizer() && (
+              <FlexDropdown
+                value={ownerFilter() ?? ALL_OWNERS}
+                options={ownerOptions()}
+                onSelect={owner => setOwnerFilter(owner === ALL_OWNERS ? undefined : owner)}
+                disabled={status() !== "Connected"}
+                variant="outline"
+                size="sm"
+              />
+            )}
             <FlexDropdown
               value={statusFilter() ?? "All"}
               options={["All", ...STATUS_FILTERS]}
