@@ -1,0 +1,46 @@
+name: Deploy to qxqx.org
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      # Upload assets first so the new index.html never references missing files.
+      # The deploy key is restricted server-side by rrsync to /var/www/qxeventweb,
+      # so remote paths are relative to that directory.
+      - name: Upload
+        env:
+          RSYNC_RSH: ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes
+        run: |
+          rsync -rz --delay-updates dist/assets/ fanda@209.38.215.123:assets/
+          rsync -rz --delete dist/ fanda@209.38.215.123:./
