@@ -4,7 +4,7 @@ import { Button } from "~/components/ui/button";
 import { FlexDropdown } from "~/components/ui/flexdropdown";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
-import { changedValueColumns } from "~/components/lateEntryColumns";
+import { runTableColumns } from "~/components/runTableColumns";
 import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
@@ -130,7 +130,7 @@ function LateEntriesTable(props: {
       sortable: true,
       sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.class_name, b.class_name),
     },
-    ...changedValueColumns(props.stageStart),
+    ...runTableColumns(props.stageStart),
     {
       key: "paid",
       header: "Paid",

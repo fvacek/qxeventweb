@@ -100,14 +100,14 @@ export default function ResultsTab(props: {
     {
       key: "name",
       header: "Name",
-      cell: (row) => fullName(row.lastname, row.firstname),
+      cell: (row) => (
+        <div class="leading-tight">
+          <div>{fullName(row.lastname, row.firstname)}</div>
+          <div class="text-xs opacity-60">{row.registration}</div>
+        </div>
+      ),
       sortable: false,
       sortFn: (a, b) => fullName(a.lastname, a.firstname).localeCompare(fullName(b.lastname, b.firstname)),
-    },
-    {
-      key: "registration",
-      header: "Reg",
-      sortable: false,
     },
     {
       key: "starttimems",
@@ -207,7 +207,6 @@ export default function ResultsTab(props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Results</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
           <ClassSelector

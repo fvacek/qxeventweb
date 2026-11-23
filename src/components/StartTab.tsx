@@ -4,7 +4,7 @@ import { Button } from "~/components/ui/button";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { showToast } from "~/components/ui/toast";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
-import { changedValueColumns } from "~/components/lateEntryColumns";
+import { runTableColumns } from "~/components/runTableColumns";
 import LateEntryDialog, { createLateEntryDialogController } from "~/components/LateEntryDialog";
 import { useWsClient } from "~/context/WsClient";
 import { useAuth } from "~/context/AuthContext";
@@ -47,7 +47,7 @@ function createRunColumns(args: {
       sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.run?.run_id, b.run?.run_id),
       hidden: "hidden lg:table-cell",
     },
-    ...changedValueColumns(args.stageStart),
+    ...runTableColumns(args.stageStart),
   ];
   if (!args.showActions) return columns;
   columns.push(
@@ -67,7 +67,7 @@ function createRunColumns(args: {
         );
       },
       sortable: false,
-      width: "80px",
+      width: "1%",
     },
   );
   return columns;
@@ -181,7 +181,6 @@ const StartTab = (props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Start</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />

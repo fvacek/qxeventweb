@@ -13,7 +13,7 @@ export function ChangedValue(props: { original: string; changed?: string }) {
 }
 
 /** Start time, name, registration and SI columns showing the original value and its change. */
-export function changedValueColumns(stageStart: () => Date | undefined): TableColumn<RunnerEntryRow>[] {
+export function runTableColumns(stageStart: () => Date | undefined): TableColumn<RunnerEntryRow>[] {
   const originalName = (row: RunnerEntryRow) => fullName(row.run?.lastname, row.run?.firstname);
   return [
     {
@@ -56,7 +56,8 @@ export function changedValueColumns(stageStart: () => Date | undefined): TableCo
       key: "siid",
       header: "SI",
       cell: (row: RunnerEntryRow) => <ChangedValue original={row.run?.siid?.toString() || ""} changed={row.change?.lateEntry.siid?.toString()} />,
-      sortable: false,
+      sortable: true,
+      sortFn: (a: RunnerEntryRow, b: RunnerEntryRow) => compareOptional(a.run?.siid, b.run?.siid),
     },
   ];
 }
