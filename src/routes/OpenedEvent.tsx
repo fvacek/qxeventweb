@@ -11,9 +11,9 @@ import { EventIdParamSchema, EventRecord, EventRecordSchema, OpenEventResultSche
 import { makeMapRecursive, rpcMapToObject } from "~/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { StageControl } from "~/components/StageControl";
-import EventInfo from "~/components/EventInfo";
-import Runs from "../components/Runs";
-import LateEntries from "~/components/LateEntries";
+import EventInfoTab from "~/components/EventInfoTab";
+import StartTab from "../components/StartTab";
+import LateEntriesTab from "~/components/LateEntriesTab";
 import { useAuth } from "~/context/AuthContext";
 import { useSubscribe } from "~/context/SubscribeContext";
 import ResultsTab from "~/components/ResultsTab";
@@ -224,18 +224,18 @@ const OpenedEvent = (props: EventProps) => {
         <div class="w-full max-w-7xl">
           <Tabs value={activeTab()} onChange={setActiveTab} class="w-full">
             <TabsList class="flex w-full flex-row">
-              <TabsTrigger value="runs">Runs</TabsTrigger>
+              <TabsTrigger value="runs">Start</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
               <TabsTrigger value="event-info">Event info</TabsTrigger>
               <TabsTrigger value="late_entries" disabled={!user()}>Late entries</TabsTrigger>
             </TabsList>
 
             <TabsContent value="event-info" class="space-y-4">
-              <EventInfo eventConfig={eventConfig} eventRecord={eventRecord} />
+              <EventInfoTab eventConfig={eventConfig} eventRecord={eventRecord} />
             </TabsContent>
 
             <TabsContent value="runs" class="space-y-4">
-              <Runs
+              <StartTab
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 eventRecord={eventRecord}
@@ -251,7 +251,7 @@ const OpenedEvent = (props: EventProps) => {
             </TabsContent>
 
             <TabsContent value="late_entries" class="space-y-4">
-              <LateEntries
+              <LateEntriesTab
                 eventId={eventId()}
                 eventConfig={() => eventConfig}
                 eventRecord={eventRecord}

@@ -6,7 +6,7 @@ interface EventInfoProps {
   eventRecord: () => EventRecord | undefined;
 }
 
-const EventInfo = ({ eventConfig, eventRecord }: EventInfoProps) => {
+const EventInfoTab = ({ eventConfig, eventRecord }: EventInfoProps) => {
   return (
     <div class="shadow-lg rounded-lg p-6">
       <h2 class="text-2xl font-semibold mb-4">Event Information</h2>
@@ -60,4 +60,4 @@ const EventInfo = ({ eventConfig, eventRecord }: EventInfoProps) => {
   );
 };
 
-export default EventInfo;
+export default EventInfoTab;

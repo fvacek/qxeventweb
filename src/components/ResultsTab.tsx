@@ -3,6 +3,7 @@ import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
 import { callRpcMethod } from "~/lib/rpc";
+import { Button } from "~/components/ui/button";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
 import type { EventConfig } from "~/lib/eventConfig";
@@ -141,33 +142,43 @@ export default function ResultsTab(props: {
   });
 
   return (
-    <div class="space-y-4">
-      <div class="w-full max-w-md">
-        <ClassSelector
-          className={className}
-          setClassName={setClassName}
-          setClassDef={setClassDef}
-          eventId={() => props.eventId}
-          workingStage={workingStage}
-        />
-      </div>
-
-      {resultsError() && (
-        <div class="text-red-600 p-2 border border-red-300 rounded bg-red-50">
-          {resultsError()}
+    <div class="flex w-full flex-col items-center justify-center">
+      <h1 class="mt-7 mb-7 text-3xl font-bold">Results</h1>
+      <div class="w-full max-w-7xl space-y-4">
+        <div class="flex items-center justify-between">
+          <ClassSelector
+            className={className}
+            setClassName={setClassName}
+            setClassDef={setClassDef}
+            eventId={() => props.eventId}
+            workingStage={workingStage}
+          />
+          <Button
+            variant="outline"
+            onClick={() => loadResults(className())}
+            disabled={resultsLoading() || !className() || status() !== "Connected"}
+          >
+            {resultsLoading() ? "Loading..." : "Refresh"}
+          </Button>
         </div>
-      )}
 
-      <div class="rounded-md table-border">
-        <Table
-          data={results()}
-          columns={resultColumns}
-          loading={resultsLoading()}
-          emptyMessage="No results found"
-          variant="striped"
-          sortable={true}
-          globalFilter={true}
-        />
+        {resultsError() && (
+          <div class="text-red-600 p-2 border border-red-300 rounded bg-red-50">
+            {resultsError()}
+          </div>
+        )}
+
+        <div class="rounded-md table-border">
+          <Table
+            data={results()}
+            columns={resultColumns}
+            loading={resultsLoading()}
+            emptyMessage="No results found"
+            variant="striped"
+            sortable={true}
+            globalFilter={true}
+          />
+        </div>
       </div>
     </div>
   );

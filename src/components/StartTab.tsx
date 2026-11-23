@@ -104,7 +104,7 @@ function RunsTable(props: {
   );
 }
 
-const Runs = (props: {
+const StartTab = (props: {
   eventId: number,
   eventConfig: () => EventConfig,
   eventRecord: () => EventRecord | undefined,
@@ -181,7 +181,7 @@ const Runs = (props: {
 
   return (
     <div class="flex w-full flex-col items-center justify-center">
-      <h1 class="mt-7 mb-7 text-3xl font-bold">Runs</h1>
+      <h1 class="mt-7 mb-7 text-3xl font-bold">Start</h1>
       <div class="w-full max-w-7xl space-y-4">
         <div class="flex items-center justify-between">
           <ClassSelector className={className} setClassName={setClassName} setClassDef={setClassDef} eventId={eventId} workingStage={workingStage} />
@@ -209,4 +209,4 @@ const Runs = (props: {
   );
 };
 
-export default Runs;
+export default StartTab;

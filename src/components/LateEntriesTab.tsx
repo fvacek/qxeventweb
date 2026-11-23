@@ -168,7 +168,7 @@ function LateEntriesTable(props: {
   );
 }
 
-const LateEntries = (props: {
+const LateEntriesTab = (props: {
   eventId: number;
   eventConfig: () => EventConfig;
   eventRecord: () => EventRecord | undefined;
@@ -266,4 +266,4 @@ const LateEntries = (props: {
   );
 };
 
-export default LateEntries;
+export default LateEntriesTab;
