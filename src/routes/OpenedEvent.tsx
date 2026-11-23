@@ -247,7 +247,7 @@ const OpenedEvent = (props: EventProps) => {
             </TabsContent>
 
             <TabsContent value="results" class="space-y-4">
-              <ResultsTab eventId={eventId()} workingStage={workingStage} recchngReceived={recchngReceived} />
+              <ResultsTab eventId={eventId()} eventConfig={() => eventConfig} workingStage={workingStage} recchngReceived={recchngReceived} />
             </TabsContent>
 
             <TabsContent value="late_entries" class="space-y-4">

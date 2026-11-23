@@ -100,6 +100,16 @@
     border-top: 0.5px solid var(--table-border);
 }
 
+.status-ok {
+    background-color: color-mix(in srgb, var(--ok) 25%, transparent);
+    color: var(--ok);
+}
+
+.status-error {
+    background-color: color-mix(in srgb, var(--error) 25%, transparent);
+    color: var(--error);
+}
+
 .table-striped tbody tr:nth-child(even) {
     background-color: var(--table-row-striped);
 }

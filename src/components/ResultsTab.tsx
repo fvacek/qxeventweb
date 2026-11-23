@@ -6,11 +6,12 @@ import { callRpcMethod } from "~/lib/rpc";
 import { Button } from "~/components/ui/button";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
-import { fullName, sqlQuotedString } from "~/lib/runnerEntry";
-import { applyRecChngToResults, rankResults, toBoolean, type ResultRow } from "~/lib/results";
+import { formatStartTime, fullName, sqlQuotedString } from "~/lib/runnerEntry";
+import { applyRecChngToResults, isFinished, isOnCourse, rankResults, resultStatus, toBoolean, type ResultRow } from "~/lib/results";
+import type { EventConfig } from "~/lib/eventConfig";
 import type { RecChng } from "~/schema/rpc-sql-schema";
 
-// Finishing writes several run updates in a row, so the reload waits for them.
+// A new competitor's runs arrive as separate inserts followed by updates, so the reload waits for them.
 const RESULTS_RELOAD_DELAY_MS = 1000;
 
 function formatResultTime(timems: number): string {
@@ -20,8 +21,15 @@ function formatResultTime(timems: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function optionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const n = Number(value);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 export default function ResultsTab(props: {
   eventId: number;
+  eventConfig: () => EventConfig;
   workingStage: () => number | undefined;
   recchngReceived: () => RecChng | null;
 }) {
@@ -29,19 +37,55 @@ export default function ResultsTab(props: {
   const { wsClient, status } = useWsClient();
 
   const [className, setClassName] = createSignal("");
-  const [, setClassDef] = createSignal<ClassDef | undefined>(undefined);
+  const [classDef, setClassDef] = createSignal<ClassDef | undefined>(undefined);
   const [results, setResults] = createSignal<ResultRow[]>([]);
   const [resultsLoading, setResultsLoading] = createSignal(false);
   const [resultsError, setResultsError] = createSignal("");
 
   const workingStage = () => props.workingStage();
-  const bestTimems = createMemo(() => results().find(row => !row.disqualified)?.timems);
+  const stageStart = () => {
+    const stage = workingStage();
+    return stage === undefined ? undefined : props.eventConfig().stages[stage - 1]?.stageStart;
+  };
+  // Ticks only while somebody is on course, the estimated times read it.
+  const [now, setNow] = createSignal(Date.now());
+  const hasRunnersOnCourse = createMemo(() => results().some(isOnCourse));
+  createEffect(() => {
+    if (!hasRunnersOnCourse()) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    onCleanup(() => clearInterval(timer));
+  });
+
+  /** Time the runner would have when finishing right now, undefined before their start. */
+  const estimatedTimems = (row: ResultRow): number | undefined => {
+    const start = stageStart();
+    if (!start || row.starttimems === undefined) return undefined;
+    const elapsed = now() - start.getTime() - row.starttimems;
+    return elapsed >= 0 ? elapsed : undefined;
+  };
+
+  const formatTime = (row: ResultRow) => {
+    if (isFinished(row)) return formatResultTime(row.timems);
+    if (!isOnCourse(row)) return "";
+    const estimated = estimatedTimems(row);
+    return estimated === undefined ? "" : <span class="opacity-50">{formatResultTime(estimated)}</span>;
+  };
+
+  const bestTimems = createMemo(() => results().find(row => row.order !== undefined)?.timems);
 
   const formatLoss = (row: ResultRow): string => {
-    if (row.disqualified) return "DISQ";
+    if (resultStatus(row) !== "OK") return "";
     const best = bestTimems();
     if (best === undefined || row.timems === best) return "";
     return `+${formatResultTime(row.timems - best)}`;
+  };
+
+  const formatStatus = (row: ResultRow) => {
+    const status = resultStatus(row);
+    if (!status) return "";
+    const color = status === "OK" ? "status-ok" : "status-error";
+    return <span class={`inline-block w-10 rounded px-1 text-center text-xs font-semibold ${color}`}>{status}</span>;
   };
 
   const resultColumns: TableColumn<ResultRow>[] = [
@@ -66,9 +110,17 @@ export default function ResultsTab(props: {
       sortable: false,
     },
     {
+      key: "starttimems",
+      header: "Start",
+      cell: (row) => formatStartTime(row.starttimems, stageStart()),
+      sortable: false,
+      align: "right",
+      width: "80px",
+    },
+    {
       key: "timems",
       header: "Time",
-      cell: (row) => formatResultTime(row.timems),
+      cell: formatTime,
       sortable: false,
       align: "right",
       width: "64px",
@@ -81,6 +133,14 @@ export default function ResultsTab(props: {
       align: "right",
       width: "64px",
     },
+    {
+      key: "status",
+      header: "Status",
+      cell: formatStatus,
+      sortable: false,
+      align: "center",
+      width: "64px",
+    },
   ];
 
   const loadResults = async (selectedClass: string) => {
@@ -88,20 +148,22 @@ export default function ResultsTab(props: {
     setResultsError("");
     try {
       const result = await callRpcMethod(wsClient(), appConfig.eventSqlApiPath(props.eventId), "query", [
-        `SELECT runs.id, runs.timems, runs.disqualified,
+        `SELECT runs.id, runs.starttimems, runs.timems, runs.disqualified, runs.mispunch, runs.notcompeting,
             competitors.id as competitor_id, competitors.firstname, competitors.lastname, competitors.registration
           FROM runs
           INNER JOIN competitors ON runs.competitorid = competitors.id
           INNER JOIN classes ON competitors.classid = classes.id AND classes.name = ${sqlQuotedString(selectedClass)}
           WHERE runs.stageid = ${workingStage()}
-            AND runs.isRunning = true AND runs.timems > 0
-          ORDER BY runs.disqualified, runs.timems ASC`,
+            AND runs.isRunning = true`,
       ]);
       const table = createSqlTable(result);
       const rows: ResultRow[] = Array.from({ length: table.rowCount() }, (_, i) => ({
         id: Number(table.get(i, "id")),
-        timems: Number(table.get(i, "timems")),
+        starttimems: optionalNumber(table.get(i, "starttimems")),
+        timems: Number(table.get(i, "timems") ?? 0),
         disqualified: toBoolean(table.get(i, "disqualified")),
+        mispunch: toBoolean(table.get(i, "mispunch")),
+        notcompeting: toBoolean(table.get(i, "notcompeting")),
         competitor_id: Number(table.get(i, "competitor_id")),
         firstname: table.get(i, "firstname")?.toString(),
         lastname: table.get(i, "lastname")?.toString(),
@@ -129,7 +191,7 @@ export default function ResultsTab(props: {
     if (!recchng) return;
     // Untracked, re-running on class / stage change would apply the same recchng twice.
     untrack(() => {
-      const { rows, reload } = applyRecChngToResults(results(), recchng, workingStage());
+      const { rows, reload } = applyRecChngToResults(results(), recchng, workingStage(), classDef()?.id);
       setResults(rows);
       if (reload) scheduleReload();
     });
