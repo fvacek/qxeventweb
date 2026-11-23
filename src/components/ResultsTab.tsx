@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { useAppConfig } from "~/context/AppConfig";
 import { useWsClient } from "~/context/WsClient";
 import { createSqlTable } from "~/lib/SqlTable";
@@ -6,19 +6,12 @@ import { callRpcMethod } from "~/lib/rpc";
 import { Button } from "~/components/ui/button";
 import { Table, type TableColumn } from "~/components/ui/table";
 import { ClassSelector, type ClassDef } from "~/components/ClassSelector";
-import type { EventConfig } from "~/lib/eventConfig";
 import { fullName, sqlQuotedString } from "~/lib/runnerEntry";
+import { applyRecChngToResults, rankResults, toBoolean, type ResultRow } from "~/lib/results";
+import type { RecChng } from "~/schema/rpc-sql-schema";
 
-type ResultRow = {
-  id: number;
-  order?: number;
-  timems: number;
-  disqualified: boolean;
-  competitor_id: number;
-  firstname?: string;
-  lastname?: string;
-  registration?: string;
-};
+// Finishing writes several run updates in a row, so the reload waits for them.
+const RESULTS_RELOAD_DELAY_MS = 1000;
 
 function formatResultTime(timems: number): string {
   const totalSeconds = Math.floor(timems / 1000);
@@ -27,13 +20,10 @@ function formatResultTime(timems: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function toBoolean(value: unknown): boolean {
-  return value === true || value === 1 || value === "1" || value === "true";
-}
-
 export default function ResultsTab(props: {
   eventId: number;
   workingStage: () => number | undefined;
+  recchngReceived: () => RecChng | null;
 }) {
   const appConfig = useAppConfig();
   const { wsClient, status } = useWsClient();
@@ -93,8 +83,6 @@ export default function ResultsTab(props: {
     },
   ];
 
-
-
   const loadResults = async (selectedClass: string) => {
     setResultsLoading(true);
     setResultsError("");
@@ -110,28 +98,42 @@ export default function ResultsTab(props: {
           ORDER BY runs.disqualified, runs.timems ASC`,
       ]);
       const table = createSqlTable(result);
-      let order = 0;
-      const rows: ResultRow[] = Array.from({ length: table.rowCount() }, (_, i) => {
-        const disqualified = toBoolean(table.get(i, "disqualified"));
-        if (!disqualified) order += 1;
-        return {
-          id: Number(table.get(i, "id")),
-          order: disqualified ? undefined : order,
-          timems: Number(table.get(i, "timems")),
-          disqualified: disqualified,
-          competitor_id: Number(table.get(i, "competitor_id")),
-          firstname: table.get(i, "firstname")?.toString(),
-          lastname: table.get(i, "lastname")?.toString(),
-          registration: table.get(i, "registration")?.toString(),
-        };
-      });
-      setResults(rows);
+      const rows: ResultRow[] = Array.from({ length: table.rowCount() }, (_, i) => ({
+        id: Number(table.get(i, "id")),
+        timems: Number(table.get(i, "timems")),
+        disqualified: toBoolean(table.get(i, "disqualified")),
+        competitor_id: Number(table.get(i, "competitor_id")),
+        firstname: table.get(i, "firstname")?.toString(),
+        lastname: table.get(i, "lastname")?.toString(),
+        registration: table.get(i, "registration")?.toString(),
+      }));
+      setResults(rankResults(rows));
     } catch (error) {
       setResultsError(`Load results error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setResultsLoading(false);
     }
   };
+
+  let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleReload = () => {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      if (status() === "Connected" && className()) loadResults(className());
+    }, RESULTS_RELOAD_DELAY_MS);
+  };
+  onCleanup(() => clearTimeout(reloadTimer));
+
+  createEffect(() => {
+    const recchng = props.recchngReceived();
+    if (!recchng) return;
+    // Untracked, re-running on class / stage change would apply the same recchng twice.
+    untrack(() => {
+      const { rows, reload } = applyRecChngToResults(results(), recchng, workingStage());
+      setResults(rows);
+      if (reload) scheduleReload();
+    });
+  });
 
   createEffect(() => {
     if (status() !== "Connected") return;
